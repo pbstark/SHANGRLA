@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Convert CVR to RAIRE</title>
+    <script>
+    /** Add a new node of type addWhat to DOM element addTo, returning the new element. If the third argument is present, the new object is assigned that class. */
+function add(addTo,addWhat,className) {
+   let res = document.createElement(addWhat);
+   addTo.appendChild(res);
+   if (className) res.className=className;
+   return res;
+}
+
+const onloads = [];
+
+/** Make an object tracking desired files. fileid is the id of a file input HTML element. name is for error messages. onchange is an optional function called when the result changes. */
+function makeJsonSource(fileid,name,onchange) {
+    const result = {
+        get : null,
+        change : function () {
+           result.get=null;
+           const outdiv = document.getElementById("status_"+fileid);
+           const files = document.getElementById(fileid).files;
+           if (files && files[0]) {
+              outdiv.innerHTML = "reading "+name+"...";
+              const reader = new FileReader();
+              reader.onload = function(event) {
+                  result.get = JSON.parse(reader.result);
+                  outdiv.innerText = "\u2713"; // checkmark
+                  if (onchange) onchange();
+              };
+              reader.onerror = function(event) { outdiv.innerHTML = "Error Reading "+name; }
+              reader.readAsText(files[0]);
+           } else outdiv.innerHTML = "Please select a file for "+name;
+        },
+        ok : function () { return result.get != null; }
+    };
+    onloads.push(function () { document.getElementById(fileid).addEventListener("input",result.change); result.change(); });
+    return result;
+}
+
+const countingGroupManifest = makeJsonSource("countingGroupFile","CountingGroupManifest.json",setupCountingGroups);
+const contestManifest = makeJsonSource("contestfile","ContestManifest.json",redrawContests);
+const candidateManifest = makeJsonSource("candidatefile","CandidateManifest.json",redrawContests);
+const jsonCVR = makeJsonSource("cvrfile","CvrExport.json",reinterpretCVRs);
+
+/** Interpret the marks structure. There is little sanity checking here. */
+function interpretMarks(marks,id,CountingGroupId) {
+    let errorMessages = [];
+    const candidatesInPreferenceOrder = [];
+    //const withoutWriteins = marks.filter(mark=> ! mark.hasOwnProperty("WriteinDensity"));  // I originally thought that write ins needed to be removed.
+    //const numRemovedWriteIns = marks.length-withoutWriteins.length;
+    const sorted = marks.sort(function (a,b) {return a.Rank-b.Rank;}); // in place, not that it matters.
+    let nonDuplicatedIndex = 0
+    while ((nonDuplicatedIndex<sorted.length) && ((nonDuplicatedIndex==sorted.length-1) || (sorted[nonDuplicatedIndex].Rank<sorted[nonDuplicatedIndex+1].Rank))) nonDuplicatedIndex++;
+    const unduplicated = sorted.slice(0,nonDuplicatedIndex);
+    let repeatedCandidates = 0
+    for (const mark of unduplicated) {
+       if (mark.IsAmbiguous) errorMessages.push("Ambiguous mark"); // TODO should this be ignored????
+       if (candidatesInPreferenceOrder.includes(mark.CandidateId)) repeatedCandidates++;
+       else candidatesInPreferenceOrder.push(mark.CandidateId);
+    }
+    return { id : id, candidates : candidatesInPreferenceOrder, numRemovedDuplicateRank : sorted.length-nonDuplicatedIndex , repeatedCandidates:repeatedCandidates, CountingGroupId:CountingGroupId };
+}
+
+/*
+> The RAIRE format (for later processing) is a CSV file.
+First line: number of contests.
+Next, a line for each contest
+ Contest,ID,N,C1,C2,C3 ...
+ID is the contest ID
+N is the number of candidates in that contest
+and C1, ... are the candidate id's relevant to that contest.
+
+Then a line for every ranking that appears on a ballot:
+ Contest ID,Ballot ID,R1,R2,R3,...
+where the Ri's are the unique candidate IDs.
+
+*/
+
+
+var contestsToUse = ["334"];
+
+/** Called whenever the contests section could change */
+function redrawContests() {
+  const outdiv = document.getElementById("contestChoiceDiv");
+  outdiv.innerHTML = "";
+  if (contestManifest.ok() && candidateManifest.ok()) {
+    let raireBody = "";
+    const raireHeaders = [];
+    for (const contestMetadata of contestManifest.get.List) {
+
+      const contestid = contestMetadata.Id;
+      const contest = allContests[contestid];
+      const cb = add(outdiv,"input");
+      cb.type="checkbox";
+      const id = ""+contestid;
+      cb.value=id;
+      const shouldAudit = contestsToUse.includes(id)
+      if (shouldAudit) cb.checked = true;
+      cb.addEventListener("input",loadContestsToUseFromCheckboxes);
+      add(outdiv,"span","electionName").innerText="Contest "+contestid+" ("+contestMetadata.Description+")";
+      add(outdiv,"br");
+      if (contest) {
+        const contestDiv = add(outdiv,"div","contest");
+        const candidates = candidateManifest.get.List.filter(c => c.ContestId == contestid);
+        if (shouldAudit) raireHeaders.push("Contest,"+contestid+","+candidates.length+","+candidates.map(c=>c.Id).toString());
+        // for (c of candidates) add(contestDiv,"div").innerText = "Candidate id "+c.Id+" "+c.Description;
+        let numBlank = 0;
+        let numRemovedWriteins = 0;
+        let numRemovedDuplicateRank = 0;
+        let numRemovedRepeatedCandidates = 0;
+        let studiedBallotTypes = 0;
+        let studied = contest.entries.filter(e=>countingGroupsToUse.includes(e.CountingGroupId.toString()));
+        for (const ballot of studied) {
+           if (ballot.candidates.length==0) numBlank++;
+           if (shouldAudit) raireBody+=""+contestid+","+ballot.id+","+ballot.candidates.toString()+"\n";
+           // if (ballot.numRemovedWriteIns>0) numRemovedWriteins++; // textdesc+=" removed "+ballot.numRemovedWriteIns+" write in(s)";
+           if (ballot.numRemovedDuplicateRank>0) numRemovedDuplicateRank++; // textdesc+=" removed "+ballot.numRemovedDuplicateRank+" due to duplicated rank";
+           if (ballot.repeatedCandidates>0) numRemovedRepeatedCandidates++; // textdesc+=" removed "+ballot.repeatedCandidates+" repeated candidates";
+           //add(contestDiv,"div").innerText= ballot.candidates.toString();
+        }
+        add(contestDiv,"div","conteststats").innerText="The contest has "+contestMetadata.NumOfRanks+" ranks. There were "+contest.entries.length+" ballots, "+studied.length+" to audit, and of those, "+numBlank+" blank. Candidates were removed from "+numRemovedDuplicateRank+" ballots for repeated rank, and "+numRemovedRepeatedCandidates+" for repeated candidates.";
+
+        const candidateTable = add(contestDiv,"table");
+        const tableHeadings = add(candidateTable,"tr");
+        add(tableHeadings,"th").innerText = "ID";
+        add(tableHeadings,"th").innerText = "Candidate";
+        add(tableHeadings,"th").innerText = "Votes";
+        const irvResults = runIRV(studied,candidates.map(c=>c.Id));
+        for (c of candidates) {
+           const candidateRow = add(candidateTable,"tr",c.Id==irvResults.winner?"winner":"");
+           add(candidateRow,"td").innerText = c.Id;
+           add(candidateRow,"td").innerText = c.Description;
+           for (count of irvResults.tallys) {
+               add(candidateRow,"td").innerText = count[c.Id] || "";
+           }
+        }
+      }
+    }
+    const saveDiv = document.getElementById("saveDiv");
+    saveDiv.innerHTML = "";
+    if (raireHeaders.length>0) {
+        const raire = ""+raireHeaders.length+"\n"+raireHeaders.join("\n")+"\n"+raireBody;
+        const downloadRAIRE = add(saveDiv,"a");
+        downloadRAIRE.innerText = "Download RAIRE format";
+        downloadRAIRE.setAttribute('href', 'data:text/plain;charset=utf-8,' +encodeURIComponent(raire));
+        downloadRAIRE.setAttribute('download', "RAIRE.txt");
+    }
+  } else {
+      outdiv.innerText = "No contests data available. Set files above.";
+  }
+
+}
+
+/** Quick and dirty IRV simulator. No tie breaking or multiple elimination. */
+function runIRV(ballots,candidateArray) {
+   const continuingCandidates = {};
+   for (c of candidateArray) continuingCandidates[c]=true;
+   const candidateStacks = {} // map from candidate index to the candidates
+   function distribute(stack) {
+      //console.log(stack);
+      for (ballot of stack) {
+          const newballot = ballot.filter(e=>continuingCandidates[e])
+          if (newballot.length>0) {
+              const whofor = newballot[0];
+              if (!candidateStacks.hasOwnProperty(whofor)) candidateStacks[whofor]=[];
+              candidateStacks[whofor].push(newballot);
+          }
+      }
+   }
+   distribute(ballots.map(b=>b.candidates)); // distribute first preferences.
+   const distributionOfPreferences = [];
+   let winner = null;
+   function getCount() {
+       const count = {};
+       let whoHighestCount = null;
+       let totalCount = 0;
+       for (who in candidateStacks) {
+          const n = candidateStacks[who].length;
+          if (n>0) {
+             count[who] = n;
+             totalCount+=n;
+             if (whoHighestCount==null || count[whoHighestCount]<n) whoHighestCount=who;
+          }
+       }
+       distributionOfPreferences.push(count);
+       if (whoHighestCount!=null && count[whoHighestCount]*2>=totalCount) winner = whoHighestCount;
+       return count;
+   }
+   let count = getCount();
+   while (winner == null) {
+       let whoEliminate = null
+       for (const who in count) if (count[who]>0 && (whoEliminate==null || count[who]<count[whoEliminate])) whoEliminate=who;
+       if (whoEliminate == null) break;
+       continuingCandidates[whoEliminate]=false;
+       distribute(candidateStacks[whoEliminate]);
+       candidateStacks[whoEliminate]=[];
+       count = getCount();
+   }
+   return {winner:winner,tallys:distributionOfPreferences};
+}
+
+/** Setup contestsToUse from the check boxes */
+function loadContestsToUseFromCheckboxes() {
+    contestsToUse=[];
+    for (cb of document.getElementById("contestChoiceDiv").querySelectorAll("input")) {
+        if (cb.checked) contestsToUse.push(cb.value);
+    }
+    redrawContests(); // recompute RAIRE. could do more efficiently...
+}
+
+var allContests = {}
+
+function reinterpretCVRs() {
+   allContests = {}
+   document.getElementById("eventName").innerText = jsonCVR.ok()? jsonCVR.get.ElectionId : "";
+   if (jsonCVR.ok()) for (const session of jsonCVR.get.Sessions) {
+      const version = session.Modified?session.Modified : session.Original; // TODO check that this is the right field... I don't think we have any examples.
+      for (const contest of version.Contests) {
+          if (!allContests.hasOwnProperty(contest.Id)) {
+              allContests[contest.Id]={entries:[],id:contest.Id};
+          }
+          const c = allContests[contest.Id];
+          c.entries.push(interpretMarks(contest.Marks,""+session.TabulatorId+"_"+session.BatchId+"_"+session.RecordId,session.CountingGroupId));
+          // TODO something with session.ImageMask
+      }
+   }
+   redrawContests();
+}
+
+var countingGroupsToUse = ["2"];
+/** Set up the counting groups selections given a manifest */
+function setupCountingGroups() {
+    const ballotDiv = document.getElementById("ballotTypeDiv");
+    ballotDiv.innerHTML = "";
+    if (countingGroupManifest.ok()) {
+        for (g of countingGroupManifest.get.List) {
+            const cb = add(ballotDiv,"input");
+            cb.type="checkbox";
+            const id = ""+g.Id;
+            cb.value=id;
+            if (countingGroupsToUse.includes(id)) cb.checked = true;
+            cb.addEventListener("input",loadCountingGroupsFromCheckboxes);
+            add(ballotDiv,"span").innerText = g.Description;
+            add(ballotDiv,"br");
+        }
+        loadCountingGroupsFromCheckboxes();
+    } else {
+
+    }
+    redrawContests();
+}
+/** Setup countingGroupsToUse from the check boxes */
+function loadCountingGroupsFromCheckboxes() {
+    countingGroupsToUse=[];
+    for (cb of document.getElementById("ballotTypeDiv").querySelectorAll("input")) {
+        if (cb.checked) countingGroupsToUse.push(cb.value);
+    }
+    redrawContests();
+}
+
+
+        window.onload = function () {
+           for (const f of onloads) f();
+        }
+    </script>
+
+    <style>
+        span.electionName { font-weight: bold; }
+        tr.winner { font-weight: bold; }
+        table { font-size: x-small;  }
+        div.contest { padding-bottom: 0.5em; }
+        div.contestStats { font-size: small; }
+        div.footnote { font-size: x-small;  }
+    </style>
+</head>
+<body>
+    <h2 id="eventName"></h2>
+    <p>This is a tool to take the .json files from the vote counting system and convert them to RAIRE format. Start by selecting the json files of the appropriate type in the buttons below.</p>
+    CountingGroupManifest.json: <input id="countingGroupFile" type="file"/> <span id="status_countingGroupFile"></span><br/>
+    ContestManifest.json : <input id="contestfile" type="file"/> <span id="status_contestfile"></span><br/>
+    CandidateManifest.json : <input id="candidatefile" type="file"/> <span id="status_candidatefile"></span><br/>
+    CvrExport.json : <input id="cvrfile" type="file"/> <span id="status_cvrfile"></span><br/>
+
+    <p>Next, choose the ballot types you want to audit. Normally this would be all but for this trial run we are just going to do Vote-By-Mail.</p>
+    <div id="ballotTypeDiv"></div>
+    <p>Next, choose the contests you want to audit. </p>
+    <div id="contestChoiceDiv"></div>
+    <p>Lastly, save the votes in RAIRE format.</p>
+    <div id="saveDiv"></div>
+    <div class="footnote">This is a first pass attempt and is poorly tested. It does not do sensible things with write in candidates. It does not do anything with IsAmbiguous flags.
+        The IRV tables are simplistic, for indicative use only, without multiple elimination or tie resolution.
+        This page is copyright 2019 Andrew Conway. This program is free software: you can redistribute it and/or modify
+        it under the terms of the GNU General Public License as published by
+        the Free Software Foundation, either version 3 of the License, or
+        (at your option) any later version.
+
+        This program is distributed in the hope that it will be useful,
+        but WITHOUT ANY WARRANTY; without even the implied warranty of
+        MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+        GNU General Public License for more details.
+
+        You should have received a copy of the GNU General Public License
+        along with this program.  If not, see <a href="https://www.gnu.org/licenses/">https://www.gnu.org/licenses/ </a> </div>
+</body>
+</html>
