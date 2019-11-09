@@ -7,6 +7,8 @@ import json
 import csv
 import warnings
 from numpy import testing
+from collections import OrderedDict
+
 
 class Assertion:
     """
@@ -52,7 +54,7 @@ class Assertion:
         ----------
         double
         """
-        return np.mean(map(self.assorter, cvr_list))        
+        return np.mean([self.assorter.assort(c) for c in cvr_list])      
         
     def assorter_sum(self, cvr_list):
         """
@@ -66,7 +68,7 @@ class Assertion:
         ----------
         double
         """
-        return np.sum(map(self.assorter, cvr_list))
+        return np.sum([self.assorter.assort(c) for c in cvr_list])
 
     def assorter_margin(self, cvr_list):
         """
@@ -454,6 +456,9 @@ class CVR:
         self.votes = votes
         self.ID = ID
         
+    def __str__(self):
+        return "ID: " + str(self.ID) + " votes: " + str(self.votes)
+        
     def get_votes(self):
         return self.votes
     
@@ -474,24 +479,85 @@ class CVR:
         return json.dump(cvr)
     
     @classmethod
-    def RAIRE_to_cvrs(cls, raire):
+    def from_raire(cls, raire):
         """
         Create a list of CVR objects from a list of cvrs in RAIRE format
         
         Parameters:
         -----------
         raire : list of comma-separated values
-            source in RAIRE format
+            source in RAIRE format. From the RAIRE documentation:
+            The RAIRE format (for later processing) is a CSV file.
+            First line: number of contests.
+            Next, a line for each contest
+             Contest,ID,N,C1,C2,C3 ...
+                ID is the contest ID
+                N is the number of candidates in that contest
+                and C1, ... are the candidate id's relevant to that contest.
+            Then a line for every ranking that appears on a ballot:
+             Contest ID,Ballot ID,R1,R2,R3,...
+            where the Ri's are the unique candidate IDs.
+            
+            The CVR file is assumed to have been read using csv.reader(), so each row has
+            been split.
             
         Returns:
         --------
         list of CVR objects corresponding to the RAIRE cvrs
         """
+        skip = int(raire[0][0])
         cvr_list = []
-        for c in raire:
-            pass  # FIX ME
-        return cvr_list
+        for c in raire[(skip+1):]:
+            contest = c[0]
+            ID = c[1]
+            votes = {}
+            for j in range(2, len(c)):
+                votes[str(c[j])] = j-1
+            cvr_list.append(CVR.from_vote(votes, ID=ID, contest=contest))
+        return CVR.merge_cvrs(cvr_list)
     
+    @classmethod
+    def merge_cvrs(cls, cvr_list):
+        """
+        Takes a list of CVRs that might contain duplicated ballot IDs and merges the votes
+        so that each ballot is listed only once, and votes from different records for that
+        ballot are merged.
+        The merge is in the order of the list: if a later mention of a ballot ID has votes 
+        for the same contest as a previous mention, the votes in that contest are updated
+        per the later mention.
+        
+        
+        Parameters:
+        -----------
+        cvr_list : list of CVRs
+        
+        Returns:
+        -----------
+        list of merged CVRs
+        """
+        od = OrderedDict()
+        for c in cvr_list:
+            if c.ID not in od:
+                od[c.ID] = c
+            else:
+                od[c.ID].set_votes(c.votes)
+        return [v for v in od.values()]
+    
+    @classmethod
+    def from_vote(cls, vote, ID = 1, contest = 'AvB'):
+        """
+        Wraps a vote and creates a CVR, for unit tests
+    
+        Parameters:
+        ----------
+        vote : dict of votes in one contest
+    
+        Returns:
+        --------
+        CVR containing that vote in the contest "AvB", with CVR ID=1.
+        """
+        return CVR(ID=ID, votes={contest: vote})
+
     @classmethod
     def as_vote(cls, v):
         return int(bool(v))
@@ -975,75 +1041,59 @@ def write_audit_parameters(log_file, seed, replacement, risk_function, g, N_ball
 
 # Unit tests
 
-def cvr_from_vote(vote, contest = 'AvB'):
-    """
-    Wraps a vote and creates a CVR, for unit tests
-    
-    Parameters:
-    ----------
-    vote : dict of votes in one contest
-    
-    Returns:
-    --------
-    CVR containing that vote in the contest "AvB", with CVR ID=1.
-    """
-    votes = {}
-    votes["AvB"] = vote
-    return CVR(ID=1, votes=votes)
-
 def test_make_plurality_assertions():
     winners = ["Alice","Bob"]
     losers = ["Candy","Dan"]
     asrtns = Assertion.make_plurality_assertions('AvB', winners, losers)
-    assert asrtns['Alice v Candy'].assorter.assort(cvr_from_vote({"Alice": 1})) == 1
-    assert asrtns['Alice v Candy'].assorter.assort(cvr_from_vote({"Bob": 1})) == 1/2
-    assert asrtns['Alice v Candy'].assorter.assort(cvr_from_vote({"Candy": 1})) == 0
-    assert asrtns['Alice v Candy'].assorter.assort(cvr_from_vote({"Dan": 1})) == 1/2
+    assert asrtns['Alice v Candy'].assorter.assort(CVR.from_vote({"Alice": 1})) == 1
+    assert asrtns['Alice v Candy'].assorter.assort(CVR.from_vote({"Bob": 1})) == 1/2
+    assert asrtns['Alice v Candy'].assorter.assort(CVR.from_vote({"Candy": 1})) == 0
+    assert asrtns['Alice v Candy'].assorter.assort(CVR.from_vote({"Dan": 1})) == 1/2
 
-    assert asrtns['Alice v Dan'].assorter.assort(cvr_from_vote({"Alice": 1})) == 1
-    assert asrtns['Alice v Dan'].assorter.assort(cvr_from_vote({"Bob": 1})) == 1/2
-    assert asrtns['Alice v Dan'].assorter.assort(cvr_from_vote({"Candy": 1})) == 1/2
-    assert asrtns['Alice v Dan'].assorter.assort(cvr_from_vote({"Dan": 1})) == 0
+    assert asrtns['Alice v Dan'].assorter.assort(CVR.from_vote({"Alice": 1})) == 1
+    assert asrtns['Alice v Dan'].assorter.assort(CVR.from_vote({"Bob": 1})) == 1/2
+    assert asrtns['Alice v Dan'].assorter.assort(CVR.from_vote({"Candy": 1})) == 1/2
+    assert asrtns['Alice v Dan'].assorter.assort(CVR.from_vote({"Dan": 1})) == 0
     
-    assert asrtns['Bob v Candy'].assorter.assort(cvr_from_vote({"Alice": 1})) == 1/2
-    assert asrtns['Bob v Candy'].assorter.assort(cvr_from_vote({"Bob": 1})) == 1
-    assert asrtns['Bob v Candy'].assorter.assort(cvr_from_vote({"Candy": 1})) == 0
-    assert asrtns['Bob v Candy'].assorter.assort(cvr_from_vote({"Dan": 1})) == 1/2
+    assert asrtns['Bob v Candy'].assorter.assort(CVR.from_vote({"Alice": 1})) == 1/2
+    assert asrtns['Bob v Candy'].assorter.assort(CVR.from_vote({"Bob": 1})) == 1
+    assert asrtns['Bob v Candy'].assorter.assort(CVR.from_vote({"Candy": 1})) == 0
+    assert asrtns['Bob v Candy'].assorter.assort(CVR.from_vote({"Dan": 1})) == 1/2
 
-    assert asrtns['Bob v Dan'].assorter.assort(cvr_from_vote({"Alice": 1})) == 1/2
-    assert asrtns['Bob v Dan'].assorter.assort(cvr_from_vote({"Bob": 1})) == 1
-    assert asrtns['Bob v Dan'].assorter.assort(cvr_from_vote({"Candy": 1})) == 1/2
-    assert asrtns['Bob v Dan'].assorter.assort(cvr_from_vote({"Dan": 1})) == 0
+    assert asrtns['Bob v Dan'].assorter.assort(CVR.from_vote({"Alice": 1})) == 1/2
+    assert asrtns['Bob v Dan'].assorter.assort(CVR.from_vote({"Bob": 1})) == 1
+    assert asrtns['Bob v Dan'].assorter.assort(CVR.from_vote({"Candy": 1})) == 1/2
+    assert asrtns['Bob v Dan'].assorter.assort(CVR.from_vote({"Dan": 1})) == 0
 
 def test_supermajority_assorter():
     losers = ["Bob","Candy"]
     share_to_win = 2/3
     assn = Assertion.make_supermajority_assertion("AvB","Alice", losers, share_to_win)
 
-    votes = cvr_from_vote({"Alice": 1})
+    votes = CVR.from_vote({"Alice": 1})
     assert assn['Alice v all'].assorter.assort(votes) == 3/4, "wrong value for vote for winner"
     
-    votes = cvr_from_vote({"Bob": True})
+    votes = CVR.from_vote({"Bob": True})
     assert assn['Alice v all'].assorter.assort(votes) == 0, "wrong value for vote for loser"
     
-    votes = cvr_from_vote({"Dan": True})
+    votes = CVR.from_vote({"Dan": True})
     assert assn['Alice v all'].assorter.assort(votes) == 1/2, "wrong value for invalid vote--Dan"
 
-    votes = cvr_from_vote({"Alice": True, "Bob": True})
+    votes = CVR.from_vote({"Alice": True, "Bob": True})
     assert assn['Alice v all'].assorter.assort(votes) == 1/2, "wrong value for invalid vote--Alice & Bob"
 
-    votes = cvr_from_vote({"Alice": False, "Bob": True, "Candy": True})
+    votes = CVR.from_vote({"Alice": False, "Bob": True, "Candy": True})
     assert assn['Alice v all'].assorter.assort(votes) == 1/2, "wrong value for invalid vote--Bob & Candy"
 
 
 def test_rcv_lfunc_wo():
-    votes = cvr_from_vote({"Alice": 1, "Bob": 2, "Candy": 3, "Dan": ''})
+    votes = CVR.from_vote({"Alice": 1, "Bob": 2, "Candy": 3, "Dan": ''})
     assert CVR.rcv_lfunc_wo("AvB", "Bob", "Alice", votes) == 1
     assert CVR.rcv_lfunc_wo("AvB", "Alice", "Candy", votes) == 0
     assert CVR.rcv_lfunc_wo("AvB", "Dan", "Candy", votes) == 1
 
 def test_rcv_votefor_cand():
-    votes = cvr_from_vote({"Alice": 1, "Bob": 2, "Candy": 3, "Dan": '', "Ross" : 4, "Aaron" : 5})
+    votes = CVR.from_vote({"Alice": 1, "Bob": 2, "Candy": 3, "Dan": '', "Ross" : 4, "Aaron" : 5})
     remaining = ["Bob","Dan","Aaron","Candy"]
     assert CVR.rcv_votefor_cand("AvB", "Candy", remaining, votes) == 0 
     assert CVR.rcv_votefor_cand("AvB", "Alice", remaining, votes) == 0 
@@ -1072,97 +1122,97 @@ def test_rcv_assorter():
             assertions[audit['contest']] = all_assertions
             
         assorter = assertions['334']['5 v 47'].assorter
-        votes = cvr_from_vote({'5' : 1, '47' : 2})
+        votes = CVR.from_vote({'5' : 1, '47' : 2})
         assert(assorter.assort(votes) == 1)
 
-        votes = cvr_from_vote({'47' : 1, '5' : 2})
+        votes = CVR.from_vote({'47' : 1, '5' : 2})
         assert(assorter.assort(votes) == 0)
 
-        votes = cvr_from_vote({'3' : 1, '6' : 2})
+        votes = CVR.from_vote({'3' : 1, '6' : 2})
         assert(assorter.assort(votes) == 0.5)
 
-        votes = cvr_from_vote({'3' : 1, '47' : 2})
+        votes = CVR.from_vote({'3' : 1, '47' : 2})
         assert(assorter.assort(votes) == 0)
 
-        votes = cvr_from_vote({'3' : 1, '5' : 2})
+        votes = CVR.from_vote({'3' : 1, '5' : 2})
         assert(assorter.assort(votes) == 0.5)
 
         assorter = assertions['334']['5 v 3 elim 1 6 47'].assorter
-        votes = cvr_from_vote({'5' : 1, '47' : 2})
+        votes = CVR.from_vote({'5' : 1, '47' : 2})
         assert(assorter.assort(votes) == 1)
 
-        votes = cvr_from_vote({'47' : 1, '5' : 2})
+        votes = CVR.from_vote({'47' : 1, '5' : 2})
         assert(assorter.assort(votes) == 1)
 
-        votes = cvr_from_vote({'6' : 1, '1' : 2, '3' : 3, '5' : 4})
+        votes = CVR.from_vote({'6' : 1, '1' : 2, '3' : 3, '5' : 4})
         assert(assorter.assort(votes) == 0)
 
-        votes = cvr_from_vote({'3' : 1, '47' : 2})
+        votes = CVR.from_vote({'3' : 1, '47' : 2})
         assert(assorter.assort(votes) == 0)
 
-        votes = cvr_from_vote({})
+        votes = CVR.from_vote({})
         assert(assorter.assort(votes) == 0.5)
 
-        votes = cvr_from_vote({'6' : 1, '47' : 2})
+        votes = CVR.from_vote({'6' : 1, '47' : 2})
         assert(assorter.assort(votes) == 0.5)
 
-        votes = cvr_from_vote({'6' : 1, '47' : 2, '5' : 3})
+        votes = CVR.from_vote({'6' : 1, '47' : 2, '5' : 3})
         assert(assorter.assort(votes) == 1)
 
         assorter = assertions['361']['28 v 50'].assorter
-        votes = cvr_from_vote({'28' : 1, '50' : 2})
+        votes = CVR.from_vote({'28' : 1, '50' : 2})
         assert(assorter.assort(votes) == 1)
-        votes = cvr_from_vote({'28' : 1})
+        votes = CVR.from_vote({'28' : 1})
         assert(assorter.assort(votes) == 1)
-        votes = cvr_from_vote({'50' : 1})
+        votes = CVR.from_vote({'50' : 1})
         assert(assorter.assort(votes) == 0)
 
-        votes = cvr_from_vote({'27' : 1, '28' : 2})
+        votes = CVR.from_vote({'27' : 1, '28' : 2})
         assert(assorter.assort(votes) == 0.5)
 
-        votes = cvr_from_vote({'50' : 1, '28' : 2})
+        votes = CVR.from_vote({'50' : 1, '28' : 2})
         assert(assorter.assort(votes) == 0)
 
-        votes = cvr_from_vote({'27' : 1, '26' : 2})
+        votes = CVR.from_vote({'27' : 1, '26' : 2})
         assert(assorter.assort(votes) == 0.5)
 
-        votes = cvr_from_vote({})
+        votes = CVR.from_vote({})
         assert(assorter.assort(votes) == 0.5)
 
         assorter = assertions['361']['27 v 26 elim 28 50'].assorter
-        votes = cvr_from_vote({'27' : 1})
+        votes = CVR.from_vote({'27' : 1})
         assert(assorter.assort(votes) == 1)
 
-        votes = cvr_from_vote({'50' : 1, '27' : 2})
+        votes = CVR.from_vote({'50' : 1, '27' : 2})
         assert(assorter.assort(votes) == 1)
 
-        votes = cvr_from_vote({'28' : 1, '50' : 2, '27' : 3})
+        votes = CVR.from_vote({'28' : 1, '50' : 2, '27' : 3})
         assert(assorter.assort(votes) == 1)
 
-        votes = cvr_from_vote({'28' : 1, '27' : 2, '50' : 3})
+        votes = CVR.from_vote({'28' : 1, '27' : 2, '50' : 3})
         assert(assorter.assort(votes) == 1)
 
-        votes = cvr_from_vote({'26' : 1})
+        votes = CVR.from_vote({'26' : 1})
         assert(assorter.assort(votes) == 0)
 
-        votes = cvr_from_vote({'50' : 1, '26' : 2})
+        votes = CVR.from_vote({'50' : 1, '26' : 2})
         assert(assorter.assort(votes) == 0)
 
-        votes = cvr_from_vote({'28' : 1, '50' : 2, '26' : 3})
+        votes = CVR.from_vote({'28' : 1, '50' : 2, '26' : 3})
         assert(assorter.assort(votes) == 0)
 
-        votes = cvr_from_vote({'28' : 1, '26' : 2, '50' : 3})
+        votes = CVR.from_vote({'28' : 1, '26' : 2, '50' : 3})
         assert(assorter.assort(votes) == 0)
 
-        votes = cvr_from_vote({'50' : 1})
+        votes = CVR.from_vote({'50' : 1})
         assert(assorter.assort(votes) == 0.5)
-        votes = cvr_from_vote({})
-        assert(assorter.assort(votes) == 0.5)
-
-        votes = cvr_from_vote({'50' : 1, '28' : 2})
+        votes = CVR.from_vote({})
         assert(assorter.assort(votes) == 0.5)
 
-        votes = cvr_from_vote({'28' : 1, '50' : 2})
+        votes = CVR.from_vote({'50' : 1, '28' : 2})
+        assert(assorter.assort(votes) == 0.5)
+
+        votes = CVR.from_vote({'28' : 1, '50' : 2})
         assert(assorter.assort(votes) == 0.5)
 
 def test_kaplan_markov():
@@ -1196,6 +1246,20 @@ def test_kaplan_wald():
 def test_cvr_mean():
     pass  # FIX ME
 
+def test_cvr_from_raire():
+    raire_cvrs = [['1'],\
+                  ["Contest","339","5","15","16","17","18","45"],\
+                  ["339","99813_1_1","17"],\
+                  ["339","99813_1_3","16"],\
+                  ["339","99813_1_6","18","17","15","16"],\
+                  ["3","99813_1_6","2"]\
+                 ]
+    c = CVR.from_raire(raire_cvrs)
+    assert len(c) == 3
+    assert c[0].ID == "99813_1_1"
+    assert c[0].votes == {'339': {'17':1}}
+    assert c[2].ID == "99813_1_6"
+    assert c[2].votes == {'339': {'18':1, '17':2, '15':3, '16':4}, '3': {'2':1}}
 
 if __name__ == "__main__":
     test_make_plurality_assertions()
@@ -1205,3 +1269,4 @@ if __name__ == "__main__":
     test_rcv_assorter()
     test_kaplan_markov()
     test_kaplan_wald()
+    test_cvr_from_raire()
