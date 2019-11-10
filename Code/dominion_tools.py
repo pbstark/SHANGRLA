@@ -4,6 +4,7 @@ Tools to read and parse Dominion ballot manifests and CVRs
 import json
 import numpy as np
 import csv
+import pandas as pd
 import warnings
 from assertion_audit_utils import CVR
 
@@ -49,7 +50,7 @@ def read_dominion_cvrs(cvr_file):
     with open(cvr_file, 'r') as f:
         cvr_json = json.load(f)
     # Dominion export wraps the CVRs under several layers; unwrap
-    # Desired format is
+    # Desired output format is
     # {"ID": "A-001-01", "votes": {"mayor": {"Alice": 1, "Bob": 2, "Candy": 3, "Dan": 4}}}
     cvr_list = []
     for c in cvr_json['Sessions']:
@@ -120,3 +121,27 @@ def write_ballots_sampled(sample_file, ballots):
         for row in ballots:
             writer.writerow(row)
 
+def test_sample_from_manifest():
+    """
+    Test the ballot lookup function
+    """
+    sample = [0, 98, 99, 100, 120, 199, 200]
+    d = [{'Tray #': 1, 'Tabulator Number': 17, 'Batch Number': 1, 'Total Ballots': 100, 'VBMCart.Cart number': 1},\
+        {'Tray #': 2, 'Tabulator Number': 18, 'Batch Number': 2, 'Total Ballots': 100, 'VBMCart.Cart number': 2},\
+        {'Tray #': 3, 'Tabulator Number': 19, 'Batch Number': 3, 'Total Ballots': 100, 'VBMCart.Cart number': 3}]
+    manifest = pd.DataFrame.from_dict(d)
+    manifest['cum_ballots'] = manifest['Total Ballots'].cumsum()
+    ballots = sample_from_manifest(manifest, sample)
+    # cart, tray, tabulator, batch, ballot in batch, imprint, absolute index
+    assert ballots[0] == [1, 1, 17, 1, 1, "17-1-1",1]
+    assert ballots[1] == [1, 1, 17, 1, 99, "17-1-99",99]
+    assert ballots[2] == [1, 1, 17, 1, 100, "17-1-100",100]
+    assert ballots[3] == [2, 2, 18, 2, 1, "18-2-1",101]
+    assert ballots[4] == [2, 2, 18, 2, 21, "18-2-21",121]
+    assert ballots[5] == [2, 2, 18, 2, 100, "18-2-100",200]
+    assert ballots[6] == [3, 3, 19, 3, 1, "19-3-1",201]
+    
+    
+
+if __name__ == "__main__":
+    test_sample_from_manifest()
