@@ -8,6 +8,8 @@ import csv
 import warnings
 from numpy import testing
 from collections import OrderedDict
+from cryptorandom.cryptorandom import SHA256, random
+from cryptorandom.sample import random_permutation
 
 
 class Assertion:
@@ -943,12 +945,57 @@ class TestNonnegMean:
             c = np.multiply(x, np.divide(jtilde, t_minus_Stilde))-1 
             r = -np.array([1/cc for cc in c[0:len(x)+1] if cc != 0]) # roots
             Y_norm = np.cumprod(np.array([cc for cc in c[0:len(x)+1] if cc != 0])) # mult constant
-            integral, integrals = integral_from_roots(r, maximal = False)
+            integral, integrals = TestNonnegMean.integral_from_roots(r, maximal = False)
             mart_vec = np.multiply(Y_norm,integrals)
             mart_max = max(mart_vec) if random_order else mart_vec[-1]
         p = min(1/mart_max,1)
         return p, mart_vec
-    
+
+    @classmethod
+    def kaplan_martingale_sample_size_sim(cls, N, alt_mean, alpha=0.05, t=1/2, q=0.8, reps=100):
+        """
+        Estimate the qth quantile of sample size needed to reject the null hypothesis
+        that the population mean is <=t at significance level alpha, using simulations,
+        for the kaplan_kolmogorov method
+        
+        Parameters:
+        -----------
+        N : int
+            population size, or N = np.infty for sampling with replacement
+        alt_mean : double
+            population mean under the alternative hypothesis
+        alpha : double
+            significance level in (0, 0.5)
+        t : double
+            hypothesized value of the population mean
+        q : double
+            desired quantile of the distribution of sample sizes
+        reps : int
+            number of replications in the simulation
+            
+        Returns:
+        --------
+        estimated quantile of sample sizes
+        """
+        assert alpha > 0 and alpha < 1/2
+        assert alt_mean > t
+        assert q > 0 and q < 1
+        prng = SHA256(1234567890)
+        hyp_pop = prng.random(N)
+        hyp_pop = alt_mean*hyp_pop/np.mean(hyp_pop)
+        dist = []
+        for i in range(reps):
+            hyp_pop = random_permutation(hyp_pop, prng=prng)
+            p = 1
+            j = 0
+            while (p > alpha) and (j < N):
+                j = j+1
+                p = TestNonnegMean.kaplan_martingale(hyp_pop[:j+1], N, t, random_order = False)[0]
+                if j % 100 == 0:
+                    print("length {} in trial {} has p {}".format(j, i, p))
+            dist.append(j)
+        return np.quantile(dist, q)
+        
     
 # utilities
        
@@ -1243,6 +1290,11 @@ def test_kaplan_wald():
     else:
         raise AssertionError
 
+def test_kaplan_martingale_sample_size_sim():
+    n = TestNonnegMean.kaplan_martingale_sample_size_sim(N=100000, alt_mean=0.6, \
+                                                         alpha=0.05, t=1/2, q=0.8, reps=100)
+    assert n > 80 and n < 100
+
 def test_cvr_mean():
     pass  # FIX ME
 
@@ -1270,3 +1322,4 @@ if __name__ == "__main__":
     test_kaplan_markov()
     test_kaplan_wald()
     test_cvr_from_raire()
+    test_kaplan_martingale_sample_size_sim()

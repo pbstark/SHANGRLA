@@ -2,13 +2,15 @@
 Tools to read and parse Dominion ballot manifests and CVRs
 """
 import json
+import numpy as np
 import csv
 import warnings
 from assertion_audit_utils import CVR
 
+
 def prep_dominion_manifest(manifest, N_ballots):
     """
-    Prepare a Dominion's excel ballot manifest, read as a pandas dataframe, for sampling
+    Prepare a Dominion Excel ballot manifest (read as a pandas dataframe) for sampling
     
     Parameters:
     ----------
@@ -63,6 +65,35 @@ def read_dominion_cvrs(cvr_file):
                                  votes = votes))
     return cvr_list
 
+def sample_from_manifest(manifest, sample):
+    """
+    Sample from the ballot manifest
+    
+    Parameters:
+    -----------
+    manifest : dataframe
+        the processed Dominion manifest
+    sample : list of ints
+        the ballots to sample    
+        
+    Returns:
+    -------
+    sorted list of ballot identifiers corresponding to the sample. Ballot identifiers are zero-indexed
+    """
+    sam = np.sort(sample)
+    ballots = []
+    lookup = np.array([0] + list(manifest['cum_ballots']))
+    for s in sam:
+        batch_num = np.searchsorted(lookup, s+1, side='left')
+        ballot_in_batch = s-lookup[batch_num-1]+1
+        tab = manifest.iloc[batch_num-1]['Tabulator Number']
+        batch = manifest.iloc[batch_num-1]['Batch Number']
+        ballot = list(manifest.iloc[batch_num-1][['VBMCart.Cart number','Tray #']]) \
+                + [tab, batch, ballot_in_batch, str(tab)+'-'+str(batch)+'-'+str(ballot_in_batch), s+1]
+        ballots.append(ballot)
+    return ballots
+
+
 def write_ballots_sampled(sample_file, ballots):
     """
     Write the identifiers of the sampled ballots to a file.
@@ -74,14 +105,18 @@ def write_ballots_sampled(sample_file, ballots):
         filename for output
         
     ballots : list of lists
-        'Tray', 'Tabulator', 'Batch', 'Ballot', 'Cart'
+        'VBMCart.Cart number','Tray #','Tabulator Number','Batch Number', 'ballot_in_batch', 
+              'imprint', 'absolute_ballot_index'
     
     Returns:
     --------
+    
     """
     
-    with open(ballot_file, 'a') as csvfile:
-        writer = csv.writer(csvfile)
-        writer.writerow(["ballot", "batch", "ballot_in_batch", "times_sampled"])
+    with open(sample_file, 'a') as f:
+        writer = csv.writer(f)
+        writer.writerow(["cart", "tray", "tabulator", "batch",\
+                         "ballot in batch", "imprint", "absolute ballot index"])
         for row in ballots:
             writer.writerow(row)
+
