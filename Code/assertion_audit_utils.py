@@ -422,13 +422,13 @@ class CVR:
         
     For instance, in a plurality contest with four candidates, a vote for Alice (and only Alice)
     in a mayoral contest could be represented by any of the following:
-            {"ID": "A-001-01", "votes": {"mayor": {"Alice": True}}}
-            {"ID": "A-001-01", "votes": {"mayor": {"Alice": "marked"}}}
-            {"ID": "A-001-01", "votes": {"mayor": {"Alice": 5}}}
-            {"ID": "A-001-01", "votes": {"mayor": {"Alice": 1, "Bob": 0, "Candy": 0, "Dan": ""}}}
-            {"ID": "A-001-01", "votes": {"mayor": {"Alice": True, "Bob": False}}}
+            {"id": "A-001-01", "votes": {"mayor": {"Alice": True}}}
+            {"id": "A-001-01", "votes": {"mayor": {"Alice": "marked"}}}
+            {"id": "A-001-01", "votes": {"mayor": {"Alice": 5}}}
+            {"id": "A-001-01", "votes": {"mayor": {"Alice": 1, "Bob": 0, "Candy": 0, "Dan": ""}}}
+            {"id": "A-001-01", "votes": {"mayor": {"Alice": True, "Bob": False}}}
     A CVR that contains a vote for Alice for "mayor" and a vote for Bob for "DA" could be represented as
-            {"ID": "A-001-01", "votes": {"mayor": {"Alice": True}, "DA": {"Bob": True}}}
+            {"id": "A-001-01", "votes": {"mayor": {"Alice": True}, "DA": {"Bob": True}}}
             
     Many methods in this class are defined for the "votes" portion of a contest within a CVR.
     For instance, bool(vote_for("Alice","mayor"))==True iff the CVR contains a vote for Alice
@@ -436,7 +436,7 @@ class CVR:
     contains a vote for Alice in the contest named "mayor", and 0 otherwise.
                 
     Ranked votes also have simple representation, e.g., if the CVR is
-            {"ID": "A-001-01", "votes": {"mayor": {"Alice": 1, "Bob": 2, "Candy": 3, "Dan": ''}}}
+            {"id": "A-001-01", "votes": {"mayor": {"Alice": 1, "Bob": 2, "Candy": 3, "Dan": ''}}}
     Then int(vote_for("Candy","mayor"))=3, Candy's rank in the "mayor" contest.
     
      
@@ -449,17 +449,17 @@ class CVR:
     set_votes :  
          updates the votes dict; overrides previous votes and/or creates votes for additional contests or candidates
     get_votes : returns complete votes dict for a contest
-    get_ID : returns ballot ID
-    set_ID : updates the ballot ID
+    get_id : returns ballot id
+    set_id : updates the ballot id
         
     """
     
-    def __init__(self, ID = None, votes = {}):
+    def __init__(self, id = None, votes = {}):
         self.votes = votes
-        self.ID = ID
+        self.id = id
         
     def __str__(self):
-        return "ID: " + str(self.ID) + " votes: " + str(self.votes)
+        return "id: " + str(self.id) + " votes: " + str(self.votes)
         
     def get_votes(self):
         return self.votes
@@ -467,18 +467,36 @@ class CVR:
     def set_votes(self, votes):
         self.votes.update(votes)
             
-    def get_ID(self):
-        return self.ID
+    def get_id(self):
+        return self.id
     
-    def set_ID(self, ID):
-        self.ID = ID
+    def set_id(self, id):
+        self.id = id
         
     def get_votefor(self, contest, candidate):
-        return CVR.get_vote_from_votes(candidate, self.votes[contest])
+        return CVR.get_vote_from_cvr(contest, candidate, self)
     
     @classmethod
     def cvrs_to_json(cls, cvr):
         return json.dump(cvr)
+    
+    @classmethod
+    def from_dict(cls, cvr_dict):
+        """
+        Construct a list of CVR objects from a list of dicts containing cvrs
+        
+        Parameters:
+        -----------
+        cvr_dict: a list of dicts, one per cvr
+        
+        Returns:
+        ---------
+        list of CVR objects
+        """
+        cvr_list = []
+        for c in cvr_dict:
+            cvr_list.append(CVR(id = c['id'], votes = c['votes']))
+        return cvr_list
     
     @classmethod
     def from_raire(cls, raire):
@@ -492,13 +510,13 @@ class CVR:
             The RAIRE format (for later processing) is a CSV file.
             First line: number of contests.
             Next, a line for each contest
-             Contest,ID,N,C1,C2,C3 ...
-                ID is the contest ID
+             Contest,id,N,C1,C2,C3 ...
+                id is the contest id
                 N is the number of candidates in that contest
                 and C1, ... are the candidate id's relevant to that contest.
             Then a line for every ranking that appears on a ballot:
-             Contest ID,Ballot ID,R1,R2,R3,...
-            where the Ri's are the unique candidate IDs.
+             Contest id,Ballot id,R1,R2,R3,...
+            where the Ri's are the unique candidate ids.
             
             The CVR file is assumed to have been read using csv.reader(), so each row has
             been split.
@@ -511,20 +529,20 @@ class CVR:
         cvr_list = []
         for c in raire[(skip+1):]:
             contest = c[0]
-            ID = c[1]
+            id = c[1]
             votes = {}
             for j in range(2, len(c)):
                 votes[str(c[j])] = j-1
-            cvr_list.append(CVR.from_vote(votes, ID=ID, contest=contest))
+            cvr_list.append(CVR.from_vote(votes, id=id, contest=contest))
         return CVR.merge_cvrs(cvr_list)
     
     @classmethod
     def merge_cvrs(cls, cvr_list):
         """
-        Takes a list of CVRs that might contain duplicated ballot IDs and merges the votes
+        Takes a list of CVRs that might contain duplicated ballot ids and merges the votes
         so that each ballot is listed only once, and votes from different records for that
         ballot are merged.
-        The merge is in the order of the list: if a later mention of a ballot ID has votes 
+        The merge is in the order of the list: if a later mention of a ballot id has votes 
         for the same contest as a previous mention, the votes in that contest are updated
         per the later mention.
         
@@ -539,14 +557,14 @@ class CVR:
         """
         od = OrderedDict()
         for c in cvr_list:
-            if c.ID not in od:
-                od[c.ID] = c
+            if c.id not in od:
+                od[c.id] = c
             else:
-                od[c.ID].set_votes(c.votes)
+                od[c.id].set_votes(c.votes)
         return [v for v in od.values()]
     
     @classmethod
-    def from_vote(cls, vote, ID = 1, contest = 'AvB'):
+    def from_vote(cls, vote, id = 1, contest = 'AvB'):
         """
         Wraps a vote and creates a CVR, for unit tests
     
@@ -556,9 +574,9 @@ class CVR:
     
         Returns:
         --------
-        CVR containing that vote in the contest "AvB", with CVR ID=1.
+        CVR containing that vote in the contest "AvB", with CVR id=1.
         """
-        return CVR(ID=ID, votes={contest: vote})
+        return CVR(id=id, votes={contest: vote})
 
     @classmethod
     def as_vote(cls, v):
@@ -827,6 +845,8 @@ class TestNonnegMean:
         p-value
        
         """       
+        if g < 0:
+            raise ValueError('g cannot be negative')
         if any(x < 0):
             raise ValueError('Negative value in sample from a nonnegative population.')
         return np.min([1, 1/np.max(np.cumprod((1-g)*x/t + g)) if random_order \
@@ -1262,6 +1282,38 @@ def test_rcv_assorter():
         votes = CVR.from_vote({'28' : 1, '50' : 2})
         assert(assorter.assort(votes) == 0.5)
 
+def test_cvr_from_dict():
+    cvr_dict = [{'id': 1, 'votes': {'AvB': {'Alice':True}, 'CvD': {'Candy':True}}},\
+                {'id': 2, 'votes': {'AvB': {'Bob':True}, 'CvD': {'Elvis':True, 'Candy':False}}},\
+                {'id': 3, 'votes': {'EvF': {'Bob':1, 'Edie':2}, 'CvD': {'Elvis':False, 'Candy':True}}}]
+    cvr_list = CVR.from_dict(cvr_dict)
+    assert len(cvr_list) == 3
+    assert cvr_list[0].get_id() == 1
+    assert cvr_list[1].get_id() == 2
+    assert cvr_list[2].get_id() == 3
+
+    assert cvr_list[0].get_votefor('AvB', 'Alice') == True
+    assert cvr_list[0].get_votefor('CvD', 'Candy') == True
+    assert cvr_list[0].get_votefor('AvB', 'Bob') == False
+    assert cvr_list[0].get_votefor('EvF', 'Bob') == False
+
+    assert cvr_list[1].get_votefor('AvB', 'Alice') == False
+    assert cvr_list[1].get_votefor('CvD', 'Candy') == False
+    assert cvr_list[1].get_votefor('CvD', 'Elvis') == True
+    assert cvr_list[1].get_votefor('CvD', 'Candy') == False
+    assert cvr_list[1].get_votefor('CvD', 'Edie') == False
+    assert cvr_list[1].get_votefor('AvB', 'Bob') == True
+    assert cvr_list[1].get_votefor('EvF', 'Bob') == False
+                                
+    assert cvr_list[2].get_votefor('AvB', 'Alice') == False
+    assert cvr_list[2].get_votefor('CvD', 'Candy') == True
+    assert cvr_list[2].get_votefor('CvD', 'Edie') == False
+    assert cvr_list[2].get_votefor('AvB', 'Bob') == False
+    assert cvr_list[2].get_votefor('EvF', 'Bob') == 1
+    assert cvr_list[2].get_votefor('EvF', 'Edie') == 2
+    assert cvr_list[2].get_votefor('EvF', 'Alice') == False
+                                
+                                
 def test_kaplan_markov():
     s = np.ones(5)
     np.testing.assert_almost_equal(TestNonnegMean.kaplan_markov(s), 2**-5)
@@ -1292,8 +1344,8 @@ def test_kaplan_wald():
 
 def test_kaplan_martingale_sample_size_sim():
     n = TestNonnegMean.kaplan_martingale_sample_size_sim(N=100000, alt_mean=0.6, \
-                                                         alpha=0.05, t=1/2, q=0.8, reps=100)
-    assert n > 80 and n < 100
+                                                         alpha=0.05, t=1/2, q=0.8, reps=10)
+    assert n > 50 and n < 150
 
 def test_cvr_mean():
     pass  # FIX ME
@@ -1308,9 +1360,9 @@ def test_cvr_from_raire():
                  ]
     c = CVR.from_raire(raire_cvrs)
     assert len(c) == 3
-    assert c[0].ID == "99813_1_1"
+    assert c[0].id == "99813_1_1"
     assert c[0].votes == {'339': {'17':1}}
-    assert c[2].ID == "99813_1_6"
+    assert c[2].id == "99813_1_6"
     assert c[2].votes == {'339': {'18':1, '17':2, '15':3, '16':4}, '3': {'2':1}}
 
 if __name__ == "__main__":
@@ -1322,4 +1374,5 @@ if __name__ == "__main__":
     test_kaplan_markov()
     test_kaplan_wald()
     test_cvr_from_raire()
+    test_cvr_from_dict()
     test_kaplan_martingale_sample_size_sim()

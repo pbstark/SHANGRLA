@@ -25,7 +25,9 @@ def prep_dominion_manifest(manifest, N_ballots):
     assert tot_ballots <= N_ballots, "Manifest has more ballots than were cast"
     if tot_ballots < N_ballots:
         warnings.warn('Manifest does not account for every ballot cast')
-    manifest['cum_ballots'] = manifest['Total Ballots'].cumsum()   
+    manifest['cum_ballots'] = manifest['Total Ballots'].cumsum()    
+    for c in ['Tray #', 'Tabulator Number', 'Batch Number', 'VBMCart.Cart number']:
+        manifest[c] = manifest[c].astype(str)
 
 def read_dominion_cvrs(cvr_file):
     """
@@ -85,12 +87,13 @@ def sample_from_manifest(manifest, sample):
     ballots = []
     lookup = np.array([0] + list(manifest['cum_ballots']))
     for s in sam:
-        batch_num = np.searchsorted(lookup, s+1, side='left')
-        ballot_in_batch = s-lookup[batch_num-1]+1
-        tab = manifest.iloc[batch_num-1]['Tabulator Number']
-        batch = manifest.iloc[batch_num-1]['Batch Number']
+        batch_num = int(np.searchsorted(lookup, s, side='left'))
+        ballot_in_batch = int(s-lookup[batch_num-1])
+        tab = int(manifest.iloc[batch_num-1]['Tabulator Number'])
+        batch = int(manifest.iloc[batch_num-1]['Batch Number'])
         ballot = list(manifest.iloc[batch_num-1][['VBMCart.Cart number','Tray #']]) \
-                + [tab, batch, ballot_in_batch, str(tab)+'-'+str(batch)+'-'+str(ballot_in_batch), s+1]
+                + [tab, batch, ballot_in_batch, str(tab)+'-'+str(batch)\
+                + '-'+str(ballot_in_batch), s]
         ballots.append(ballot)
     return ballots
 
@@ -125,7 +128,7 @@ def test_sample_from_manifest():
     """
     Test the ballot lookup function
     """
-    sample = [0, 98, 99, 100, 120, 199, 200]
+    sample = [1, 99, 100, 101, 121, 200, 201]
     d = [{'Tray #': 1, 'Tabulator Number': 17, 'Batch Number': 1, 'Total Ballots': 100, 'VBMCart.Cart number': 1},\
         {'Tray #': 2, 'Tabulator Number': 18, 'Batch Number': 2, 'Total Ballots': 100, 'VBMCart.Cart number': 2},\
         {'Tray #': 3, 'Tabulator Number': 19, 'Batch Number': 3, 'Total Ballots': 100, 'VBMCart.Cart number': 3}]
@@ -139,9 +142,7 @@ def test_sample_from_manifest():
     assert ballots[3] == [2, 2, 18, 2, 1, "18-2-1",101]
     assert ballots[4] == [2, 2, 18, 2, 21, "18-2-21",121]
     assert ballots[5] == [2, 2, 18, 2, 100, "18-2-100",200]
-    assert ballots[6] == [3, 3, 19, 3, 1, "19-3-1",201]
-    
-    
+    assert ballots[6] == [3, 3, 19, 3, 1, "19-3-1",201]  
 
 if __name__ == "__main__":
     test_sample_from_manifest()

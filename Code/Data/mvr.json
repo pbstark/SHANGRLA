@@ -1,0 +1,53 @@
+{
+    "contests": [
+        {
+            "description": "DISTRICT ATTORNEY",
+            "id": 333
+        }
+    ],
+    "candidates": [
+        {
+            "description": "SUZY LOFTUS",
+            "id": 15
+        },
+        {
+            "description": "LEIF DAUTCH",
+            "id": 16
+        },
+        {
+            "description": "NANCY TUNG",
+            "id": 17
+        },
+        {
+            "description": "CHESA BOUDIN",
+            "id": 18
+        }
+    ],
+    "ballots": [
+        {
+            "id": "99808-81-1",
+            "votes": {
+                "333": {
+                    "15": 1,
+                    "16": 2,
+                    "17": 3,
+                    "18": 4
+                }
+            }
+        },
+        {
+            "id": "99808-81-2",
+            "votes": {
+                "333": {
+                    "15": 1
+                }
+            }
+        },
+        {
+            "id": "99808-81-3",
+            "votes": {
+                "333": {}
+            }
+        }
+    ]
+}
