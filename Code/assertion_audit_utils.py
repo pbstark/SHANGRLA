@@ -500,7 +500,7 @@ class CVR:
     @classmethod
     def from_dict(cls, cvr_dict):
         """
-        Construct a list of CVR objects from a list of dicts containing cvrs
+        Construct a list of CVR objects from a list of dicts containing cvr data
         
         Parameters:
         -----------

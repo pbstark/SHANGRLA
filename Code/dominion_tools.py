@@ -11,7 +11,8 @@ from assertion_audit_utils import CVR
 
 def prep_dominion_manifest(manifest, N_ballots):
     """
-    Prepare a Dominion Excel ballot manifest (read as a pandas dataframe) for sampling
+    Prepare a Dominion Excel ballot manifest (read as a pandas dataframe) for sampling.
+    If the manifest contains fewer than N_ballots ballots, pad it with a "phantom" batch
     
     Parameters:
     ----------
@@ -21,13 +22,17 @@ def prep_dominion_manifest(manifest, N_ballots):
     """
     cols = ['Tray #', 'Tabulator Number', 'Batch Number', 'Total Ballots', 'VBMCart.Cart number']
     assert set(cols).issubset(manifest.columns), "missing columns"
-    tot_ballots = manifest['Total Ballots'].sum()
-    assert tot_ballots <= N_ballots, "Manifest has more ballots than were cast"
-    if tot_ballots < N_ballots:
-        warnings.warn('Manifest does not account for every ballot cast')
+    manifest_ballots = manifest['Total Ballots'].sum()
+    assert manifest_ballots <= N_ballots, "Manifest has more ballots than were cast"
+    if manifest_ballots < N_ballots:
+        warnings.warn('Manifest does not account for every ballot cast; adding a phantom batch')
+        r = {'Tray #': None, 'Tabulator Number': 'phantom', 'Batch Number': 1, \
+             'Total Ballots': N_ballots-manifest_ballots, 'VBMCart.Cart number': None}
+        manifest = manifest.append(r, ignore_index = True)
     manifest['cum_ballots'] = manifest['Total Ballots'].cumsum()    
     for c in ['Tray #', 'Tabulator Number', 'Batch Number', 'VBMCart.Cart number']:
         manifest[c] = manifest[c].astype(str)
+    return manifest, manifest_ballots
 
 def read_dominion_cvrs(cvr_file):
     """
@@ -89,8 +94,8 @@ def sample_from_manifest(manifest, sample):
     for s in sam:
         batch_num = int(np.searchsorted(lookup, s, side='left'))
         ballot_in_batch = int(s-lookup[batch_num-1])
-        tab = int(manifest.iloc[batch_num-1]['Tabulator Number'])
-        batch = int(manifest.iloc[batch_num-1]['Batch Number'])
+        tab = manifest.iloc[batch_num-1]['Tabulator Number']
+        batch = manifest.iloc[batch_num-1]['Batch Number']
         ballot = list(manifest.iloc[batch_num-1][['VBMCart.Cart number','Tray #']]) \
                 + [tab, batch, ballot_in_batch, str(tab)+'-'+str(batch)\
                 + '-'+str(ballot_in_batch), s]
@@ -98,7 +103,7 @@ def sample_from_manifest(manifest, sample):
     return ballots
 
 
-def write_ballots_sampled(sample_file, ballots):
+def write_ballots_sampled(sample_file, ballots, print_phantoms=True):
     """
     Write the identifiers of the sampled ballots to a file.
     
@@ -112,17 +117,26 @@ def write_ballots_sampled(sample_file, ballots):
         'VBMCart.Cart number','Tray #','Tabulator Number','Batch Number', 'ballot_in_batch', 
               'imprint', 'absolute_ballot_index'
     
+    print_phantoms : Boolean
+        if print_phantoms, prints all sampled ballots, including "phantom" ballots that were not in
+        the original manifest.
+        if not print_phantoms, suppresses "phantom" ballots
+    
     Returns:
     --------
     
-    """
-    
+    """    
     with open(sample_file, 'a') as f:
         writer = csv.writer(f)
         writer.writerow(["cart", "tray", "tabulator", "batch",\
                          "ballot in batch", "imprint", "absolute ballot index"])
-        for row in ballots:
-            writer.writerow(row)
+        if print_phantoms:
+            for row in ballots:
+                writer.writerow(row) 
+        else:
+            for row in ballots:
+                if row[2] != "phantom":
+                    writer.writerow(row) 
 
 def test_sample_from_manifest():
     """
