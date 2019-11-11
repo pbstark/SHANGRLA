@@ -46,21 +46,23 @@ const candidateManifest = makeJsonSource("candidatefile","CandidateManifest.json
 const jsonCVR = makeJsonSource("cvrfile","CvrExport.json",reinterpretCVRs);
 
 /** Interpret the marks structure. There is little sanity checking here. */
-function interpretMarks(marks,id,CountingGroupId) {
-    let errorMessages = [];
+function interpretMarks(marks,id,CountingGroupId,suppressIsAmbiguous,suppressUniqueRankWriteins) {
     const candidatesInPreferenceOrder = [];
-    //const withoutWriteins = marks.filter(mark=> ! mark.hasOwnProperty("WriteinDensity"));  // I originally thought that write ins needed to be removed.
-    //const numRemovedWriteIns = marks.length-withoutWriteins.length;
-    const sorted = marks.sort(function (a,b) {return a.Rank-b.Rank;}); // in place, not that it matters.
+    if (suppressIsAmbiguous) marks=marks.filter(mark=> !mark.IsAmbiguous);
+    let sorted = marks.sort(function (a,b) {return a.Rank-b.Rank;}); // in place, not that it matters.
+    if (suppressUniqueRankWriteins) {
+        sorted=sorted.filter(function (mark,index) { return !(mark.hasOwnProperty("WriteinDensity") && (index==0 || mark.Rank!=sorted[index-1].Rank) && (index==sorted.length-1 || mark.Rank!=sorted[index+1].Rank)); })
+    }
+    // now delete overvotes and everything after them.
     let nonDuplicatedIndex = 0
     while ((nonDuplicatedIndex<sorted.length) && ((nonDuplicatedIndex==sorted.length-1) || (sorted[nonDuplicatedIndex].Rank<sorted[nonDuplicatedIndex+1].Rank))) nonDuplicatedIndex++;
     const unduplicated = sorted.slice(0,nonDuplicatedIndex);
     let repeatedCandidates = 0
     for (const mark of unduplicated) {
-       if (mark.IsAmbiguous) errorMessages.push("Ambiguous mark"); // TODO should this be ignored????
        if (candidatesInPreferenceOrder.includes(mark.CandidateId)) repeatedCandidates++;
        else candidatesInPreferenceOrder.push(mark.CandidateId);
     }
+    if (candidatesInPreferenceOrder.length==1 && candidatesInPreferenceOrder[0] == 45) console.log(marks);
     return { id : id, candidates : candidatesInPreferenceOrder, numRemovedDuplicateRank : sorted.length-nonDuplicatedIndex , repeatedCandidates:repeatedCandidates, CountingGroupId:CountingGroupId };
 }
 
@@ -80,10 +82,11 @@ where the Ri's are the unique candidate IDs.
 */
 
 
-var contestsToUse = ["334"];
+var contestsToUse = ["339"];
 
 /** Called whenever the contests section could change */
 function redrawContests() {
+  const includeAllPiecesOfPaper = document.getElementById("includeAllPiecesOfPaper").checked;
   const outdiv = document.getElementById("contestChoiceDiv");
   outdiv.innerHTML = "";
   if (contestManifest.ok() && candidateManifest.ok()) {
@@ -108,20 +111,38 @@ function redrawContests() {
         if (shouldAudit) raireHeaders.push("Contest,"+contestid+","+candidates.length+","+candidates.map(c=>c.Id).toString());
         // for (c of candidates) add(contestDiv,"div").innerText = "Candidate id "+c.Id+" "+c.Description;
         let numBlank = 0;
+        let numBlankDueToOvervotes = 0;
         let numRemovedWriteins = 0;
         let numRemovedDuplicateRank = 0;
         let numRemovedRepeatedCandidates = 0;
         let studiedBallotTypes = 0;
+        let numModified = 0;
+        let numIsCurrent = 0;
+        let numHasModifiedButOriginalIsCurrent = 0;
         let studied = contest.entries.filter(e=>countingGroupsToUse.includes(e.CountingGroupId.toString()));
         for (const ballot of studied) {
-           if (ballot.candidates.length==0) numBlank++;
+           if (ballot.candidates.length==0) { 
+               numBlank++;
+               if (ballot.numRemovedDuplicateRank>0) numBlankDueToOvervotes++;
+           }
            if (shouldAudit) raireBody+=""+contestid+","+ballot.id+","+ballot.candidates.toString()+"\n";
-           // if (ballot.numRemovedWriteIns>0) numRemovedWriteins++; // textdesc+=" removed "+ballot.numRemovedWriteIns+" write in(s)";
-           if (ballot.numRemovedDuplicateRank>0) numRemovedDuplicateRank++; // textdesc+=" removed "+ballot.numRemovedDuplicateRank+" due to duplicated rank";
-           if (ballot.repeatedCandidates>0) numRemovedRepeatedCandidates++; // textdesc+=" removed "+ballot.repeatedCandidates+" repeated candidates";
-           //add(contestDiv,"div").innerText= ballot.candidates.toString();
+           if (ballot.numRemovedDuplicateRank>0) numRemovedDuplicateRank++;
+           if (ballot.repeatedCandidates>0) numRemovedRepeatedCandidates++;
+           if (ballot.IsCurrent) numIsCurrent++;
+           if (ballot.usesModified) numModified++;
+           if (ballot.hasModifiedButOriginalIsCurrent) numHasModifiedButOriginalIsCurrent++;
         }
-        add(contestDiv,"div","conteststats").innerText="The contest has "+contestMetadata.NumOfRanks+" ranks. There were "+contest.entries.length+" ballots, "+studied.length+" to audit, and of those, "+numBlank+" blank. Candidates were removed from "+numRemovedDuplicateRank+" ballots for repeated rank, and "+numRemovedRepeatedCandidates+" for repeated candidates.";
+        let textNonContestAdded = "";
+        if (includeAllPiecesOfPaper && shouldAudit) {
+           let numNonContestAdded = 0;
+           var alreadyDone = new Set(studied.map(b=>b.id));
+           for (const other of allPaperIds) if (countingGroupsToUse.includes(other.countingGroup.toString())  && !alreadyDone.has(other.id)) {
+               raireBody+=""+contestid+","+other.id+",\n";
+               numNonContestAdded++;
+           }
+           textNonContestAdded = " There were "+numNonContestAdded+" sheets added that shouldn't have the contest on them, for a total of "+(numNonContestAdded+studied.length)+" entries in the RAIRE file.";
+        }
+        add(contestDiv,"div","conteststats").innerText="The contest has "+contestMetadata.NumOfRanks+" ranks. There were "+contest.entries.length+" sheets containing the contest, "+studied.length+" to audit, and of those, "+numBlank+" blank ("+(numBlank-numBlankDueToOvervotes)+" totally, "+numBlankDueToOvervotes+" from overvotes), "+numIsCurrent+" marked as IsCurrent, "+numModified+" marked as modified and "+numHasModifiedButOriginalIsCurrent+" with a modified entry with a current original. Candidates were removed from "+numRemovedDuplicateRank+" sheets for repeated rank, and "+numRemovedRepeatedCandidates+" for repeated candidates."+textNonContestAdded;
 
         const candidateTable = add(contestDiv,"table");
         const tableHeadings = add(candidateTable,"tr");
@@ -129,12 +150,13 @@ function redrawContests() {
         add(tableHeadings,"th").innerText = "Candidate";
         add(tableHeadings,"th").innerText = "Votes";
         const irvResults = runIRV(studied,candidates.map(c=>c.Id));
-        for (c of candidates) {
+        const dummyCandidateExhausted = { Description:"Exhausted" };
+        for (c of candidates.concat([dummyCandidateExhausted ])) {
            const candidateRow = add(candidateTable,"tr",c.Id==irvResults.winner?"winner":"");
-           add(candidateRow,"td").innerText = c.Id;
+           add(candidateRow,"td").innerText = c.Id || "";
            add(candidateRow,"td").innerText = c.Description;
            for (count of irvResults.tallys) {
-               add(candidateRow,"td").innerText = count[c.Id] || "";
+               add(candidateRow,"td").innerText = count[c.Id || c.Description] || "";
            }
         }
       }
@@ -159,6 +181,7 @@ function runIRV(ballots,candidateArray) {
    const continuingCandidates = {};
    for (c of candidateArray) continuingCandidates[c]=true;
    const candidateStacks = {} // map from candidate index to the candidates
+   let exhausted = 0;
    function distribute(stack) {
       //console.log(stack);
       for (ballot of stack) {
@@ -167,14 +190,16 @@ function runIRV(ballots,candidateArray) {
               const whofor = newballot[0];
               if (!candidateStacks.hasOwnProperty(whofor)) candidateStacks[whofor]=[];
               candidateStacks[whofor].push(newballot);
-          }
+          } else exhausted++;
       }
    }
    distribute(ballots.map(b=>b.candidates)); // distribute first preferences.
    const distributionOfPreferences = [];
    let winner = null;
+   exhausted = 0; // avoid counting empties.
    function getCount() {
        const count = {};
+       count.Exhausted = exhausted;
        let whoHighestCount = null;
        let totalCount = 0;
        for (who in candidateStacks) {
@@ -192,7 +217,7 @@ function runIRV(ballots,candidateArray) {
    let count = getCount();
    while (winner == null) {
        let whoEliminate = null
-       for (const who in count) if (count[who]>0 && (whoEliminate==null || count[who]<count[whoEliminate])) whoEliminate=who;
+       for (const who in count) if (count[who]>0 && who!="Exhausted" && (whoEliminate==null || count[who]<count[whoEliminate])) whoEliminate=who;
        if (whoEliminate == null) break;
        continuingCandidates[whoEliminate]=false;
        distribute(candidateStacks[whoEliminate]);
@@ -211,26 +236,38 @@ function loadContestsToUseFromCheckboxes() {
     redrawContests(); // recompute RAIRE. could do more efficiently...
 }
 
-var allContests = {}
+var allContests = {};
+var allPaperIds = [];
 
 function reinterpretCVRs() {
-   allContests = {}
+   const suppressIsAmbiguous = document.getElementById("suppressIsAmbiguous").checked;
+   const suppressUniqueRankWriteins = document.getElementById("suppressUniqueRankWriteins").checked;
+   allContests = {};
+   allPaperIds = [];
+   // var donelog = false;
    document.getElementById("eventName").innerText = jsonCVR.ok()? jsonCVR.get.ElectionId : "";
    if (jsonCVR.ok()) for (const session of jsonCVR.get.Sessions) {
-      const version = session.Modified?session.Modified : session.Original; // TODO check that this is the right field... I don't think we have any examples.
+      const version = session.Modified?session.Modified : session.Original;
+      const paperID = ""+session.TabulatorId+"_"+session.BatchId+"_"+session.RecordId;
+      allPaperIds.push({id:paperID,countingGroup:session.CountingGroupId});
       for (const contest of version.Contests) {
+          // if (session.Modified && !donelog) { donelog=true; console.log(session.Original); console.log(version); }
           if (!allContests.hasOwnProperty(contest.Id)) {
               allContests[contest.Id]={entries:[],id:contest.Id};
           }
           const c = allContests[contest.Id];
-          c.entries.push(interpretMarks(contest.Marks,""+session.TabulatorId+"_"+session.BatchId+"_"+session.RecordId,session.CountingGroupId));
-          // TODO something with session.ImageMask
+          const interpreted = interpretMarks(contest.Marks,paperID,session.CountingGroupId,suppressIsAmbiguous,suppressUniqueRankWriteins);
+          if (session.Modified) interpreted.usesModified=true;
+          if (version.IsCurrent) interpreted.IsCurrent=true;
+          if (session.Modified && session.Original.IsCurrent) interpreted.hasModifiedButOriginalIsCurrent=true;
+          // if (interpreted.candidates.length==1 && interpreted.candidates[0] == 45) console.log(JSON.stringify(session));
+          c.entries.push(interpreted);
       }
    }
    redrawContests();
 }
 
-var countingGroupsToUse = ["2"];
+var countingGroupsToUse = ["1","2"];
 /** Set up the counting groups selections given a manifest */
 function setupCountingGroups() {
     const ballotDiv = document.getElementById("ballotTypeDiv");
@@ -264,6 +301,9 @@ function loadCountingGroupsFromCheckboxes() {
 
         window.onload = function () {
            for (const f of onloads) f();
+           document.getElementById("suppressIsAmbiguous").addEventListener("input",reinterpretCVRs);
+           document.getElementById("suppressUniqueRankWriteins").addEventListener("input",reinterpretCVRs);
+           document.getElementById("includeAllPiecesOfPaper").addEventListener("input",reinterpretCVRs);
         }
     </script>
 
@@ -278,11 +318,18 @@ function loadCountingGroupsFromCheckboxes() {
 </head>
 <body>
     <h2 id="eventName"></h2>
-    <p>This is a tool to take the .json files from the vote counting system and convert them to RAIRE format. Start by selecting the json files of the appropriate type in the buttons below.</p>
+    <p>This is a tool to take the .json files from the vote counting system and convert them to RAIRE format. Note that this takes a lot of memory, and
+        the browser process may run out of memory if you run it multiple times. If it seems unusually unresponsive, close the window and reopen it.</p>
+        <p>Start by selecting the json files of the appropriate type in the buttons below.</p>
     CountingGroupManifest.json: <input id="countingGroupFile" type="file"/> <span id="status_countingGroupFile"></span><br/>
     ContestManifest.json : <input id="contestfile" type="file"/> <span id="status_contestfile"></span><br/>
     CandidateManifest.json : <input id="candidatefile" type="file"/> <span id="status_candidatefile"></span><br/>
     CvrExport.json : <input id="cvrfile" type="file"/> <span id="status_cvrfile"></span><br/>
+
+    <p>Then choose options on how to deal with some issues</p>
+    <input type="checkbox" id="suppressIsAmbiguous" checked="checked">Suppress any marks with IsAmbiguous=true (should be checked to match DOE)<br/>
+    <input type="checkbox" id="suppressUniqueRankWriteins" checked="checked">Suppress any marks with a write in with no other mark at same rank (should be checked to match DOE summary report)<br/>
+    <input type="checkbox" id="includeAllPiecesOfPaper">Include all pieces of paper in the RAIRE output, not just those claimed by scanner to have the contest on them (may be needed for audit, unchecked to match DOE summary report blank numbers)<br/>
 
     <p>Next, choose the ballot types you want to audit. Normally this would be all but for this trial run we are just going to do Vote-By-Mail.</p>
     <div id="ballotTypeDiv"></div>
@@ -290,9 +337,9 @@ function loadCountingGroupsFromCheckboxes() {
     <div id="contestChoiceDiv"></div>
     <p>Lastly, save the votes in RAIRE format.</p>
     <div id="saveDiv"></div>
-    <div class="footnote">This is a first pass attempt and is poorly tested. It does not do sensible things with write in candidates. It does not do anything with IsAmbiguous flags.
-        The IRV tables are simplistic, for indicative use only, without multiple elimination or tie resolution.
-        This page is copyright 2019 Andrew Conway. This program is free software: you can redistribute it and/or modify
+    <div class="footnote">This is just a second pass attempt and has been tested on just one set of real data. It is not clear what should be done with write in candidates.
+        The IRV tables are simplistic, for sanity checking only, without multiple elimination or tie resolution.
+        This page is copyright 2019 Andrew Conway and placed under the GPL3. This program is free software: you can redistribute it and/or modify
         it under the terms of the GNU General Public License as published by
         the Free Software Foundation, either version 3 of the License, or
         (at your option) any later version.
