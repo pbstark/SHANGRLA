@@ -1,4 +1,4 @@
-# Super High-level  Assertion/Negation General Risk-Limiting Audits (SHANGRLA)
+# Sets of Half-Average Nulls Generate Risk-Limiting Audits (SHANGRLA)
 
 by Michelle Blom, Andrew Conway, Philip B. Stark, Peter J. Stuckey and Vanessa Teague. 
 
