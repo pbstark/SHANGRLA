@@ -11,7 +11,7 @@ These are the steps for running the audit:
 1. Download the electronic Cast Vote Records (CVRs) from the *[San Francisco Department of Elections](https://sfelections.sfgov.org/results)*
 
 
-2. Translate them into RAIRE's format using the CVR converter at **** 
+2. Translate them into RAIRE's format using the CVR converter at ***
 
 
 3. Download the *[RAIRE tool](https://github.com/michelleblom/audit-irv-cp)* and compile it.
