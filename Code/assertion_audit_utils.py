@@ -21,6 +21,7 @@ class Assertion:
     """
     
     JSON_ASSERTION_TYPES = ["WINNER_ONLY", "IRV_ELIMINATION"]
+    MANIFEST_TYPES = ["ALL","STYLE"]
     
     def __init__(self, contest = None, assorter = None):
         """
@@ -74,7 +75,8 @@ class Assertion:
 
     def assorter_margin(self, cvr_list):
         """
-        find the margin for a list of CVRs
+        find the margin for a list of CVRs. 
+        By definition, the margin is the mean of the assorter minus 1/2, times 2
         
         Parameters:
         ----------
@@ -85,52 +87,59 @@ class Assertion:
         ----------
         margin : double
         """
-        return 2*(self.assorter_mean(cvr_list)- 1)
-            
-    def overstatement(self, mvr, cvr):
-        """
-        Find the overstatement error (in votes) in a CVR compared to the human 
-        reading of the ballot
-        
-        Parameters:
-        -----------
-        mvr : Cvr
-            the manual interpretation of voter intent
-        cvr : Cvr
-            the machine-reported cast vote record
-            
-        Returns:
-        --------
-        overstatement error
-        """
-        return self.assorter(cvr)-self.assorter(mvr)
-    
-    def overstatement_assorter(self, mvr, cvr, cvrs):
+        return 2*self.assorter_mean(cvr_list)-1
+
+    def overstatement(self, mvr, cvr, manifest_type="STYLE"):
         """
         The assorter that corresponds to normalized overstatement error
         the overstatement error (in votes) in a CVR compared to the human 
         reading of the ballot
         
+        If manifest_type == "STYLE", then if the CVR contains the contest but the MVR does not,
+        that is considered to be an overstatement, because the ballot is presumed to contain
+        the contest.
+        
+        If manifest_type == "ALL", then if the CVR contains the contest but the MVR does not,
+        the MVR is considered to be a non-vote in the contest.
+
         Parameters:
         -----------
         mvr : Cvr
             the manual interpretation of voter intent
         cvr : Cvr
             the machine-reported cast vote record
-        cvrs : list of Cvrs
-            the entire list of CVRs for the contest
             
         Returns:
         --------
-        overstatement error
-        """
-        return 1 - (self.assorter(cvr)-self.assorter(mvr))/(2*self.assorter_mean(cvrs)-1)
-           
-    def overstatements(self, mvr_list, cvr_list):
+        overstatement
+        """        
+        assert manifest_type in Assertion.MANIFEST_TYPES, "unrecognized manifest type"
+        if manifest_type == "ALL":
+            overstatement = self.assorter.assort(cvr)-self.assorter.assort(mvr)
+        elif manifest_type == "STYLE":
+            if mvr.has_contest(self.contest):
+                overstatement = self.assorter.assort(cvr)-self.assorter.assort(mvr)
+            elif not mvr.has_contest(self.contest) and cvr.has_contest(self.contest):
+                overstatement = self.assorter.assort(cvr)
+            else:
+                overstatement = 0
+        else:
+            raise NotImplementedError
+        return overstatement   
+     
+        
+    @classmethod
+    def overstatements(cls, mvr_list, cvr_list, manifest_type="STYLE"):
         """
         Find any discrepancies between human reading of a collection of ballots and the
         CVRs for those ballots
         
+        If manifest_type == "STYLE", then if the CVR contains the contest but the MVR does not,
+        that is considered to be an overstatement.
+        
+        If manifest_type == "ALL", then if the CVR contains the contest but the MVR does not,
+        the MVR is considered to be a non-vote in the contest.
+
         Parameters:
         -----------
         mvr_list : list
@@ -143,6 +152,7 @@ class Assertion:
         list of overstatements
         
         """
+        assert manifest_type in Assertion.MANIFEST_TYPES, "unrecognized manifest type"
         assert len(mvr_list) == len(cvr_list), "number of mvrs differs from number of cvrs"
         return np.array(map(self.overstatement, mvr_list, cvr_list))
         
@@ -419,7 +429,7 @@ class CVR:
     key in the CVR, or False if the candidate is not in the CVR. 
     
     This allows very flexible representation of votes, including ranked voting.
-        
+            
     For instance, in a plurality contest with four candidates, a vote for Alice (and only Alice)
     in a mayoral contest could be represented by any of the following:
             {"id": "A-001-01", "votes": {"mayor": {"Alice": True}}}
@@ -429,12 +439,14 @@ class CVR:
             {"id": "A-001-01", "votes": {"mayor": {"Alice": True, "Bob": False}}}
     A CVR that contains a vote for Alice for "mayor" and a vote for Bob for "DA" could be represented as
             {"id": "A-001-01", "votes": {"mayor": {"Alice": True}, "DA": {"Bob": True}}}
-            
-    Many methods in this class are defined for the "votes" portion of a contest within a CVR.
-    For instance, bool(vote_for("Alice","mayor"))==True iff the CVR contains a vote for Alice
-    in the contest named "mayor", and int(bool(vote_for("Alice","mayor")))==1 if the CVR 
-    contains a vote for Alice in the contest named "mayor", and 0 otherwise.
-                
+
+    NOTE: some methods distinguish between a CVR that contains a particular contest, but no valid
+    vote in that contest, and a CVR that does not contain that contest at all. Thus, the following
+    are not equivalent:
+            {"id": "A-001-01", "votes": {"mayor": {}} }
+            and
+            {"id": "A-001-01", "votes": {} }
+                    
     Ranked votes also have simple representation, e.g., if the CVR is
             {"id": "A-001-01", "votes": {"mayor": {"Alice": 1, "Bob": 2, "Candy": 3, "Dan": ''}}}
     Then int(vote_for("Candy","mayor"))=3, Candy's rank in the "mayor" contest.
@@ -475,6 +487,9 @@ class CVR:
         
     def get_votefor(self, contest, candidate):
         return CVR.get_vote_from_cvr(contest, candidate, self)
+    
+    def has_contest(self, contest):
+        return contest in self.votes
     
     @classmethod
     def cvrs_to_json(cls, cvr):
@@ -648,7 +663,8 @@ class CVR:
         True if there is exactly one vote among those candidates in that contest, where a 
         vote means that the value for that key casts as boolean True.
         """
-        v = np.sum([0 if c not in cvr.votes[contest] else bool(cvr.votes[contest][c]) for c in candidates])
+        v = np.sum([0 if c not in cvr.votes[contest] else bool(cvr.votes[contest][c]) \
+                    for c in candidates])
         return True if v==1 else False
     
     @classmethod
@@ -1312,8 +1328,67 @@ def test_cvr_from_dict():
     assert cvr_list[2].get_votefor('EvF', 'Bob') == 1
     assert cvr_list[2].get_votefor('EvF', 'Edie') == 2
     assert cvr_list[2].get_votefor('EvF', 'Alice') == False
-                                
-                                
+
+def test_overstatement():
+    mvr_dict = [{'id': 1, 'votes': {'AvB': {'Alice':True}}},\
+                {'id': 2, 'votes': {'AvB': {'Bob':True}}},
+                {'id': 3, 'votes': {'AvB': {}}},\
+                {'id': 4, 'votes': {'CvD': {'Elvis':True, 'Candy':False}}}]
+    mvrs = CVR.from_dict(mvr_dict)
+
+    cvr_dict = [{'id': 1, 'votes': {'AvB': {'Alice':True}}},\
+                {'id': 2, 'votes': {'AvB': {'Bob':True}}},\
+                {'id': 3, 'votes': {'AvB': {}}},\
+                {'id': 4, 'votes': {'CvD': {'Elvis':True}}}]
+    cvrs = CVR.from_dict(cvr_dict)
+
+    winners = ["Alice"]
+    losers = ["Bob"]
+
+    aVb = Assertion("AvB", Assorter(contest="AvB", \
+                    assort = lambda c, contest="AvB", winr="Alice", losr="Bob":\
+                    ( CVR.as_vote(CVR.get_vote_from_cvr("AvB", winr, c)) \
+                    - CVR.as_vote(CVR.get_vote_from_cvr("AvB", losr, c)) \
+                    + 1)/2, upper_bound = 1))
+    assert aVb.overstatement(mvrs[0], cvrs[0], manifest_type="STYLE") == 0
+    assert aVb.overstatement(mvrs[0], cvrs[0], manifest_type="ALL") == 0
+
+    assert aVb.overstatement(mvrs[0], cvrs[1], manifest_type="STYLE") == -1
+    assert aVb.overstatement(mvrs[0], cvrs[1], manifest_type="ALL") == -1
+
+    assert aVb.overstatement(mvrs[2], cvrs[0], manifest_type="STYLE") == 1/2
+    assert aVb.overstatement(mvrs[2], cvrs[0], manifest_type="ALL") == 1/2
+
+    assert aVb.overstatement(mvrs[2], cvrs[1], manifest_type="STYLE") == -1/2
+    assert aVb.overstatement(mvrs[2], cvrs[1], manifest_type="ALL") == -1/2
+
+
+    assert aVb.overstatement(mvrs[1], cvrs[0], manifest_type="STYLE") == 1
+    assert aVb.overstatement(mvrs[1], cvrs[0], manifest_type="ALL") == 1
+
+    assert aVb.overstatement(mvrs[2], cvrs[0], manifest_type="STYLE") == 1/2
+    assert aVb.overstatement(mvrs[2], cvrs[0], manifest_type="ALL") == 1/2
+
+    assert aVb.overstatement(mvrs[3], cvrs[0], manifest_type="STYLE") == 1
+    assert aVb.overstatement(mvrs[3], cvrs[0], manifest_type="ALL") == 1/2
+
+    assert aVb.overstatement(mvrs[3], cvrs[3], manifest_type="STYLE") == 0
+    assert aVb.overstatement(mvrs[3], cvrs[3], manifest_type="ALL") == 0
+
+
+def test_cvr_has_contest():
+    cvr_dict = [{'id': 1, 'votes': {'AvB': {}, 'CvD': {'Candy':True}}},\
+                {'id': 2, 'votes': {'CvD': {'Elvis':True, 'Candy':False}}}]
+    cvr_list = CVR.from_dict(cvr_dict)
+    assert cvr_list[0].has_contest('AvB')
+    assert cvr_list[0].has_contest('CvD')
+    assert not cvr_list[0].has_contest('EvF')
+
+    assert not cvr_list[1].has_contest('AvB')
+    assert cvr_list[1].has_contest('CvD')
+    assert not cvr_list[1].has_contest('EvF')
+
+    
 def test_kaplan_markov():
     s = np.ones(5)
     np.testing.assert_almost_equal(TestNonnegMean.kaplan_markov(s), 2**-5)
@@ -1347,8 +1422,8 @@ def test_kaplan_martingale_sample_size_sim():
                                                          alpha=0.05, t=1/2, q=0.8, reps=10)
     assert n > 50 and n < 150
 
-def test_cvr_mean():
-    pass  # FIX ME
+def test_assorter_mean():
+    pass # [FIX ME]
 
 def test_cvr_from_raire():
     raire_cvrs = [['1'],\
@@ -1363,11 +1438,12 @@ def test_cvr_from_raire():
     assert c[0].id == "99813_1_1"
     assert c[0].votes == {'339': {'17':1}}
     assert c[2].id == "99813_1_6"
-    assert c[2].votes == {'339': {'18':1, '17':2, '15':3, '16':4}, '3': {'2':1}}
+    assert c[2].votes == {'339': {'18':1, '17':2, '15':3, '16':4}, '3': {'2':1}} # merges votes?
 
 if __name__ == "__main__":
     test_make_plurality_assertions()
     test_supermajority_assorter()
+    test_overstatement()
     test_rcv_lfunc_wo()
     test_rcv_votefor_cand()    
     test_rcv_assorter()
@@ -1375,4 +1451,5 @@ if __name__ == "__main__":
     test_kaplan_wald()
     test_cvr_from_raire()
     test_cvr_from_dict()
+    test_cvr_has_contest()
     test_kaplan_martingale_sample_size_sim()
