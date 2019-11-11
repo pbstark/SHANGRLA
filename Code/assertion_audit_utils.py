@@ -91,12 +91,10 @@ class Assertion:
 
     def overstatement(self, mvr, cvr, manifest_type="STYLE"):
         """
-        The assorter that corresponds to normalized overstatement error
-        the overstatement error (in votes) in a CVR compared to the human 
-        reading of the ballot
+        The overstatement error for a CVR compared to the human reading of the ballot
         
         If manifest_type == "STYLE", then if the CVR contains the contest but the MVR does not,
-        that is considered to be an overstatement, because the ballot is presumed to contain
+        that is considered to be an overstatement, because the ballot should have contained
         the contest.
         
         If manifest_type == "ALL", then if the CVR contains the contest but the MVR does not,
@@ -126,35 +124,37 @@ class Assertion:
         else:
             raise NotImplementedError
         return overstatement   
-     
-        
-    @classmethod
-    def overstatements(cls, mvr_list, cvr_list, manifest_type="STYLE"):
+    
+    def overstatement_assorter(self, mvr, cvr, margin, manifest_type="STYLE"):
         """
-        Find any discrepancies between human reading of a collection of ballots and the
-        CVRs for those ballots
+        The assorter that corresponds to normalized overstatement error for an assertion
         
         If manifest_type == "STYLE", then if the CVR contains the contest but the MVR does not,
-        that is considered to be an overstatement.
+        that is considered to be an overstatement, because the ballot is presumed to contain
+        the contest.
         
         If manifest_type == "ALL", then if the CVR contains the contest but the MVR does not,
         the MVR is considered to be a non-vote in the contest.
 
         Parameters:
         -----------
-        mvr_list : list
-            list of manually determined CVRs
-        cvr_list : list
-            list of the machine-reported CVRs
+        mvr : Cvr
+            the manual interpretation of voter intent
+        cvr : Cvr
+            the machine-reported cast vote record
+        margin : double
+            2*(assorter applied to all CVRs) - 1, the assorter margin
             
         Returns:
         --------
-        list of overstatements
-        
-        """
-        assert manifest_type in Assertion.MANIFEST_TYPES, "unrecognized manifest type"
-        assert len(mvr_list) == len(cvr_list), "number of mvrs differs from number of cvrs"
-        return np.array(map(self.overstatement, mvr_list, cvr_list))
+        normal_over : double
+            (1-o/u)/(2-v/u), where 
+                o is the overstatement
+                u is the upper bound on the value the assorter assigns to any ballot
+                v is the assorter margin
+        """        
+        return (1-self.overstatement(mvr, cvr, manifest_type)/self.assorter.upper_bound)\
+                /(2-margin/self.assorter.upper_bound)
         
       
     @classmethod
@@ -269,11 +269,13 @@ class Assertion:
             elif assrtn['assertion_type'] == "WINNER_ONLY":
                 # CVR is a vote for the winner only if it has the 
                 # winner as its first preference
-                winner_func = lambda v, contest=contest, winr=winr : 1 if CVR.get_vote_from_cvr(contest, winr, v) == 1 else 0
+                winner_func = lambda v, contest=contest, winr=winr : 1 \
+                              if CVR.get_vote_from_cvr(contest, winr, v) == 1 else 0
 
                 # CVR is a vote for the loser if they appear and the 
                 # winner does not, or they appear before the winner
-                loser_func = lambda v, contest=contest, winr=winr, losr=losr : CVR.rcv_lfunc_wo(contest, winr, losr, v)
+                loser_func = lambda v, contest=contest, winr=winr, losr=losr : \
+                             CVR.rcv_lfunc_wo(contest, winr, losr, v)
 
                 wl_pair = winr + ' v ' + losr
                 assertions[wl_pair] = Assertion(contest, Assorter(contest=contest, winner=winner_func, \
@@ -1082,7 +1084,8 @@ def check_audit_parameters(risk_function, g, error_rates, contests):
             assert contests[c]['share_to_win'] >= 0.5, \
                 'super-majority contest requires winning at least 50% of votes in ' + c + ' contest'
 
-def write_audit_parameters(log_file, seed, replacement, risk_function, g, N_ballots, error_rates, contests):
+def write_audit_parameters(log_file, seed, replacement, risk_function, g, \
+                           N_ballots, error_rates, contests):
     """
     Write audit parameters to log_file as a json structure
     
@@ -1375,6 +1378,34 @@ def test_overstatement():
     assert aVb.overstatement(mvrs[3], cvrs[3], manifest_type="STYLE") == 0
     assert aVb.overstatement(mvrs[3], cvrs[3], manifest_type="ALL") == 0
 
+def test_overstatement_assorter():
+    """
+    (1-o/u)/(2-v/u)
+    """
+    mvr_dict = [{'id': 1, 'votes': {'AvB': {'Alice':True}}},\
+                {'id': 2, 'votes': {'AvB': {'Bob':True}}}]
+    mvrs = CVR.from_dict(mvr_dict)
+
+    cvr_dict = [{'id': 1, 'votes': {'AvB': {'Alice':True}}},\
+                {'id': 2, 'votes': {'AvB': {'Bob':True}}}]
+    cvrs = CVR.from_dict(cvr_dict)
+
+    winners = ["Alice"]
+    losers = ["Bob"]
+
+    aVb = Assertion("AvB", Assorter(contest="AvB", \
+                    assort = lambda c, contest="AvB", winr="Alice", losr="Bob":\
+                    ( CVR.as_vote(CVR.get_vote_from_cvr("AvB", winr, c)) \
+                    - CVR.as_vote(CVR.get_vote_from_cvr("AvB", losr, c)) \
+                    + 1)/2, upper_bound = 1))
+    assert aVb.overstatement_assorter(mvrs[0], cvrs[0], margin=0.2, manifest_type="STYLE") == 1/1.8
+    assert aVb.overstatement_assorter(mvrs[0], cvrs[0], margin=0.2, manifest_type="ALL") == 1/1.8
+    
+    assert aVb.overstatement_assorter(mvrs[1], cvrs[0], margin=0.2, manifest_type="STYLE") == 0
+    assert aVb.overstatement_assorter(mvrs[1], cvrs[0], margin=0.2, manifest_type="ALL") == 0
+
+    assert aVb.overstatement_assorter(mvrs[0], cvrs[1], margin=0.3, manifest_type="STYLE") == 2/1.7
+    assert aVb.overstatement_assorter(mvrs[0], cvrs[1], margin=0.3, manifest_type="ALL") == 2/1.7
 
 def test_cvr_has_contest():
     cvr_dict = [{'id': 1, 'votes': {'AvB': {}, 'CvD': {'Candy':True}}},\
@@ -1441,15 +1472,20 @@ def test_cvr_from_raire():
     assert c[2].votes == {'339': {'18':1, '17':2, '15':3, '16':4}, '3': {'2':1}} # merges votes?
 
 if __name__ == "__main__":
-    test_make_plurality_assertions()
-    test_supermajority_assorter()
-    test_overstatement()
-    test_rcv_lfunc_wo()
-    test_rcv_votefor_cand()    
-    test_rcv_assorter()
-    test_kaplan_markov()
-    test_kaplan_wald()
     test_cvr_from_raire()
     test_cvr_from_dict()
     test_cvr_has_contest()
+
+    test_make_plurality_assertions()
+    test_supermajority_assorter()
+
+    test_overstatement()
+    test_overstatement_assorter()
+    
+    test_rcv_lfunc_wo()
+    test_rcv_votefor_cand()    
+    test_rcv_assorter()
+    
+    test_kaplan_markov()
+    test_kaplan_wald()
     test_kaplan_martingale_sample_size_sim()
