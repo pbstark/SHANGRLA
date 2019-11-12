@@ -9,12 +9,15 @@ def treeListToTuple(t):
         warn("Error: empty list in tree drawing")
     # Leaf.  Return the name of the candidate and the assertions we've excluded it with.
     tag=""
+    # TODO: look at whether t[0][1][1] is true (proved) or false and colour accordingly.
     if len(t) == 1:
         if t[0][1]:
-            tag = tag+"NEB "+str(t[0][1])+", "
+            tag += "NEB "+str(t[0][1])
+        if t[0][1] and t[0][2]:
+            tag +="\n"
         if t[0][2]:
-            tag = tag+"NEN "+str(t[0][2])
-        print("Built tag"+str(t[0][0])+tag)
+            tag += "NEN "+str(t[0][2])
+        # print("Built tag"+str(t[0][0])+tag)
         return((t[0][0],tag)) 
     # Otherwise recurse.
     else:
@@ -45,6 +48,15 @@ def parseAssertions(auditfile):
     IRVElims = []
 
     for a in assertions:
+        
+        if ("proved" in a) and (a["proved"]=="True"):
+            proved = True
+        else:
+            proved = False
+            
+        print("proved = "+str(proved))
+        #proved = a["proved"]
+
         if a["assertion_type"]=="WINNER_ONLY":
             if a["already_eliminated"] != "" :
                 # VT: Not clear whether we should go on or quit at this point.
@@ -53,11 +65,12 @@ def parseAssertions(auditfile):
             l = a["loser"]
             w = a["winner"]
 
-            WOLosers.append((l,w))
+
+            WOLosers.append((l,w,proved))
                     
         if a["assertion_type"]=="IRV_ELIMINATION":
             l = a["winner"]
-            IRVElims.append((l,set(a["already_eliminated"])  ))
+            IRVElims.append((l,set(a["already_eliminated"]),proved))
     return(apparentWinner, apparentNonWinners, WOLosers, IRVElims)
 
 # This takes a root candidate c and a set S of candidates still to
@@ -65,6 +78,7 @@ def parseAssertions(auditfile):
 # it checks whether c is winner-only dominated by any candidate in S and, if so,
 # prunes the tree here.
 def buildRemainingTreeAsLists(c,S,WOLosers,IRVElims):
+    print("IRV Elims: "+str(IRVElims))
     # If c is in the list of candidates yet to be eliminated, this is a bug.
     if c in S:
         print("Error: c is in S.  c = "+str(c)+". S = "+str(S)+".\n")
@@ -79,28 +93,29 @@ def buildRemainingTreeAsLists(c,S,WOLosers,IRVElims):
             "RAIRE assertions do not exclude all other winners!***"]]
 
     pruneThisBranch = False
-    NEBTag = []
-    NENTag = []
+    NEBTags = []
+    NENTags = []
     
     # if c is a loser defeated by a candidate in S, prune here.
     # Tag with NEB assertion number we used to prune.
     for loser in WOLosers:
         if c==loser[0] and ((loser[1] in S)):
             pruneThisBranch = True
-            NEBTag.append(WOLosers.index(loser))
+            NEBTags.append((WOLosers.index(loser),loser[2]))
     
     # if c cannot be eliminated by IRV in exactly the case where S is the already-eliminated set, 
     # prune here.  Tag with NEN assertion number we used to prune.
     for winner in IRVElims:
         if c==winner[0] and winner[1]==S:
             pruneThisBranch = True
-            NENTag.append(IRVElims.index(winner))
+            print("NEN proved Tag: "+str(loser[2]))
+            NENTags.append((IRVElims.index(winner),winner[2]))
 
     if pruneThisBranch:
     # Base case: if we prune here, tag it with all the assertions
     # that could be used to prune.
-        tree=[[c,NEBTag,NENTag]]        
-        print("Built leaf:"+c+"NEBTag: "+str(NEBTag)+", NENTag: "+str(NENTag))
+        tree=[[c,NEBTags,NENTags]]        
+        #print("Built leaf:"+c+"NEBTag: "+str(NEBTag)+", NENTag: "+str(NENTag))
     else:
         # if we didn't prune here, recurse        
         tree=[c,[]]

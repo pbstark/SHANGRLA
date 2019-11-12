@@ -22,7 +22,7 @@
                     "loser": "16",
                     "already_eliminated": "",
                     "assertion_type": "WINNER_ONLY",
-                    "proved": "true",
+                    "proved": "True",
                     "explanation": "Rules out case where 15 is eliminated before 16"
                 },
                 {
@@ -34,7 +34,7 @@
                         "45"
                     ],
                     "assertion_type": "IRV_ELIMINATION",
-                    "proved": "true",
+                    "proved": "True",
                     "explanation": "Rules out outcomes with tail [... 15 18]"
                 },
                 {
@@ -46,7 +46,7 @@
                         "45"
                     ],
                     "assertion_type": "IRV_ELIMINATION",
-                    "proved": "true",
+                    "proved": "True",
                     "explanation": "Rules out outcomes with tail [... 18 17]"
                 },
                 {
@@ -57,7 +57,7 @@
                         "45"
                     ],
                     "assertion_type": "IRV_ELIMINATION",
-                    "proved": "true",
+                    "proved": "True",
                     "explanation": "Rules out outcomes with tail [... 15 17 18]"
                 },
                 {
@@ -69,7 +69,7 @@
                         "45"
                     ],
                     "assertion_type": "IRV_ELIMINATION",
-                    "proved": "true",
+                    "proved": "True",
                     "explanation": "Rules out outcomes with tail [... 15 17]"
                 },
                 {
@@ -77,7 +77,7 @@
                     "loser": "45",
                     "already_eliminated": "",
                     "assertion_type": "WINNER_ONLY",
-                    "proved": "true",
+                    "proved": "True",
                     "explanation": "Rules out case where 15 is eliminated before 45"
                 }
             ]
