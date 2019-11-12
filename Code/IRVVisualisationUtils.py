@@ -2,6 +2,7 @@ import svgling
 from svgling.figure import Caption, SideBySide, RowByRow
 import colorama
 from colorama import Fore, Style
+import functools
 
 # Convert a tree in list form into the same tree in tuple form suitable for
 # svgling.
@@ -13,14 +14,20 @@ def treeListToTuple(t):
     tag=""
     # TODO: look at whether t[0][1][1] is true (proved) or false and colour accordingly.
     if len(t) == 1:
-        if t[0][1]:
-            tag += "NEB "+str(t[0][1])
-        if t[0][1] and t[0][2]:
+        # this is a node to be pruned, with two lists of (number, bool) tuples indicating
+        # the assertion numbers that justify pruning it, and whether each has been proved.
+        # We find the logical OR of all the 'proven' booleans - if any are confirmed, this
+        # prune is confirmed.
+        node=t[0]
+        if node[1]:
+            #tag += "NEB "+str(t[0][1])
+            tag += "NEB "+",".join(str(n[0]) for n in node[1])+"\n"+buildConfTag(node[1]) 
+        if node[1] and node[2]:
             tag +="\n"
-        if t[0][2]:
-            tag += "NEN "+str(t[0][2])
-        # print("Built tag"+str(t[0][0])+tag)
-        return((t[0][0],tag)) 
+        if node[2]:
+            #tag += "NEN "+str(node[2])
+            tag += "NEN "+",".join(str(n[0]) for n in node[2])+"\n"+buildConfTag(node[2]) 
+        return((node[0],tag)) 
     # Otherwise recurse.
     else:
         tList = []
@@ -28,15 +35,26 @@ def treeListToTuple(t):
             tList.append(treeListToTuple(branch))
         return ((t[0],)+tuple(tList))
 
+# Expects a list of (_, boolean) tuples.
+# Takes the logical OR and returns either "Confirmed" if True
+# or "Unconfirmed" if False.
+def buildConfTag(numBoolList):
+    truthval = (functools.reduce(lambda a,b : a[1] or b[1], numBoolList))[1]
+    if truthval:
+        return "Confirmed"
+    else:
+        return "Unconfirmed"
+    
 def parseAssertions(auditfile,candidatefile):
     #FIXME: Hardcoded to just look at the first audit for now.
     audit = auditfile["audits"][0]
     apparentWinner = audit["winner"]
     apparentWinnerName = findCandidateName(apparentWinner,candidatefile)
-    print("Apparent winner: "+apparentWinner+", "+apparentWinnerName)
+    print("Apparent winner: "+"\n"+printTuple((apparentWinner,apparentWinnerName)))
     apparentNonWinners=audit["eliminated"]
     apparentNonWinnersWithNames = findListCandidateNames(apparentNonWinners, candidatefile)
-    print("Apparently eliminated: "+str(apparentNonWinnersWithNames))
+    print("Apparently eliminated:")
+    print(",\n".join(list(map(printTuple,apparentNonWinnersWithNames))))
     print("\n")
     assertions = audit["assertions"]
 
@@ -73,6 +91,9 @@ def parseAssertions(auditfile,candidatefile):
             l = a["winner"]
             IRVElims.append((l,set(a["already_eliminated"]),proved))
     return((apparentWinner,apparentWinnerName), apparentNonWinnersWithNames, WOLosers, IRVElims)
+
+def printTuple(t):
+    return str(t[0])+"-"+str(t[1])
 
 
 # Given a candidate ID, find their name in the Candidate Manifest.
@@ -143,21 +164,21 @@ def printAssertions(WOLosers,IRVElims):
     if len(WOLosers) != 0:
         print("Not-Eliminated-Before assertions: ")
     for loser in WOLosers:
-        proofString = makeProofString(loser)
-        print(proofString+'NEB {0:2d}: '+Fore.BLACK+'Candidate '.format(WOLosers.index(loser))+str(loser[1])+' cannot be eliminated before '+str(loser[0])+'.')
+        proofString = makeProofString(loser,Fore.RED)
+        print(proofString+'NEB {0:2d}: '.format(WOLosers.index(loser))+Fore.BLACK+'Candidate '+str(loser[1])+' cannot be eliminated before '+str(loser[0])+'.')
     
     if len(IRVElims) != 0:
         print("\n")
         print("Not-Eliminated-Next assertions: ")
     for winner in IRVElims:
-        proofString = makeProofString(winner)
-        print(proofString+'NEN {0:2d}:'+Fore.BLACK+' Candidate '.format(IRVElims.index(winner))+str(winner[0])+' cannot be eliminated next when '+str(winner[1])+' are eliminated.')
+        proofString = makeProofString(winner,Fore.RED)
+        print(proofString+'NEN {0:2d}:'.format(IRVElims.index(winner))+Fore.BLACK+' Candidate '+str(winner[0])+' cannot be eliminated next when '+str(winner[1])+' are eliminated.')
         
-def makeProofString(assertionTriple):
+def makeProofString(assertionTriple,colourString):
     if(assertionTriple[2]):
         return "Confirmed:   "
     else:
-        return Fore.GREEN + "Unconfirmed: "
+        return colourString + "Unconfirmed: "
 
 
 # Build printable pretty trees.
@@ -171,7 +192,7 @@ def buildPrintedResults(apparentWinner, apparentNonWinnersWithNames, WOLosers,IR
         treeAsLists=buildRemainingTreeAsLists(c[0],candidateSet, WOLosers, IRVElims)
         treeAsTuples=treeListToTuple(treeAsLists)
         drawnTree = svgling.draw_tree(treeAsTuples)
-        elimTrees.append(Caption(drawnTree,"Pruned tree in which "+str(c)+" wins."))
+        elimTrees.append(Caption(drawnTree,"Pruned tree in which "+printTuple(c)+" wins."))
     return elimTrees
 
 # Takes the output of BuildPrintedResults and pretty-prints them one below the other along the page
