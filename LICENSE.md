@@ -1,6 +1,6 @@
 MIT License
 
-Copyright (c) [2018] [Mark Lindeman, Neal McBurnett, Kellie Ottoboni, Ronald L. Rivest, Philip B.~Stark]
+Copyright (c) [2019] [Michelle Blom, Andrew Conway, Philip B.Stark, Peter Stuckey, Vanessa Teague]
 
 SOFTWARE:
 Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -22,5 +22,5 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 MANUSCRIPT:
-Other than the software and documentation of the software, other documents in this repository, including the manuscript, are licenses CC-BY 4.0.
+Other than the software and documentation of the software, other documents in this repository, including the manuscript, are licensed CC-BY 4.0.
 https://creativecommons.org/licenses/by/4.0/
