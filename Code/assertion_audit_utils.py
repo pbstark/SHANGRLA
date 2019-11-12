@@ -557,8 +557,8 @@ class CVR:
     def merge_cvrs(cls, cvr_list):
         """
         Takes a list of CVRs that might contain duplicated ballot ids and merges the votes
-        so that each ballot is listed only once, and votes from different records for that
-        ballot are merged.
+        so that each identifier is listed only once, and votes from different records for that
+        identifier are merged.
         The merge is in the order of the list: if a later mention of a ballot id has votes 
         for the same contest as a previous mention, the votes in that contest are updated
         per the later mention.
@@ -1085,7 +1085,7 @@ def check_audit_parameters(risk_function, g, error_rates, contests):
                 'super-majority contest requires winning at least 50% of votes in ' + c + ' contest'
 
 def write_audit_parameters(log_file, seed, replacement, risk_function, g, \
-                           N_ballots, error_rates, contests):
+                           N_cards, manifest_cards, phantom_cards, error_rates, contests):
     """
     Write audit parameters to log_file as a json structure
     
@@ -1116,7 +1116,9 @@ def write_audit_parameters(log_file, seed, replacement, risk_function, g, \
            "replacement" : replacement,
            "risk_function" : risk_function,
            "g" : g,
-           "N_ballots" : N_ballots,
+           "N_cards" : N_cards,
+           "manifest_cards" : manifest_cards,
+           "phantom_cards" : phantom_cards,
            "error_rates" : error_rates,
            "contests" : contests
           }
