@@ -26,13 +26,15 @@ def treeListToTuple(t):
             tList.append(treeListToTuple(branch))
         return ((t[0],)+tuple(tList))
 
-def parseAssertions(auditfile):
+def parseAssertions(auditfile,candidatefile):
     #FIXME: Hardcoded to just look at the first audit for now.
     audit = auditfile["audits"][0]
     apparentWinner = audit["winner"]
-    print("Apparent winner: "+apparentWinner)
+    apparentWinnerName = findCandidateName(apparentWinner,candidatefile)
+    print("Apparent winner: "+apparentWinner+", "+apparentWinnerName)
     apparentNonWinners=audit["eliminated"]
-    print("Apparently eliminated: "+str(apparentNonWinners))
+    apparentNonWinnersWithNames = findListCandidateNames(apparentNonWinners, candidatefile)
+    print("Apparently eliminated: "+str(apparentNonWinnersWithNames))
     print("\n")
     assertions = audit["assertions"]
 
@@ -54,9 +56,6 @@ def parseAssertions(auditfile):
         else:
             proved = False
             
-        print("proved = "+str(proved))
-        #proved = a["proved"]
-
         if a["assertion_type"]=="WINNER_ONLY":
             if a["already_eliminated"] != "" :
                 # VT: Not clear whether we should go on or quit at this point.
@@ -71,14 +70,28 @@ def parseAssertions(auditfile):
         if a["assertion_type"]=="IRV_ELIMINATION":
             l = a["winner"]
             IRVElims.append((l,set(a["already_eliminated"]),proved))
-    return(apparentWinner, apparentNonWinners, WOLosers, IRVElims)
+    return((apparentWinner,apparentWinnerName), apparentNonWinners, WOLosers, IRVElims)
+
+
+# Given a candidate ID, find their name in the Candidate Manifest.
+def findCandidateName(ID,candidateFile):
+    candidates = candidateFile["List"]
+    for c in candidates:
+        if str(c["Id"])==ID:
+            return c["Description"]
+    
+    return ""
+
+# Given a list of candidate IDs, build a list of (ID, Name) tuples.
+def findListCandidateNames(IDList,candidateFile):
+    return list(map(lambda id : (id,findCandidateName(id,candidateFile)),IDList))
 
 # This takes a root candidate c and a set S of candidates still to
 # be built in to the tree (i.e. those to be eliminated earlier, closer to the leaves)
-# it checks whether c is winner-only dominated by any candidate in S and, if so,
+# it checks whether any assertions apply to this point in the elimination and, if so,
 # prunes the tree here.
 def buildRemainingTreeAsLists(c,S,WOLosers,IRVElims):
-    print("IRV Elims: "+str(IRVElims))
+
     # If c is in the list of candidates yet to be eliminated, this is a bug.
     if c in S:
         print("Error: c is in S.  c = "+str(c)+". S = "+str(S)+".\n")
@@ -108,16 +121,14 @@ def buildRemainingTreeAsLists(c,S,WOLosers,IRVElims):
     for winner in IRVElims:
         if c==winner[0] and winner[1]==S:
             pruneThisBranch = True
-            print("NEN proved Tag: "+str(loser[2]))
             NENTags.append((IRVElims.index(winner),winner[2]))
 
     if pruneThisBranch:
     # Base case: if we prune here, tag it with all the assertions
     # that could be used to prune.
         tree=[[c,NEBTags,NENTags]]        
-        #print("Built leaf:"+c+"NEBTag: "+str(NEBTag)+", NENTag: "+str(NENTag))
     else:
-        # if we didn't prune here, recurse        
+    # if we didn't prune here, recurse        
         tree=[c,[]]
         for c2 in S:
             smallerSet = S.copy()
