@@ -1,5 +1,7 @@
 import svgling
 from svgling.figure import Caption, SideBySide, RowByRow
+import colorama
+from colorama import Fore, Style
 
 # Convert a tree in list form into the same tree in tuple form suitable for
 # svgling.
@@ -70,7 +72,7 @@ def parseAssertions(auditfile,candidatefile):
         if a["assertion_type"]=="IRV_ELIMINATION":
             l = a["winner"]
             IRVElims.append((l,set(a["already_eliminated"]),proved))
-    return((apparentWinner,apparentWinnerName), apparentNonWinners, WOLosers, IRVElims)
+    return((apparentWinner,apparentWinnerName), apparentNonWinnersWithNames, WOLosers, IRVElims)
 
 
 # Given a candidate ID, find their name in the Candidate Manifest.
@@ -141,26 +143,35 @@ def printAssertions(WOLosers,IRVElims):
     if len(WOLosers) != 0:
         print("Not-Eliminated-Before assertions: ")
     for loser in WOLosers:
-        print('NEB {0:2d}: Candidate '.format(WOLosers.index(loser))+str(loser[1])+' cannot be eliminated before '+str(loser[0])+'.')
+        proofString = makeProofString(loser)
+        print(proofString+'NEB {0:2d}: '+Fore.BLACK+'Candidate '.format(WOLosers.index(loser))+str(loser[1])+' cannot be eliminated before '+str(loser[0])+'.')
     
     if len(IRVElims) != 0:
         print("\n")
         print("Not-Eliminated-Next assertions: ")
     for winner in IRVElims:
-        print('NEN {0:2d}: Candidate '.format(IRVElims.index(winner))+str(winner[0])+' cannot be eliminated next when '+str(winner[1])+' are eliminated.')
+        proofString = makeProofString(winner)
+        print(proofString+'NEN {0:2d}:'+Fore.BLACK+' Candidate '.format(IRVElims.index(winner))+str(winner[0])+' cannot be eliminated next when '+str(winner[1])+' are eliminated.')
+        
+def makeProofString(assertionTriple):
+    if(assertionTriple[2]):
+        return "Confirmed:   "
+    else:
+        return Fore.GREEN + "Unconfirmed: "
 
 
 # Build printable pretty trees.
-def buildPrintedResults(apparentWinner, apparentNonWinners, WOLosers,IRVElims):
+def buildPrintedResults(apparentWinner, apparentNonWinnersWithNames, WOLosers,IRVElims):
     elimTrees=[]
-    for c in apparentNonWinners:
+    apparentNonWinners = [c[0] for c in apparentNonWinnersWithNames]
+    for c in apparentNonWinnersWithNames:
         candidateSet=set(apparentNonWinners).copy()
         candidateSet.add(apparentWinner)
-        candidateSet.remove(c)
-        treeAsLists=buildRemainingTreeAsLists(c,candidateSet, WOLosers, IRVElims)
+        candidateSet.remove(c[0])
+        treeAsLists=buildRemainingTreeAsLists(c[0],candidateSet, WOLosers, IRVElims)
         treeAsTuples=treeListToTuple(treeAsLists)
         drawnTree = svgling.draw_tree(treeAsTuples)
-        elimTrees.append(Caption(drawnTree,"Pruned tree in which "+c+" wins."))
+        elimTrees.append(Caption(drawnTree,"Pruned tree in which "+str(c)+" wins."))
     return elimTrees
 
 # Takes the output of BuildPrintedResults and pretty-prints them one below the other along the page
