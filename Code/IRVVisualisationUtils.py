@@ -6,10 +6,16 @@ from svgling.figure import Caption, SideBySide, RowByRow
 def treeListToTuple(t):
     # If t is an empty list, we shouldn't have got this far.
     if not t:
-        print("Error: empty list in tree drawing")
-    # Leaf.  Return the name of the candidate and the assertion we've excluded it with.
-    if len(t) == 1:     
-        return((t[0][0],t[0][1]+str(t[0][2]))) 
+        warn("Error: empty list in tree drawing")
+    # Leaf.  Return the name of the candidate and the assertions we've excluded it with.
+    tag=""
+    if len(t) == 1:
+        if t[0][1]:
+            tag = tag+"NEB "+str(t[0][1])+", "
+        if t[0][2]:
+            tag = tag+"NEN "+str(t[0][2])
+        print("Built tag"+str(t[0][0])+tag)
+        return((t[0][0],tag)) 
     # Otherwise recurse.
     else:
         tList = []
@@ -42,20 +48,12 @@ def parseAssertions(auditfile):
         if a["assertion_type"]=="WINNER_ONLY":
             if a["already_eliminated"] != "" :
                 # VT: Not clear whether we should go on or quit at this point.
-                print("Error: Not-Eliminated-Before assertion with nonempty already_eliminated list.")
+                warn("Error: Not-Eliminated-Before assertion with nonempty already_eliminated list.")
                 
             l = a["loser"]
             w = a["winner"]
-            # if we haven't already encountered this loser, add a new element to WOLosers.
-            # if we have, add a new winner to this loser's set.
-            losers = [ll for ll,_ in WOLosers]
-            if l not in losers:
-                #if l not in [losers[0] for losers in WOLosers]
-                WOLosers.append((l,set([w])))
-            else:
-                for losers in WOLosers:
-                    if l == losers[0]:
-                        losers[1].add(w)
+
+            WOLosers.append((l,w))
                     
         if a["assertion_type"]=="IRV_ELIMINATION":
             l = a["winner"]
@@ -80,24 +78,36 @@ def buildRemainingTreeAsLists(c,S,WOLosers,IRVElims):
         return [[c, "***Unpruned leaf - ", 
             "RAIRE assertions do not exclude all other winners!***"]]
 
+    pruneThisBranch = False
+    NEBTag = []
+    NENTag = []
+    
     # if c is a loser defeated by a candidate in S, prune here.
     # Tag with NEB assertion number we used to prune.
     for loser in WOLosers:
-        if c==loser[0] and ((loser[1] & S)):
-            return [[c, "NEB",WOLosers.index(loser)]]
+        if c==loser[0] and ((loser[1] in S)):
+            pruneThisBranch = True
+            NEBTag.append(WOLosers.index(loser))
     
     # if c cannot be eliminated by IRV in exactly the case where S is the already-eliminated set, 
     # prune here.  Tag with NEN assertion number we used to prune.
     for winner in IRVElims:
         if c==winner[0] and winner[1]==S:
-            return [[c, "NEN",IRVElims.index(winner)]]
+            pruneThisBranch = True
+            NENTag.append(IRVElims.index(winner))
 
-            
-    tree=[c,[]]
-    for c2 in S:
-        smallerSet = S.copy()
-        smallerSet.remove(c2)
-        tree[1].append(buildRemainingTreeAsLists(c2,smallerSet,WOLosers,IRVElims))
+    if pruneThisBranch:
+    # Base case: if we prune here, tag it with all the assertions
+    # that could be used to prune.
+        tree=[[c,NEBTag,NENTag]]        
+        print("Built leaf:"+c+"NEBTag: "+str(NEBTag)+", NENTag: "+str(NENTag))
+    else:
+        # if we didn't prune here, recurse        
+        tree=[c,[]]
+        for c2 in S:
+            smallerSet = S.copy()
+            smallerSet.remove(c2)
+            tree[1].append(buildRemainingTreeAsLists(c2,smallerSet,WOLosers,IRVElims))
     
     return tree
 
@@ -105,7 +115,7 @@ def printAssertions(WOLosers,IRVElims):
     if len(WOLosers) != 0:
         print("Not-Eliminated-Before assertions: ")
     for loser in WOLosers:
-        print('NEB {0:2d}: Candidates '.format(WOLosers.index(loser))+str(loser[1])+' cannot be eliminated before '+str(loser[0])+'.')
+        print('NEB {0:2d}: Candidate '.format(WOLosers.index(loser))+str(loser[1])+' cannot be eliminated before '+str(loser[0])+'.')
     
     if len(IRVElims) != 0:
         print("\n")
