@@ -1,6 +1,6 @@
 MIT License
 
-Copyright (c) [2019] [Michelle Blom, Andrew Conway, Philip B.Stark, Peter Stuckey, Vanessa Teague]
+Copyright (c) [2019] [Michelle Blom, Andrew Conway, Philip B. Stark, Peter Stuckey, Vanessa Teague]
 
 SOFTWARE:
 Permission is hereby granted, free of charge, to any person obtaining a copy

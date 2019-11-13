@@ -20,8 +20,8 @@ class Assertion:
     The _assorter_ maps votes to nonnegative numbers not exceeding `upper_bound`
     """
     
-    JSON_ASSERTION_TYPES = ["WINNER_ONLY", "IRV_ELIMINATION"]
-    MANIFEST_TYPES = ["ALL","STYLE"]
+    JSON_ASSERTION_TYPES = ["WINNER_ONLY", "IRV_ELIMINATION"]  # supported json assertion types
+    MANIFEST_TYPES = ["ALL","STYLE"]  # supported manifest types
     
     def __init__(self, contest = None, assorter = None):
         """
@@ -99,6 +99,10 @@ class Assertion:
         
         If manifest_type == "ALL", then if the CVR contains the contest but the MVR does not,
         the MVR is considered to be a non-vote in the contest.
+        
+        Phantom CVRs and MVRs are treated specially:
+            A phantom CVR is considered a non-vote in every contest (assort() = 1/2).             
+            A phantom MVR is considered a vote for the loser (i.e., assort() = 0) in every contest.
 
         Parameters:
         -----------
@@ -113,12 +117,15 @@ class Assertion:
         """        
         assert manifest_type in Assertion.MANIFEST_TYPES, "unrecognized manifest type"
         if manifest_type == "ALL":
-            overstatement = self.assorter.assort(cvr)-self.assorter.assort(mvr)
+            overstatement = self.assorter.assort(cvr)\
+                            - (self.assorter.assort(mvr) if not mvr.phantom else 0)
         elif manifest_type == "STYLE":
             if mvr.has_contest(self.contest):
                 overstatement = self.assorter.assort(cvr)-self.assorter.assort(mvr)
             elif not mvr.has_contest(self.contest) and cvr.has_contest(self.contest):
                 overstatement = self.assorter.assort(cvr)
+            elif mvr.phantom and cvr.phantom:
+                overstatement = 1/2
             else:
                 overstatement = 0
         else:
@@ -453,6 +460,7 @@ class CVR:
             {"id": "A-001-01", "votes": {"mayor": {"Alice": 1, "Bob": 2, "Candy": 3, "Dan": ''}}}
     Then int(vote_for("Candy","mayor"))=3, Candy's rank in the "mayor" contest.
     
+    CVRs can be flagged as "phantoms" to account for cards not listed in the manifest.
      
     Methods:
     --------
@@ -468,12 +476,13 @@ class CVR:
         
     """
     
-    def __init__(self, id = None, votes = {}):
+    def __init__(self, id = None, votes = {}, phantom = False):
         self.votes = votes
         self.id = id
+        self.phantom = phantom
         
     def __str__(self):
-        return "id: " + str(self.id) + " votes: " + str(self.votes)
+        return "id: " + str(self.id) + " votes: " + str(self.votes) + " phantom: " + str(self.phantom)
         
     def get_votes(self):
         return self.votes
@@ -487,6 +496,12 @@ class CVR:
     def set_id(self, id):
         self.id = id
         
+    def is_phantom(self):
+        return self.phantom
+    
+    def set_phantom(self, phantom):
+        self.phantom = phantom
+    
     def get_votefor(self, contest, candidate):
         return CVR.get_vote_from_cvr(contest, candidate, self)
     
@@ -512,11 +527,12 @@ class CVR:
         """
         cvr_list = []
         for c in cvr_dict:
-            cvr_list.append(CVR(id = c['id'], votes = c['votes']))
+            phantom = False if 'phantom' not in c.keys() else c['phantom']
+            cvr_list.append(CVR(id = c['id'], votes = c['votes'], phantom=phantom))
         return cvr_list
     
     @classmethod
-    def from_raire(cls, raire):
+    def from_raire(cls, raire, phantom=False):
         """
         Create a list of CVR objects from a list of cvrs in RAIRE format
         
@@ -550,7 +566,7 @@ class CVR:
             votes = {}
             for j in range(2, len(c)):
                 votes[str(c[j])] = j-1
-            cvr_list.append(CVR.from_vote(votes, id=id, contest=contest))
+            cvr_list.append(CVR.from_vote(votes, id=id, contest=contest, phantom=phantom))
         return CVR.merge_cvrs(cvr_list)
     
     @classmethod
@@ -562,6 +578,8 @@ class CVR:
         The merge is in the order of the list: if a later mention of a ballot id has votes 
         for the same contest as a previous mention, the votes in that contest are updated
         per the later mention.
+        
+        If any of the CVRs has phantom==False, sets phantom==False in the result.
         
         
         Parameters:
@@ -578,10 +596,11 @@ class CVR:
                 od[c.id] = c
             else:
                 od[c.id].set_votes(c.votes)
+                od[c.id].set_phantom(c.phantom and od[c.id].phantom)
         return [v for v in od.values()]
     
     @classmethod
-    def from_vote(cls, vote, id = 1, contest = 'AvB'):
+    def from_vote(cls, vote, id = 1, contest = 'AvB', phantom=False):
         """
         Wraps a vote and creates a CVR, for unit tests
     
@@ -593,7 +612,7 @@ class CVR:
         --------
         CVR containing that vote in the contest "AvB", with CVR id=1.
         """
-        return CVR(id=id, votes={contest: vote})
+        return CVR(id=id, votes={contest: vote}, phantom=phantom)
 
     @classmethod
     def as_vote(cls, v):
@@ -1085,7 +1104,7 @@ def check_audit_parameters(risk_function, g, error_rates, contests):
                 'super-majority contest requires winning at least 50% of votes in ' + c + ' contest'
 
 def write_audit_parameters(log_file, seed, replacement, risk_function, g, \
-                           N_cards, manifest_cards, phantom_cards, error_rates, contests):
+                           N_cards, n_cvrs, manifest_cards, phantom_cards, error_rates, contests):
     """
     Write audit parameters to log_file as a json structure
     
@@ -1117,6 +1136,7 @@ def write_audit_parameters(log_file, seed, replacement, risk_function, g, \
            "risk_function" : risk_function,
            "g" : g,
            "N_cards" : N_cards,
+           "n_cvrs" : n_cvrs,
            "manifest_cards" : manifest_cards,
            "phantom_cards" : phantom_cards,
            "error_rates" : error_rates,
@@ -1124,8 +1144,6 @@ def write_audit_parameters(log_file, seed, replacement, risk_function, g, \
           }
     with open(log_file, 'w') as f:
         json.dump(out, f)
-
-
 
 # Unit tests
 
@@ -1338,13 +1356,15 @@ def test_overstatement():
     mvr_dict = [{'id': 1, 'votes': {'AvB': {'Alice':True}}},\
                 {'id': 2, 'votes': {'AvB': {'Bob':True}}},
                 {'id': 3, 'votes': {'AvB': {}}},\
-                {'id': 4, 'votes': {'CvD': {'Elvis':True, 'Candy':False}}}]
+                {'id': 4, 'votes': {'CvD': {'Elvis':True, 'Candy':False}}},\
+                {'id': 'phantom_1', 'votes': {}, 'phantom': True}]
     mvrs = CVR.from_dict(mvr_dict)
 
     cvr_dict = [{'id': 1, 'votes': {'AvB': {'Alice':True}}},\
                 {'id': 2, 'votes': {'AvB': {'Bob':True}}},\
                 {'id': 3, 'votes': {'AvB': {}}},\
-                {'id': 4, 'votes': {'CvD': {'Elvis':True}}}]
+                {'id': 4, 'votes': {'CvD': {'Elvis':True}}},\
+                {'id': 'phantom_1', 'votes': {}, 'phantom': True}]
     cvrs = CVR.from_dict(cvr_dict)
 
     winners = ["Alice"]
@@ -1379,6 +1399,15 @@ def test_overstatement():
 
     assert aVb.overstatement(mvrs[3], cvrs[3], manifest_type="STYLE") == 0
     assert aVb.overstatement(mvrs[3], cvrs[3], manifest_type="ALL") == 0
+    
+    assert aVb.overstatement(mvrs[4], cvrs[4], manifest_type="STYLE") == 1/2
+    assert aVb.overstatement(mvrs[4], cvrs[4], manifest_type="ALL") == 1/2
+    assert aVb.overstatement(mvrs[4], cvrs[4], manifest_type="ALL") == 1/2
+    assert aVb.overstatement(mvrs[4], cvrs[0], manifest_type="STYLE") == 1
+    assert aVb.overstatement(mvrs[4], cvrs[0], manifest_type="ALL") == 1
+    assert aVb.overstatement(mvrs[4], cvrs[1], manifest_type="STYLE") == 0
+    assert aVb.overstatement(mvrs[4], cvrs[1], manifest_type="ALL") == 0
+    
 
 def test_overstatement_assorter():
     """

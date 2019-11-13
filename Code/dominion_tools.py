@@ -35,15 +35,15 @@ def prep_dominion_manifest(manifest, N_cards, n_cvrs):
     cols = ['Tray #', 'Tabulator Number', 'Batch Number', 'Total Ballots', 'VBMCart.Cart number']
     assert set(cols).issubset(manifest.columns), "missing columns"
     manifest_cards = manifest['Total Ballots'].sum()
-    if cvr_cards < N_cards:
-        warnings.warn('The manifest does not account for every card cast in the contest; adding a phantom batch')
+    if n_cvrs < N_cards:
+        warnings.warn('The CVR list does not account for every card cast in the contest; adding a phantom batch to the manifest')
         r = {'Tray #': None, 'Tabulator Number': 'phantom', 'Batch Number': 1, \
-             'Total Ballots': N_cards-cvr_cards, 'VBMCart.Cart number': None}
+             'Total Ballots': N_cards-n_cvrs, 'VBMCart.Cart number': None}
         manifest = manifest.append(r, ignore_index = True)
     manifest['cum_cards'] = manifest['Total Ballots'].cumsum()    
     for c in ['Tray #', 'Tabulator Number', 'Batch Number', 'VBMCart.Cart number']:
         manifest[c] = manifest[c].astype(str)
-    return manifest, manifest_cards, N_cards - cvr_cards
+    return manifest, manifest_cards, N_cards - n_cvrs
 
 def read_dominion_cvrs(cvr_file):
     """
