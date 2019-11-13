@@ -995,8 +995,10 @@ class TestNonnegMean:
         t_minus_Stilde = t - Stilde
         mart_max = 1
         mart_vec = np.ones_like(x, dtype=np.float)
-        if any(t_minus_Stilde < 0): # sample total exceeds hypothesized population total
+        if any(t_minus_Stilde < 0): # sample total exceeds hypothesized population total 
             mart_max = np.inf
+        elif np.mean(x) <= t: # sample mean does not exceed hypothesized population mean
+            mart_max = 1
         else: 
             jtilde = 1 - np.array(list(range(len(x))))/N
             c = np.multiply(x, np.divide(jtilde, t_minus_Stilde))-1 
@@ -1143,7 +1145,13 @@ def write_audit_parameters(log_file, seed, replacement, risk_function, g, \
            "contests" : contests
           }
     with open(log_file, 'w') as f:
-        json.dump(out, f)
+        json.dump(out, f, default=trim_ints)
+
+def trim_ints(x):
+    if isinstance(x, np.int64): 
+        return int(x)  
+    else:
+        return x
 
 # Unit tests
 
