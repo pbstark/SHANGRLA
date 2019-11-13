@@ -115,7 +115,9 @@ def sample_from_manifest(manifest, sample):
 
 def sample_from_cvr(cvr_list, manifest, sample):
     """
-    Sample from a list of CVRs
+    Sample from a list of CVRs. 
+    Return information needed to find the corresponding cards, the CVRs in the sample, 
+    and a list of mvrs for phantom cards in the sample
     
     Parameters:
     -----------
@@ -128,29 +130,36 @@ def sample_from_cvr(cvr_list, manifest, sample):
     Returns:
     -------
     cards: sorted list of card identifiers corresponding to the sample.
+    cvr_sample: the CVRs in the sample
+    mvr_phantoms : list of CVR objects, the mvrs for phantom sheets in the sample.
     """
     sam = np.sort(sample-1) # adjust for 1-based index to 0-based index
     cards = []
+    cvr_sample = []
+    mvr_phantoms = []
     for s in sam:
+        cvr_sample.append(cvr_list[s])
         cvr_id = cvr_list[s].id
-        tab, batch, card_num = cvr_id.split("_")
+        tab, batch, card_num = cvr_id.split("-")
         if not cvr_list[s].phantom:
-            manifest_row = manifest[(manifest['Tabulator Number'] == tab) \
-                                    & (manifest['Batch Number'] == batch)]
-            card = list(manifest_row['VBMCart.Cart number','Tray #']) \
+            manifest_row = manifest[(manifest['Tabulator Number'] == str(tab)) \
+                                    & (manifest['Batch Number'] == str(batch))].iloc[0]
+            card = [manifest_row['VBMCart.Cart number'],\
+                    manifest_row['Tray #']] \
                     + [tab, batch, card_num, str(tab)+'-'+str(batch)\
                     + '-'+str(card_num), s]
         else:
             card = ["","", tab, batch, card_num, str(tab)+'-'+str(batch) + '-'+str(card_num), s]
+            mvr_phantoms.append(CVR(id=cvr_id, votes = {}, phantom=True))
         cards.append(card)
     # sort by id
     cards.sort(key = lambda x: x[5])
-    return cards
+    return cards, cvr_sample, mvr_phantoms
 
 
 def write_cards_sampled(sample_file, cards, print_phantoms=True):
     """
-    Write the identifiers of the sampled cards to a file.
+    Write the identifiers of the sampled CVRs to a file.
     
     Parameters:
     ----------
