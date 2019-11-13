@@ -134,7 +134,7 @@ def sample_from_cvr(cvr_list, manifest, sample):
     for s in sam:
         cvr_id = cvr_list[s].id
         tab, batch, card_num = cvr_id.split("_")
-        if "phantom" not in cvr_id:
+        if not cvr_list[s].phantom:
             manifest_row = manifest[(manifest['Tabulator Number'] == tab) \
                                     & (manifest['Batch Number'] == batch)]
             card = list(manifest_row['VBMCart.Cart number','Tray #']) \
