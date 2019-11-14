@@ -23,15 +23,20 @@ class Assertion:
     JSON_ASSERTION_TYPES = ["WINNER_ONLY", "IRV_ELIMINATION"]  # supported json assertion types
     MANIFEST_TYPES = ["ALL","STYLE"]  # supported manifest types
     
-    def __init__(self, contest = None, assorter = None, p_value = 1, margin = 0):
+    def __init__(self, contest = None, assorter = None, margin = 0, p_value = 1, proved = False):
         """
         The assorter is callable; should produce a non-negative real.
         """
         self.assorter = assorter
         self.contest = contest
-        self.p_value = p_value
         self.margin = margin
+        self.p_value = p_value
+        self.proved = proved
         
+    def __str__(self):
+        return "contest: " + str(self.contest) + " margin: " + self.margin \
+               + " p-value: " + str(self.p_value) + " proved: " + str(self.proved) 
+
     def set_assorter(self, assorter):
         self.assorter = assorter
         
@@ -55,6 +60,12 @@ class Assertion:
         
     def get_margin(self):
         return self.margin
+
+    def set_proved(self, proved):
+        self.proved = proved
+        
+    def get_proved(self):
+        return self.proved
 
     def assort(self, cvr):
         return self.assorter(cvr)
@@ -1163,7 +1174,8 @@ def find_margins(contests, assertions, cvr_list):
 def find_p_values(contests, assertions, mvr_sample, cvr_sample, manifest_type, risk_function):
     """
     Find the p-value for every assertion in assertions; update data structure to
-    include the p-values for the assertions and the maximum p-value for each contest.
+    include the p-values for the assertions, flag "proved" assertions, and note 
+    the maximum p-value for each contest.
     
     Primarily about side-effects.
     
@@ -1201,6 +1213,7 @@ def find_p_values(contests, assertions, mvr_sample, cvr_sample, manifest_type, r
             d = [a.overstatement_assorter(mvr_sample[i], cvr_sample[i],\
                  a.margin, manifest_type=manifest_type) for i in range(len(mvr_sample))]
             a.p_value = risk_function(d)
+            a.proved = (a.p_value <= contests[c]['risk_limit'])
             contest_max_p = np.max([contest_max_p, a.p_value])
         contests[c].update({'max_p': contest_max_p})
         p_max = np.max([p_max, contests[c]['max_p']])
