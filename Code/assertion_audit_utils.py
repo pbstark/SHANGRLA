@@ -1624,6 +1624,26 @@ def test_kaplan_martingale_sample_size():
                                                      alpha=0.05, t=1/2)
     print(n)
 
+    # This tests whether, in a simple example in which null hypothesis is true, 
+    # the distribution of p-values is dominated by the uniform distribution, 
+    # that is, Prob(p \le x) \le x, x \in [0, 1].
+    # VT: I have just added some basic sanity checks to ensure that p is small
+    # when the claimed mean is much higher than the data suggests.
+    # TODO add some tests that use the specific values we expect.
+def test_kaplan_martingale():
+    eps = 0.0001  # Generic small value for use when not sure exactly how small it should be.
+    
+    # When all the items are ones, estimated p for a mean of 1 should be 1.
+    s = np.ones(5)
+    np.testing.assert_almost_equal(TestNonnegMean.kaplan_martingale(s, N=100000, t=1, random_order = True)[0],1.0)
+
+    # When t is much smaller than all the sample data, p should be very small.
+    # VT: Note I am not sure exactly how small.
+    np.testing.assert_array_less(TestNonnegMean.kaplan_martingale(s, N=100000, t=0, random_order = True)[:1],[eps])
+
+    s = [0.6,0.8,1.0,1.2,1.4]
+    np.testing.assert_array_less(TestNonnegMean.kaplan_martingale(s, N=100000, t=0, random_order = True)[:1],[eps])
+
 def test_assorter_mean():
     pass # [FIX ME]
 
