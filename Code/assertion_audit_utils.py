@@ -1207,13 +1207,17 @@ def find_p_values(contests, assertions, mvr_sample, cvr_sample, manifest_type, r
     assert len(mvr_sample) == len(cvr_sample), "unequal numbers of cvrs and mvrs"
     p_max = 0
     for c in contests.keys():
+        contests[c]['p_values'] = {}
+        contests[c]['proved'] = {}
         contest_max_p = 0
         for asrtn in assertions[c]:
             a = assertions[c][asrtn]
             d = [a.overstatement_assorter(mvr_sample[i], cvr_sample[i],\
                  a.margin, manifest_type=manifest_type) for i in range(len(mvr_sample))]
             a.p_value = risk_function(d)
-            a.proved = (a.p_value <= contests[c]['risk_limit'])
+            a.proved = (a.p_value <= contests[c]['risk_limit']) or a.proved
+            contests[c]['p_values'].update({asrtn: a.p_value})
+            contests[c]['proved'].update({asrtn: a.proved})
             contest_max_p = np.max([contest_max_p, a.p_value])
         contests[c].update({'max_p': contest_max_p})
         p_max = np.max([p_max, contests[c]['max_p']])
@@ -1289,8 +1293,10 @@ def write_audit_parameters(log_file, seed, replacement, risk_function, g, \
 def trim_ints(x):
     if isinstance(x, np.int64): 
         return int(x)  
-    else:
+    elif isinstance(x, str):
         return x
+    else:
+        raise TypeError
 
 
 # Unit tests
