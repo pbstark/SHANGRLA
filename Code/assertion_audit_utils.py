@@ -4,7 +4,6 @@ import numpy as np
 import scipy as sp
 import pandas as pd
 import json
-import yaml
 import csv
 import warnings
 from numpy import testing
@@ -536,7 +535,7 @@ class CVR:
     
     @classmethod
     def cvrs_to_json(cls, cvr):
-        return json.dump(cvr)
+        return json.dumps(cvr)
     
     @classmethod
     def from_dict(cls, cvr_dict):
@@ -1052,7 +1051,7 @@ class TestNonnegMean:
         return p, mart_vec
 
     @classmethod
-    def kaplan_martingale_sample_size(cls, N, margin, overstatement_rate = 0.001, alpha=0.05, t=1/2):
+    def kaplan_martingale_sample_size(cls, N, margin, error_rate, alpha=0.05, t=1/2):
         """
         Estimate the sample size needed to reject the null hypothesis
         that the population mean is <=t at significance level alpha, using simulations,
@@ -1064,6 +1063,8 @@ class TestNonnegMean:
             population size, or N = np.infty for sampling with replacement
         margin : double
             assorter margin 
+        error_rate : float 
+            assumed rates of 1-vote overstatements 
         alpha : double
             significance level in (0, 0.5)
         t : double
@@ -1086,13 +1087,13 @@ class TestNonnegMean:
             j = j+1
             x = clean*np.ones(j)
             for k in range(j):
-                x[k] = one_vote_over if k % int(1/overstatement_rate) == 0 else x[k]                   
+                x[k] = one_vote_over if k % int(1/error_rate) == 0 else x[k]                   
             p = TestNonnegMean.kaplan_martingale(clean*np.ones(j), N, t, random_order = False)[0]
         return j
           
 # utilities
        
-def check_audit_parameters(risk_function, g, error_rates, contests):
+def check_audit_parameters(risk_function, g, error_rate, contests):
     """
     Check whether the audit parameters are valid; complain if not.
     
@@ -1103,8 +1104,8 @@ def check_audit_parameters(risk_function, g, error_rates, contests):
     g : double in [0, 1)
         padding for Kaplan-Markov or Kaplan-Wald 
         
-    error_rates : dict
-        expected rates of overstatement and understatement errors
+    error_rate : float
+        expected rate of 1-vote overstatements
         
     contests : dict of dicts 
         contest-specific information for the audit
@@ -1115,8 +1116,7 @@ def check_audit_parameters(risk_function, g, error_rates, contests):
     if risk_function in ['kaplan_markov','kaplan_wald']:
         assert g >=0, 'g must be at least 0'
         assert g < 1, 'g must be less than 1'
-    for r in ['o1_rate','o2_rate','u1_rate','u2_rate']:
-        assert error_rates[r] >= 0, 'expected error rates must be nonnegative'
+    assert error_rate >= 0, 'expected error rate must be nonnegative'
     for c in contests.keys():
         assert contests[c]['risk_limit'] > 0, 'risk limit must be nonnegative in ' + c + ' contest'
         assert contests[c]['risk_limit'] < 1, 'risk limit must be less than 1 in ' + c + ' contest'
@@ -1218,7 +1218,7 @@ def find_p_values(contests, assertions, mvr_sample, cvr_sample, manifest_type, r
             a.p_value = risk_function(d)
             a.proved = (a.p_value <= contests[c]['risk_limit']) or a.proved
             contests[c]['p_values'].update({asrtn: a.p_value})
-            contests[c]['proved'].update({asrtn: a.proved})
+            contests[c]['proved'].update({asrtn: int(a.proved)})
             contest_max_p = np.max([contest_max_p, a.p_value])
         contests[c].update({'max_p': contest_max_p})
         p_max = np.max([p_max, contests[c]['max_p']])
@@ -1298,8 +1298,8 @@ def summarize_status(contests, assertions):
     for c in contests:
         print("p-values for assertions in contest {}".format(c))
         cpmax = 0
-        for a in all_assertions[c]:
-            p = all_assertions[c][a].p_value
+        for a in assertions[c]:
+            p = assertions[c][a].p_value
             cpmax = np.max([cpmax,p])
             print(a, p)
         if cpmax <= contests[c]['risk_limit']:
@@ -1312,7 +1312,7 @@ def summarize_status(contests, assertions):
     return done
 
 def write_audit_parameters(log_file, seed, replacement, risk_function, g, \
-                           N_cards, n_cvrs, manifest_cards, phantom_cards, error_rates, contests):
+                           N_cards, n_cvrs, manifest_cards, phantom_cards, error_rate, contests):
     """
     Write audit parameters to log_file as a json structure
     
@@ -1330,15 +1330,15 @@ def write_audit_parameters(log_file, seed, replacement, risk_function, g, \
     g : double
         padding for Kaplan-Wald and Kaplan-Markov
         
-    error_rates : dict
-        expected rates of overstatement and understatement errors
+    error_rate : float
+        expected rate of 1-vote overstatements
         
     contests : dict of dicts 
         contest-specific information for the audit
         
     Returns:
     --------
-    """
+    """                      
     out = {"seed" : seed,
            "replacement" : replacement,
            "risk_function" : risk_function,
@@ -1347,17 +1347,15 @@ def write_audit_parameters(log_file, seed, replacement, risk_function, g, \
            "n_cvrs" : int(n_cvrs),
            "manifest_cards" : int(manifest_cards),
            "phantom_cards" : int(phantom_cards),
-           "error_rates" : error_rates,
+           "error_rate" : error_rate,
            "contests" : contests
           }
     with open(log_file, 'w') as f:
-        yaml.dump(out, f)
+        f.write(json.dumps(out))
 
 def trim_ints(x):
     if isinstance(x, np.int64): 
         return int(x)  
-    elif isinstance(x, str):
-        return x
     else:
         raise TypeError
 
@@ -1702,7 +1700,7 @@ def test_kaplan_wald():
         raise AssertionError
 
 def test_kaplan_martingale_sample_size():
-    n = TestNonnegMean.kaplan_martingale_sample_size(100000, margin=0.01, overstatement_rate=0.001,\
+    n = TestNonnegMean.kaplan_martingale_sample_size(100000, margin=0.01, error_rate=0.001,\
                                                      alpha=0.05, t=1/2)
     print(n)
 
@@ -1712,6 +1710,7 @@ def test_kaplan_martingale_sample_size():
     # VT: I have just added some basic sanity checks to ensure that p is small
     # when the claimed mean is much higher than the data suggests.
     # TODO add some tests that use the specific values we expect.
+    
 def test_kaplan_martingale():
     eps = 0.0001  # Generic small value for use when not sure exactly how small it should be.
     
