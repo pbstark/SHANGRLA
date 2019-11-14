@@ -23,12 +23,14 @@ class Assertion:
     JSON_ASSERTION_TYPES = ["WINNER_ONLY", "IRV_ELIMINATION"]  # supported json assertion types
     MANIFEST_TYPES = ["ALL","STYLE"]  # supported manifest types
     
-    def __init__(self, contest = None, assorter = None):
+    def __init__(self, contest = None, assorter = None, p_value = 1, margin = 0):
         """
         The assorter is callable; should produce a non-negative real.
         """
         self.assorter = assorter
         self.contest = contest
+        self.p_value = p_value
+        self.margin = margin
         
     def set_assorter(self, assorter):
         self.assorter = assorter
@@ -41,6 +43,18 @@ class Assertion:
         
     def get_contest(self):
         return self.contest
+
+    def set_p_value(self, p_value):
+        self.p_value = p_value
+        
+    def get_p_value(self):
+        return self.p_value
+
+    def set_margin(self, margin):
+        self.margin = margin
+        
+    def get_margin(self):
+        return self.margin
 
     def assort(self, cvr):
         return self.assorter(cvr)
@@ -154,7 +168,7 @@ class Assertion:
             
         Returns:
         --------
-        normal_over : double
+        over : double
             (1-o/u)/(2-v/u), where 
                 o is the overstatement
                 u is the upper bound on the value the assorter assigns to any ballot
@@ -890,19 +904,34 @@ class TestNonnegMean:
                        else 1/np.prod((1-g)*x/t + g)])
     
     @classmethod
-    def kaplan_kolmogorov(cls, x, N, t=1/2, random_order = True):
+    def kaplan_kolmogorov(cls, x, N, t=1/2, g=0, random_order = True):
         '''
         p-value for the hypothesis that the mean of a nonnegative population with N
         elements is t. The alternative is that the mean is less than t.
         If the random sample x is in the order in which the sample was drawn, it is
         legitimate to set random_order = True. 
         If not, set random_order = False. 
+        
+        g is a tuning parameter to protect against data values equal to zero.
+        g should be in [0, 1)
+        
+        Parameters:
+        -----------
+        x : list
+            observations
+        N : int
+            population size
+        t : double
+            null value of the population mean
+        g : double in [0, 1)
+            "padding" to protect against zeros
         '''
         x = np.array(x)
         assert all(x >=0),  'Negative value in a nonnegative population!'
         assert len(x) <= N, 'Sample size is larger than the population!'
         assert N > 0,       'Population size not positive!'
         assert N == int(N), 'Non-integer population size!'
+        
         sample_total = 0.0
         mart = x[0]/t if t > 0 else 1
         mart_max = mart
@@ -995,8 +1024,10 @@ class TestNonnegMean:
         t_minus_Stilde = t - Stilde
         mart_max = 1
         mart_vec = np.ones_like(x, dtype=np.float)
-        if any(t_minus_Stilde < 0): # sample total exceeds hypothesized population total
+        if any(t_minus_Stilde < 0): # sample total exceeds hypothesized population total 
             mart_max = np.inf
+        elif np.mean(x) <= t: # sample mean does not exceed hypothesized population mean
+            mart_max = 1
         else: 
             jtilde = 1 - np.array(list(range(len(x))))/N
             c = np.multiply(x, np.divide(jtilde, t_minus_Stilde))-1 
@@ -1009,9 +1040,9 @@ class TestNonnegMean:
         return p, mart_vec
 
     @classmethod
-    def kaplan_martingale_sample_size_sim(cls, N, alt_mean, alpha=0.05, t=1/2, q=0.8, reps=100):
+    def kaplan_martingale_sample_size(cls, N, margin, overstatement_rate = 0.001, alpha=0.05, t=1/2):
         """
-        Estimate the qth quantile of sample size needed to reject the null hypothesis
+        Estimate the sample size needed to reject the null hypothesis
         that the population mean is <=t at significance level alpha, using simulations,
         for the kaplan_kolmogorov method
         
@@ -1019,41 +1050,34 @@ class TestNonnegMean:
         -----------
         N : int
             population size, or N = np.infty for sampling with replacement
-        alt_mean : double
-            population mean under the alternative hypothesis
+        margin : double
+            assorter margin 
         alpha : double
             significance level in (0, 0.5)
         t : double
             hypothesized value of the population mean
-        q : double
-            desired quantile of the distribution of sample sizes
-        reps : int
-            number of replications in the simulation
             
         Returns:
         --------
-        estimated quantile of sample sizes
+        sample_size : int
+            sample size sufficient to confirm the outcome if discrepancies are not more frequent
+            in fact than the assumed rates
         """
         assert alpha > 0 and alpha < 1/2
-        assert alt_mean > t
-        assert q > 0 and q < 1
+        assert margin > 0
         prng = SHA256(1234567890)
-        hyp_pop = prng.random(N)
-        hyp_pop = alt_mean*hyp_pop/np.mean(hyp_pop)
-        dist = []
-        for i in range(reps):
-            hyp_pop = random_permutation(hyp_pop, prng=prng)
-            p = 1
-            j = 0
-            while (p > alpha) and (j < N):
-                j = j+1
-                p = TestNonnegMean.kaplan_martingale(hyp_pop[:j+1], N, t, random_order = False)[0]
-                if j % 100 == 0:
-                    print("length {} in trial {} has p {}".format(j, i, p))
-            dist.append(j)
-        return np.quantile(dist, q)
-        
-    
+        clean = 1/(2-margin)
+        one_vote_over = 0.5/(2-margin)
+        p = 1
+        j = 0
+        while (p > alpha) and (j < N):
+            j = j+1
+            x = clean*np.ones(j)
+            for k in range(j):
+                x[k] = one_vote_over if k % int(1/overstatement_rate) == 0 else x[k]                   
+            p = TestNonnegMean.kaplan_martingale(clean*np.ones(j), N, t, random_order = False)[0]
+        return j
+          
 # utilities
        
 def check_audit_parameters(risk_function, g, error_rates, contests):
@@ -1103,6 +1127,110 @@ def check_audit_parameters(risk_function, g, error_rates, contests):
             assert contests[c]['share_to_win'] >= 0.5, \
                 'super-majority contest requires winning at least 50% of votes in ' + c + ' contest'
 
+def find_margins(contests, assertions, cvr_list):
+    """
+    Find all the assorter margins in a set of Assertions. Updates the dict of dicts of assertions,
+    and the contest dict.
+    
+    This function is primarily about side-effects
+    
+    Parameters:
+    -----------
+    contests : dict of contest data
+    assertions : dict of dicts of Assertions
+        Keys in the main dict are contests; keys in the contained dicts are Assertions
+    
+    Returns:
+    --------
+    min_margin : double
+        smallest margin in the audit        
+    """
+    assorter_means = {}
+    min_margin = np.infty
+    for c in contests.keys():
+        contests[c]['margins'] = {}
+        for asrtn in assertions[c]:
+            # find mean of the assertion for the CVRs
+            amean = assertions[c][asrtn].assorter_mean(cvr_list)
+            if amean < 1/2:
+                warn("assertion {} not satisfied by CVRs: mean value is {}".format(asrtn, amean))
+            margin = 2*amean-1
+            assertions[c][asrtn].margin = margin
+            contests[c]['margins'].update({asrtn: margin})
+            min_margin = np.min([min_margin, margin])
+    return min_margin
+
+def find_p_values(contests, assertions, mvr_sample, cvr_sample, manifest_type, risk_function):
+    """
+    Find the p-value for every assertion in assertions; update data structure to
+    include the p-values for the assertions and the maximum p-value for each contest.
+    
+    Primarily about side-effects.
+    
+    Parameters:
+    -----------
+    contests : dict of dicts
+        the contest data structure. outer keys are contest identifiers; inner keys are assertions
+        
+    assertions : dict of dicts of assertions
+    
+    mvr_sample : list of CVR objects
+        the manually ascertained voter intent from sheets, including entries for phantoms
+    
+    cvr_sample : list of CVR objects
+        the cvrs for the same sheets
+        
+    manifest_type : string
+        "ALL" or "STYLE". See documentation
+        
+    risk_function : callable
+        function to calculate the p-value from overstatement_assorter values
+        
+    Returns:
+    --------
+    p_max : double
+        largest p-value for any assertion in any contest
+        
+    """
+    assert len(mvr_sample) == len(cvr_sample), "unequal numbers of cvrs and mvrs"
+    p_max = 0
+    for c in contests.keys():
+        contest_max_p = 0
+        for asrtn in assertions[c]:
+            a = assertions[c][asrtn]
+            d = [a.overstatement_assorter(mvr_sample[i], cvr_sample[i],\
+                 a.margin, manifest_type=manifest_type) for i in range(len(mvr_sample))]
+            a.p_value = risk_function(d)
+            contest_max_p = np.max([contest_max_p, a.p_value])
+        contests[c].update({'max_p': contest_max_p})
+        p_max = np.max([p_max, contests[c]['max_p']])
+    return p_max
+
+def find_sample_size(contests, assertions, sample_size_function):
+    """
+    Find initial sample size
+    
+    Parameters:
+    -----------
+    contests : dict of dicts
+    assertion : dict of dicts
+    sample_size_function : callable
+        takes two parameters, the margin and the risk limit; returns a sample size
+    
+    Returns:
+    --------
+    size : int
+        sample size expected to be adequate to confirm all assertions
+    """
+    sample_size = 0
+    for c in contests:
+        r_lim = contests[c]['risk_limit']
+        for a in assertions[c]:
+            margin = assertions[c][a].margin
+            n = sample_size_function(margin, r_lim)
+            sample_size = np.max([sample_size, n] )
+    return sample_size
+
 def write_audit_parameters(log_file, seed, replacement, risk_function, g, \
                            N_cards, n_cvrs, manifest_cards, phantom_cards, error_rates, contests):
     """
@@ -1143,7 +1271,14 @@ def write_audit_parameters(log_file, seed, replacement, risk_function, g, \
            "contests" : contests
           }
     with open(log_file, 'w') as f:
-        json.dump(out, f)
+        json.dump(out, f, default=trim_ints)
+
+def trim_ints(x):
+    if isinstance(x, np.int64): 
+        return int(x)  
+    else:
+        return x
+
 
 # Unit tests
 
@@ -1414,7 +1549,8 @@ def test_overstatement_assorter():
     (1-o/u)/(2-v/u)
     """
     mvr_dict = [{'id': 1, 'votes': {'AvB': {'Alice':True}}},\
-                {'id': 2, 'votes': {'AvB': {'Bob':True}}}]
+                {'id': 2, 'votes': {'AvB': {'Bob':True}}},\
+                {'id': 3, 'votes': {'AvB': {'Candy':True}}}]
     mvrs = CVR.from_dict(mvr_dict)
 
     cvr_dict = [{'id': 1, 'votes': {'AvB': {'Alice':True}}},\
@@ -1437,6 +1573,9 @@ def test_overstatement_assorter():
 
     assert aVb.overstatement_assorter(mvrs[0], cvrs[1], margin=0.3, manifest_type="STYLE") == 2/1.7
     assert aVb.overstatement_assorter(mvrs[0], cvrs[1], margin=0.3, manifest_type="ALL") == 2/1.7
+
+    assert aVb.overstatement_assorter(mvrs[2], cvrs[0], margin=0.1, manifest_type="STYLE") == 0.5/1.9
+    assert aVb.overstatement_assorter(mvrs[2], cvrs[0], margin=0.1, manifest_type="ALL") == 0.5/1.9
 
 def test_cvr_has_contest():
     cvr_dict = [{'id': 1, 'votes': {'AvB': {}, 'CvD': {'Candy':True}}},\
@@ -1470,7 +1609,8 @@ def test_kaplan_wald():
     np.testing.assert_almost_equal(TestNonnegMean.kaplan_wald(s), 2**-5)
     s = np.array([1, 1, 1, 1, 1, 0])
     np.testing.assert_almost_equal(TestNonnegMean.kaplan_wald(s, g=0.1), (1.9)**-5)
-    np.testing.assert_almost_equal(TestNonnegMean.kaplan_wald(s, g=0.1, random_order = False),(1.9)**-5 * 10)
+    np.testing.assert_almost_equal(TestNonnegMean.kaplan_wald(s, g=0.1, random_order = False),\
+                                   (1.9)**-5 * 10)
     s = np.array([1, -1])
     try:
         TestNonnegMean.kaplan_wald(s)
@@ -1479,10 +1619,30 @@ def test_kaplan_wald():
     else:
         raise AssertionError
 
-def test_kaplan_martingale_sample_size_sim():
-    n = TestNonnegMean.kaplan_martingale_sample_size_sim(N=100000, alt_mean=0.6, \
-                                                         alpha=0.05, t=1/2, q=0.8, reps=10)
-    assert n > 50 and n < 150
+def test_kaplan_martingale_sample_size():
+    n = TestNonnegMean.kaplan_martingale_sample_size(100000, margin=0.01, overstatement_rate=0.001,\
+                                                     alpha=0.05, t=1/2)
+    print(n)
+
+    # This tests whether, in a simple example in which null hypothesis is true, 
+    # the distribution of p-values is dominated by the uniform distribution, 
+    # that is, Prob(p \le x) \le x, x \in [0, 1].
+    # VT: I have just added some basic sanity checks to ensure that p is small
+    # when the claimed mean is much higher than the data suggests.
+    # TODO add some tests that use the specific values we expect.
+def test_kaplan_martingale():
+    eps = 0.0001  # Generic small value for use when not sure exactly how small it should be.
+    
+    # When all the items are ones, estimated p for a mean of 1 should be 1.
+    s = np.ones(5)
+    np.testing.assert_almost_equal(TestNonnegMean.kaplan_martingale(s, N=100000, t=1, random_order = True)[0],1.0)
+
+    # When t is much smaller than all the sample data, p should be very small.
+    # VT: Note I am not sure exactly how small.
+    np.testing.assert_array_less(TestNonnegMean.kaplan_martingale(s, N=100000, t=0, random_order = True)[:1],[eps])
+
+    s = [0.6,0.8,1.0,1.2,1.4]
+    np.testing.assert_array_less(TestNonnegMean.kaplan_martingale(s, N=100000, t=0, random_order = True)[:1],[eps])
 
 def test_assorter_mean():
     pass # [FIX ME]
@@ -1519,4 +1679,4 @@ if __name__ == "__main__":
     
     test_kaplan_markov()
     test_kaplan_wald()
-    test_kaplan_martingale_sample_size_sim()
+    test_kaplan_martingale_sample_size()
