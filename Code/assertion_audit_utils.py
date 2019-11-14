@@ -1249,6 +1249,68 @@ def find_sample_size(contests, assertions, sample_size_function):
             sample_size = np.max([sample_size, n] )
     return sample_size
 
+def prep_sample(mvr_sample, cvr_sample):
+    """
+    prepare the MVRs and CVRs for comparison (by sorting them into the same order)
+    and conduct data integrity checks.
+    
+    Side-effects: sorts the samples by id
+    
+    Parameters:
+    -----------
+    mvr_sample: list of CVR objects 
+        the manually determined votes for the audited cards
+    cvr_sample: list of CVR objects
+        the electronic vote record for the audited cards 
+    
+    Returns:
+    --------
+    """
+    mvr_sample.sort(key= lambda x: x.id)
+    cvr_sample.sort(key= lambda x: x.id)
+
+    assert len(cvr_sample) == len(mvr_sample),\
+        "Number of cvrs ({}) and mvrs ({}) doesn't match".format(len(cvr_sample), len(mvr_sample))
+    for i in range(len(cvr_sample)):
+        assert mvr_sample[i].id == cvr_sample[i].id, \
+    "Mismatch between id of cvr ({}) and mvr ({})".format(cvr_sample[i].id, mvr_sample[i].id)
+
+def summarize_status(contests, assertions):
+    """
+    Determine whether the audit of individual assertions, contests, and the election
+    are finished.
+    
+    Prints a summary.
+    
+    Parameters:
+    -----------
+    contests : dict of dicts
+        dict of contest information
+    assertions : dict of dicts
+        the assertions
+    
+    
+    Returns:
+    --------
+    done : boolean
+        is the audit finished?"""
+    done = True
+    for c in contests:
+        print("p-values for assertions in contest {}".format(c))
+        cpmax = 0
+        for a in all_assertions[c]:
+            p = all_assertions[c][a].p_value
+            cpmax = np.max([cpmax,p])
+            print(a, p)
+        if cpmax <= contests[c]['risk_limit']:
+            print("contest {} AUDIT COMPLETE at risk limit {}. Attained risk {}".format(\
+                c, contests[c]['risk_limit'], cpmax))
+        else:
+            done = False
+            print("contest {} audit INCOMPLETE at risk limit {}. Attained risk {}".format(\
+                c, contests[c]['risk_limit'], cpmax))
+    return done
+
 def write_audit_parameters(log_file, seed, replacement, risk_function, g, \
                            N_cards, n_cvrs, manifest_cards, phantom_cards, error_rates, contests):
     """
@@ -1280,11 +1342,11 @@ def write_audit_parameters(log_file, seed, replacement, risk_function, g, \
     out = {"seed" : seed,
            "replacement" : replacement,
            "risk_function" : risk_function,
-           "g" : g,
-           "N_cards" : N_cards,
-           "n_cvrs" : n_cvrs,
-           "manifest_cards" : manifest_cards,
-           "phantom_cards" : phantom_cards,
+           "g" : float(g),
+           "N_cards" : int(N_cards),
+           "n_cvrs" : int(n_cvrs),
+           "manifest_cards" : int(manifest_cards),
+           "phantom_cards" : int(phantom_cards),
            "error_rates" : error_rates,
            "contests" : contests
           }
