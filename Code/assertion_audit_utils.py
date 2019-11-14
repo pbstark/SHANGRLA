@@ -4,6 +4,7 @@ import numpy as np
 import scipy as sp
 import pandas as pd
 import json
+import yaml
 import csv
 import warnings
 from numpy import testing
@@ -1288,7 +1289,7 @@ def write_audit_parameters(log_file, seed, replacement, risk_function, g, \
            "contests" : contests
           }
     with open(log_file, 'w') as f:
-        json.dump(out, f, default=trim_ints)
+        yaml.dump(out, f)
 
 def trim_ints(x):
     if isinstance(x, np.int64): 
