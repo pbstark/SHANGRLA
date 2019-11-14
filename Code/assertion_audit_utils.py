@@ -1275,6 +1275,51 @@ def prep_sample(mvr_sample, cvr_sample):
         assert mvr_sample[i].id == cvr_sample[i].id, \
     "Mismatch between id of cvr ({}) and mvr ({})".format(cvr_sample[i].id, mvr_sample[i].id)
 
+def new_sample_size(contests, assertions, mvr_sample, cvr_sample, manifest_type, risk_function):
+    """
+    Estimate the total sample size expected to allow the audit to complete,
+    if discrepancies continue at the same rate already observed.
+        
+    Parameters:
+    -----------
+    contests : dict of dicts
+        the contest data structure. outer keys are contest identifiers; inner keys are assertions
+        
+    assertions : dict of dicts of assertions
+    
+    mvr_sample : list of CVR objects
+        the manually ascertained voter intent from sheets, including entries for phantoms
+    
+    cvr_sample : list of CVR objects
+        the cvrs for the same sheets
+        
+    manifest_type : string
+        "ALL" or "STYLE". See documentation
+        
+    risk_function : callable
+        function to calculate the p-value from overstatement_assorter values
+    
+    Returns:
+    --------
+    next_size : int
+        sample size
+    """
+    new_size = 0
+    for c in contests:
+        for asrtn in assertions[c]:
+            if not assertions[c][asrtn].proved:    
+                a = assertions[c][asrtn]
+                p = a.p_value
+                d = [a.overstatement_assorter(mvr_sample[i], cvr_sample[i],\
+                     a.margin, manifest_type=manifest_type) for i in range(len(mvr_sample))]
+                while p > contests[c]['risk_limit']:
+                    one_more = sample_by_index(len(d), 1, prng=prng)
+                    d.append(d[one_more-1])
+                    p = risk_function(d)
+                new_size = np.max([new_size, len(d)])
+            
+    return new_size
+
 def summarize_status(contests, assertions):
     """
     Determine whether the audit of individual assertions, contests, and the election
