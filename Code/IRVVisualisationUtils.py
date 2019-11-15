@@ -3,6 +3,9 @@ from svgling.figure import Caption, SideBySide, RowByRow
 import colorama
 from colorama import Fore, Style
 import functools
+from collections import namedtuple
+
+LeafNode = namedtuple('LeafNode', 'cand, NEBTagList, NENTagList')
 
 # Convert a tree in list form into the same tree in tuple form suitable for
 # svgling.
@@ -14,20 +17,27 @@ def treeListToTuple(t):
     tag=""
     # TODO: look at whether t[0][1][1] is true (proved) or false and colour accordingly.
     if len(t) == 1:
+        print("Converting tree to tuple: "+str(t))
         # this is a node to be pruned, with two lists of (number, bool) tuples indicating
         # the assertion numbers that justify pruning it, and whether each has been proved.
         # We find the logical OR of all the 'proven' booleans - if any are confirmed, this
         # prune is confirmed.
         node=t[0]
-        if node[1]:
+        #if node[1]:
+        if node.NEBTagList:
             #tag += "NEB "+str(t[0][1])
             tag += "NEB "+",".join(str(n[0]) for n in node[1])+"\n"+buildConfTag(node[1]) 
-        if node[1] and node[2]:
+        #if node[1] and node[2]:
+        if node.NEBTagList and node.NENTagList:
             tag +="\n"
-        if node[2]:
+        if node.NENTagList:    
+        #if node[2]:
             #tag += "NEN "+str(node[2])
-            tag += "NEN "+",".join(str(n[0]) for n in node[2])+"\n"+buildConfTag(node[2]) 
+            tag += "NEN "+",".join(str(n[0]) for n in node[2])+"\n"+buildConfTag(node[2])
+        if not (node.NEBTagList or node.NENTagList):
+            tag = "***Unpruned leaf. RAIRE assertions do not exclude all other winners!***"
         return((node[0],tag)) 
+    
     # Otherwise recurse.
     else:
         tList = []
@@ -39,24 +49,66 @@ def treeListToTuple(t):
 # Takes the logical OR and returns either "Confirmed" if True
 # or "Unconfirmed" if False.
 def buildConfTag(numBoolList):
+    if len(numBoolList) == 0:
+        return "Error: no truth values for this assertion."
     truthval = (functools.reduce(lambda a,b : a[1] or b[1], numBoolList))[1]
     if truthval:
         return "Confirmed"
     else:
         return "Unconfirmed"
     
+# Parses a json file containing assertions.  
+# Complicated by the fact that we have two slightly different
+# formats, one produced by RAIRE and the other as a log file
+# of the audit process.  Some of the field names are slightly 
+# different.
 def parseAssertions(auditfile,candidatefile):
-    #FIXME: Hardcoded to just look at the first audit for now.
-    audit = auditfile["audits"][0]
-    apparentWinner = audit["winner"]
+    
+    
+    auditsArray = []
+    
+    #FIXME: Hardcoded to draw only the first audit for now,
+    # though it parses all of them.
+    # 'first' isn't even well-defined for a DICT so this needs to be fixed.
+    if 'seed' in auditfile:
+        # Assume this is formatted like a log file from assertion-RLA.
+        for contestNum in auditfile["contests"]:
+            contest = auditfile["contests"][contestNum]
+            print("Testing: choice function ="+auditfile["contests"][contestNum]["choice_function"])
+
+            if contest["choice_function"] == "IRV":
+                auditsArray.append(contest)
+            if len(contest["reported_winners"]) != 1:
+                warn("IRV contest with either zero or >1 winner")
+        
+        audit = auditsArray[0]  
+        apparentWinner = audit["reported_winners"][0]
+        print("apparentWinner = "+apparentWinner)
+        print("candidates = "+str(audit["candidates"]))
+        apparentNonWinners = audit["candidates"].copy()    
+        apparentNonWinners.remove(apparentWinner)
+        #apparentNonWinners = audit["candidates"].remove(apparentWinner)
+        print("apparent Non Winners: "+ str(apparentNonWinners))
+        assertions = audit["assertion_json"]
+
+        
+    else:
+        # Assume this is formatted like the assertions output from RAIRE
+        auditsArray = auditfile["audits"]     
+        
+        audit = auditsArray[0]
+        apparentWinner = audit["winner"]
+        apparentNonWinners=audit["eliminated"] 
+        assertions = audit["assertions"]
+
     apparentWinnerName = findCandidateName(apparentWinner,candidatefile)
     print("Apparent winner: "+"\n"+printTuple((apparentWinner,apparentWinnerName)))
-    apparentNonWinners=audit["eliminated"]
+    
     apparentNonWinnersWithNames = findListCandidateNames(apparentNonWinners, candidatefile)
     print("Apparently eliminated:")
     print(",\n".join(list(map(printTuple,apparentNonWinnersWithNames))))
     print("\n")
-    assertions = audit["assertions"]
+
 
     # WOLosers is a list of tuples - the first element of the tuple is the loser,
     # the second element is the set of all the candidates it loses relative to.
@@ -74,8 +126,8 @@ def parseAssertions(auditfile,candidatefile):
         if ("proved" in a) and (a["proved"]=="True"):
             proved = True
         else:
-            proved = False
-            
+            proved = False    
+        
         if a["assertion_type"]=="WINNER_ONLY":
             if a["already_eliminated"] != "" :
                 # VT: Not clear whether we should go on or quit at this point.
@@ -90,6 +142,10 @@ def parseAssertions(auditfile,candidatefile):
         if a["assertion_type"]=="IRV_ELIMINATION":
             l = a["winner"]
             IRVElims.append((l,set(a["already_eliminated"]),proved))
+            
+    print("WOLosers = "+str(WOLosers))
+    print("IRVElims = "+str(IRVElims))
+    
     return((apparentWinner,apparentWinnerName), apparentNonWinnersWithNames, WOLosers, IRVElims)
 
 def printTuple(t):
@@ -125,8 +181,10 @@ def buildRemainingTreeAsLists(c,S,WOLosers,IRVElims):
     # The intention is to make it visually obvious to an auditor.
     # Hence the ***
     if not S:
-        return [[c, "***Unpruned leaf - ", 
-            "RAIRE assertions do not exclude all other winners!***"]]
+        return [LeafNode(cand=c,NEBTagList=[],NENTagList=[])]
+        # return [[c, "***Unpruned leaf - ", 
+        #    "RAIRE assertions do not exclude all other winners!***"]]
+        warn("***Unpruned leaf "+c+". RAIRE assertions do not exclude all other winners!***")
 
     pruneThisBranch = False
     NEBTags = []
@@ -149,7 +207,7 @@ def buildRemainingTreeAsLists(c,S,WOLosers,IRVElims):
     if pruneThisBranch:
     # Base case: if we prune here, tag it with all the assertions
     # that could be used to prune.
-        tree=[[c,NEBTags,NENTags]]        
+        tree=[LeafNode(cand=c,NEBTagList=NEBTags,NENTagList=NENTags)]        
     else:
     # if we didn't prune here, recurse        
         tree=[c,[]]
