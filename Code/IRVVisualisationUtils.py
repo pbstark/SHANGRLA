@@ -14,25 +14,20 @@ def treeListToTuple(t):
     if not t:
         warn("Error: empty list in tree drawing")
     # Leaf.  Return the name of the candidate and the assertions we've excluded it with.
+    
     tag=""
-    # TODO: look at whether t[0][1][1] is true (proved) or false and colour accordingly.
+   
     if len(t) == 1:
-        print("Converting tree to tuple: "+str(t))
         # this is a node to be pruned, with two lists of (number, bool) tuples indicating
         # the assertion numbers that justify pruning it, and whether each has been proved.
         # We find the logical OR of all the 'proven' booleans - if any are confirmed, this
         # prune is confirmed.
         node=t[0]
-        #if node[1]:
         if node.NEBTagList:
-            #tag += "NEB "+str(t[0][1])
             tag += "NEB "+",".join(str(n[0]) for n in node[1])+"\n"+buildConfTag(node[1]) 
-        #if node[1] and node[2]:
         if node.NEBTagList and node.NENTagList:
             tag +="\n"
         if node.NENTagList:    
-        #if node[2]:
-            #tag += "NEN "+str(node[2])
             tag += "NEN "+",".join(str(n[0]) for n in node[2])+"\n"+buildConfTag(node[2])
         if not (node.NEBTagList or node.NENTagList):
             tag = "***Unpruned leaf. RAIRE assertions do not exclude all other winners!***"
@@ -64,7 +59,7 @@ def buildConfTag(numBoolList):
 # different.
 def parseAssertions(auditfile,candidatefile):
     
-    
+    RLALogfile = False
     auditsArray = []
     
     #FIXME: Hardcoded to draw only the first audit for now,
@@ -72,6 +67,7 @@ def parseAssertions(auditfile,candidatefile):
     # 'first' isn't even well-defined for a DICT so this needs to be fixed.
     if 'seed' in auditfile:
         # Assume this is formatted like a log file from assertion-RLA.
+        RLALogfile = True
         for contestNum in auditfile["contests"]:
             contest = auditfile["contests"][contestNum]
             print("Testing: choice function ="+auditfile["contests"][contestNum]["choice_function"])
@@ -90,8 +86,7 @@ def parseAssertions(auditfile,candidatefile):
         #apparentNonWinners = audit["candidates"].remove(apparentWinner)
         print("apparent Non Winners: "+ str(apparentNonWinners))
         assertions = audit["assertion_json"]
-
-        
+               
     else:
         # Assume this is formatted like the assertions output from RAIRE
         auditsArray = auditfile["audits"]     
@@ -121,13 +116,17 @@ def parseAssertions(auditfile,candidatefile):
     # in the second element of the tuple.
     IRVElims = []
 
-    for a in assertions:
-        
-        if ("proved" in a) and (a["proved"]=="True"):
-            proved = True
+    for a in assertions:     
+        if RLALogfile:
+            elim = [e for e in a['already_eliminated']]
+            handle = a["winner"] + ' v ' + a["loser"] + (' elim ' + ' '.join(elim) if elim else '')
+            proved  = audit['proved'][handle]
         else:
-            proved = False    
-        
+            if ("proved" in a) and (a["proved"]=="True"):
+                proved = True
+            else:
+                proved = False  
+                
         if a["assertion_type"]=="WINNER_ONLY":
             if a["already_eliminated"] != "" :
                 # VT: Not clear whether we should go on or quit at this point.
@@ -135,17 +134,14 @@ def parseAssertions(auditfile,candidatefile):
                 
             l = a["loser"]
             w = a["winner"]
-
-
             WOLosers.append((l,w,proved))
                     
         if a["assertion_type"]=="IRV_ELIMINATION":
             l = a["winner"]
             IRVElims.append((l,set(a["already_eliminated"]),proved))
             
-    print("WOLosers = "+str(WOLosers))
-    print("IRVElims = "+str(IRVElims))
-    
+      
+                
     return((apparentWinner,apparentWinnerName), apparentNonWinnersWithNames, WOLosers, IRVElims)
 
 def printTuple(t):
