@@ -1348,12 +1348,16 @@ def summarize_status(contests, assertions):
             cpmax = np.max([cpmax,p])
             print(a, p)
         if cpmax <= contests[c]['risk_limit']:
-            print("contest {} AUDIT COMPLETE at risk limit {}. Attained risk {}".format(\
+            print("\ncontest {} AUDIT COMPLETE at risk limit {}. Attained risk {}".format(\
                 c, contests[c]['risk_limit'], cpmax))
         else:
             done = False
-            print("contest {} audit INCOMPLETE at risk limit {}. Attained risk {}".format(\
+            print("\ncontest {} audit INCOMPLETE at risk limit {}. Attained risk {}".format(\
                 c, contests[c]['risk_limit'], cpmax))
+            print("assertions remaining to be proved:")
+            for a in assertions[c]:
+                if assertions[c][a].p_value > contests[c]['risk_limit']:
+                    print("{}: current risk {}".format(a, assertions[c][a].p_value))
     return done
 
 def write_audit_parameters(log_file, seed, replacement, risk_function, g, \
