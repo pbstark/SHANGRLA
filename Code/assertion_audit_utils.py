@@ -1087,8 +1087,8 @@ class TestNonnegMean:
             j = j+1
             x = clean*np.ones(j)
             for k in range(j):
-                x[k] = one_vote_over if k % int(1/error_rate) == 0 else x[k]                   
-            p = TestNonnegMean.kaplan_martingale(clean*np.ones(j), N, t, random_order = False)[0]
+                x[k] = one_vote_over if (k+1) % int(1/error_rate) == 0 else x[k]                   
+            p = TestNonnegMean.kaplan_martingale(x, N, t, random_order = False)[0]
         return j
           
 # utilities
@@ -1159,7 +1159,7 @@ def find_margins(contests, assertions, cvr_list):
     """
     assorter_means = {}
     min_margin = np.infty
-    for c in contests.keys():
+    for c in contests:
         contests[c]['margins'] = {}
         for asrtn in assertions[c]:
             # find mean of the assertion for the CVRs
@@ -1242,10 +1242,10 @@ def find_sample_size(contests, assertions, sample_size_function):
     """
     sample_size = 0
     for c in contests:
-        r_lim = contests[c]['risk_limit']
+        risk = contests[c]['risk_limit']
         for a in assertions[c]:
             margin = assertions[c][a].margin
-            n = sample_size_function(margin, r_lim)
+            n = sample_size_function(margin, risk)
             sample_size = np.max([sample_size, n] )
     return sample_size
 
