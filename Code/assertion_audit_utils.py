@@ -1251,10 +1251,12 @@ def find_sample_size(contests, assertions, sample_size_function):
 
 def prep_sample(mvr_sample, cvr_sample):
     """
-    prepare the MVRs and CVRs for comparison (by sorting them into the same order)
-    and conduct data integrity checks.
+    prepare the MVRs and CVRs for comparison by putting the MVRs into the same (random) order
+    in which the CVRs were selected
     
-    Side-effects: sorts the samples by id
+    conduct data integrity checks.
+    
+    Side-effects: sorts the mvr sample into the same order as the cvr sample
     
     Parameters:
     -----------
@@ -1266,8 +1268,8 @@ def prep_sample(mvr_sample, cvr_sample):
     Returns:
     --------
     """
-    mvr_sample.sort(key= lambda x: x.id)
-    cvr_sample.sort(key= lambda x: x.id)
+    id_lookup = [c.id for c in cvr_sample]
+    mvr_sample.sort(key= lambda x: id_lookup.index(x.id))
 
     assert len(cvr_sample) == len(mvr_sample),\
         "Number of cvrs ({}) and mvrs ({}) doesn't match".format(len(cvr_sample), len(mvr_sample))

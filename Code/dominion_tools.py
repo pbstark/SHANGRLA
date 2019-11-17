@@ -6,6 +6,7 @@ import numpy as np
 import csv
 import pandas as pd
 import warnings
+import copy
 from assertion_audit_utils import CVR
 
 
@@ -99,10 +100,9 @@ def sample_from_manifest(manifest, sample):
     -------
     sorted list of card identifiers corresponding to the sample. Card identifiers are 1-indexed
     """
-    sam = np.sort(sample)
     cards = []
     lookup = np.array([0] + list(manifest['cum_cards']))
-    for s in sam:
+    for s in sample:
         batch_num = int(np.searchsorted(lookup, s, side='left'))
         card_in_batch = int(s-lookup[batch_num-1])
         tab = manifest.iloc[batch_num-1]['Tabulator Number']
@@ -131,13 +131,12 @@ def sample_from_cvr(cvr_list, manifest, sample):
     -------
     cards: sorted list of card identifiers corresponding to the sample.
     cvr_sample: the CVRs in the sample
-    mvr_phantoms : list of CVR objects, the mvrs for phantom sheets in the sample.
+    mvr_phantoms : list of CVR objects, the mvrs for phantom sheets in the sample
     """
-    sam = np.sort(sample-1) # adjust for 1-based index to 0-based index
     cards = []
     cvr_sample = []
     mvr_phantoms = []
-    for s in sam:
+    for s in sample-1:
         cvr_sample.append(cvr_list[s])
         cvr_id = cvr_list[s].id
         tab, batch, card_num = cvr_id.split("-")
