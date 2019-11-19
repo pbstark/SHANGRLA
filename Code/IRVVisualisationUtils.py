@@ -70,10 +70,12 @@ def parseAssertions(auditfile,candidatefile):
         RLALogfile = True
         for contestNum in auditfile["contests"]:
             contest = auditfile["contests"][contestNum]
-            print("Testing: choice function ="+auditfile["contests"][contestNum]["choice_function"])
-
+            
             if contest["choice_function"] == "IRV":
                 auditsArray.append(contest)
+            else:
+                warn("IRV Visualisations: visualising a non-IRV assertion set.")
+                
             if len(contest["reported_winners"]) != 1:
                 warn("IRV contest with either zero or >1 winner")
         
@@ -128,7 +130,6 @@ def parseAssertions(auditfile,candidatefile):
             if a["assertion_type"]=="IRV_ELIMINATION":
                 elim = [e for e in a['already_eliminated']]
                 handle += ('elim ' + ' '.join(elim))
-            print("handle = "+handle)
             proved  = audit['proved'][handle]
         else:
             if ("proved" in a) and (a["proved"]=="True"):
@@ -179,19 +180,6 @@ def buildRemainingTreeAsLists(c,S,WOLosers,IRVElims):
     # If c is in the list of candidates yet to be eliminated, this is a bug.
     if c in S:
         print("Error: c is in S.  c = "+str(c)+". S = "+str(S)+".\n")
-    # if S is empty, return the leaf
-    # Note that this indicates an error in the RAIRE audit
-    # process - we're producing a tree 
-    # in which we haven't pruned all the leaves.  
-    # The intention is to make it visually obvious to an auditor.
-    # Hence the ***
-    # VT: Actually this isn't quite right - it indicates an error only if 
-    # there is no assertion allowing us to prune at this point - some
-    # assertions may correspond to an empty S.
-    # FIXME.
-    if not S:
-        return [LeafNode(cand=c,NEBTagList=[],NENTagList=[])]
-        warn("***Unpruned leaf "+c+". RAIRE assertions do not exclude all other winners!***")
 
     pruneThisBranch = False
     NEBTags = []
@@ -208,7 +196,6 @@ def buildRemainingTreeAsLists(c,S,WOLosers,IRVElims):
     # prune here.  Tag with NEN assertion number we used to prune.
     for winner in IRVElims:
         if c==winner[0] and winner[1]==S:
-            print("Pruning NEN.  c = "+c+". S = "+str(S))
             pruneThisBranch = True
             NENTags.append((IRVElims.index(winner),winner[2]))
 
@@ -216,6 +203,15 @@ def buildRemainingTreeAsLists(c,S,WOLosers,IRVElims):
     # Base case: if we prune here, tag it with all the assertions
     # that could be used to prune.
         tree=[LeafNode(cand=c,NEBTagList=NEBTags,NENTagList=NENTags)]        
+    # if S is empty, return the leaf
+    # Note that this indicates an error in the RAIRE audit
+    # process - we're producing a tree 
+    # in which we haven't pruned all the leaves.  
+    # The intention is to make it visually obvious to an auditor.
+    # Hence the ***
+    elif not S:
+        return [LeafNode(cand=c,NEBTagList=[],NENTagList=[])]
+        warn("***Unpruned leaf "+c+". RAIRE assertions do not exclude all other winners!***")      
     else:
     # if we didn't prune here, recurse        
         tree=[c,[]]
@@ -238,7 +234,7 @@ def printAssertions(WOLosers,IRVElims):
         print("Not-Eliminated-Next assertions: ")
     for winner in IRVElims:
         proofString = makeProofString(winner,Fore.RED)
-        print(proofString+'NEN {0:2d}:'.format(IRVElims.index(winner))+Fore.BLACK+' Candidate '+str(winner[0])+' cannot be eliminated next when '+str(winner[1])+' are eliminated.')
+        print(proofString+'NEN {0:2d}:'.format(IRVElims.index(winner))+Fore.BLACK+' Candidate '+str(winner[0])+' cannot be eliminated next when '+(str(winner[1]) if winner[1] else '{}')+' are eliminated.')
         
 def makeProofString(assertionTriple,colourString):
     if(assertionTriple[2]):
