@@ -6,7 +6,6 @@ cryptorandom >= 0.2
 ipywidgets
 svgling
 svgwrite
-collections 
 itertools
 math
 warnings
@@ -15,4 +14,3 @@ colorama
 warn
 warnings
 xlrd
-
