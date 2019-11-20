@@ -13,5 +13,8 @@ itertools
 math
 warnings
 IPython.display 
-
+colorama
+warn
+warnings
+xlrd
 
