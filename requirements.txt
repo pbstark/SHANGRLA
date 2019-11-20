@@ -6,4 +6,5 @@ cryptorandom >= 0.2
 ipywidgets
 svgling
 svgwrite
+colorama
 xlrd
