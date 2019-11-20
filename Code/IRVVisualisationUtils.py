@@ -3,6 +3,8 @@ from svgling.figure import Caption, SideBySide, RowByRow
 import colorama
 from colorama import Fore, Style
 import functools
+import warnings
+from warnings import warn
 from collections import namedtuple
 
 LeafNode = namedtuple('LeafNode', 'cand, NEBTagList, NENTagList')
@@ -130,7 +132,12 @@ def parseAssertions(auditfile,candidatefile):
             if a["assertion_type"]=="IRV_ELIMINATION":
                 elim = [e for e in a['already_eliminated']]
                 handle += ('elim ' + ' '.join(elim))
-            proved  = audit['proved'][handle]
+            
+            if ("proved" in audit):     
+                proved  = audit["proved"][handle]
+            else:
+                warn("No proved information in log file - assuming all unconfirmed.")
+                proved = False
         else:
             if ("proved" in a) and (a["proved"]=="True"):
                 proved = True
