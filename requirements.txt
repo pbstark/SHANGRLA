@@ -6,8 +6,6 @@ cryptorandom >= 0.2
 ipywidgets
 svgling
 svgwrite
-math
-warnings
 IPython.display 
 colorama
 warn
