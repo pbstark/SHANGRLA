@@ -76,7 +76,7 @@ The default is the official seed of 93686630803205229070.  This has been used to
 the list of ballot IDs to be fetched for audit.
 
 6. Run *[the manual vote recorder](https://github.com/dan-king/RLA-MVR)* on sample.csv to generate the *manual vote records* mvr.json.  You can also use *[the hosted version](https://rla.vptech.io)*
-This is the part where paper ballots are fetched.  If you don't have access to the paper ballots you need to simluate this step.
+This is the part where paper ballots are fetched.  If you don't have access to the paper ballots you need to simulate this step.
 
 7. Upload mvr.json to your notebook.  (This assumes you can upload files to wherever your notebook is running.  If you're using Binder, for example, this is not possible and you can only use the test mvr files that are in the github repo.)
 
