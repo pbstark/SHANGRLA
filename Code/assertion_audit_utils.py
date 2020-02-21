@@ -841,7 +841,7 @@ class TestNonnegMean:
         else:
             terms[x==0] = (1-p1)/(1-t)
             terms[x==1] = p1/t
-        return np.max(np.cumprod(terms)) if random_order else np.prod(terms)
+        return 1/np.max(np.cumprod(terms)) if random_order else 1/np.prod(terms)
 
     @classmethod
     def kaplan_markov(cls, x, t=1/2, g=0, random_order=True):
