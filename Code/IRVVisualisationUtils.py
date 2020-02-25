@@ -238,7 +238,7 @@ def printAssertions(WOLosers,IRVElims):
     
     if len(IRVElims) != 0:
         print("\n")
-        print("Not-Eliminated-Next assertions: ")
+        print("IRV assertions: ")
     for winner in IRVElims:
         proofString = makeProofString(winner,Fore.RED)
         print(proofString+'IRV {0:2d}:'.format(IRVElims.index(winner))+Fore.BLACK+' Candidate '+str(winner[0])+' cannot be eliminated next when '+(str(winner[1]) if winner[1] else '{}')+' are eliminated.')
