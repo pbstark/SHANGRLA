@@ -7,7 +7,7 @@ import warnings
 from warnings import warn
 from collections import namedtuple
 
-LeafNode = namedtuple('LeafNode', 'cand, NEBTagList, NENTagList')
+LeafNode = namedtuple('LeafNode', 'cand, NEBTagList, IRVTagList')
 
 # Convert a tree in list form into the same tree in tuple form suitable for
 # svgling.
@@ -27,11 +27,11 @@ def treeListToTuple(t):
         node=t[0]
         if node.NEBTagList:
             tag += "NEB "+",".join(str(n[0]) for n in node[1])+"\n"+buildConfTag(node[1]) 
-        if node.NEBTagList and node.NENTagList:
+        if node.NEBTagList and node.IRVTagList:
             tag +="\n"
-        if node.NENTagList:    
-            tag += "NEN "+",".join(str(n[0]) for n in node[2])+"\n"+buildConfTag(node[2])
-        if not (node.NEBTagList or node.NENTagList):
+        if node.IRVTagList:    
+            tag += "IRV "+",".join(str(n[0]) for n in node[2])+"\n"+buildConfTag(node[2])
+        if not (node.NEBTagList or node.IRVTagList):
             tag = "***Unpruned leaf. RAIRE assertions do not exclude all other winners!***"
         return((node[0],tag)) 
     
@@ -190,7 +190,7 @@ def buildRemainingTreeAsLists(c,S,WOLosers,IRVElims):
 
     pruneThisBranch = False
     NEBTags = []
-    NENTags = []
+    IRVTags = []
     
     # if c is a loser defeated by a candidate in S, prune here.
     # Tag with NEB assertion number we used to prune.
@@ -200,16 +200,16 @@ def buildRemainingTreeAsLists(c,S,WOLosers,IRVElims):
             NEBTags.append((WOLosers.index(loser),loser[2]))
     
     # if c cannot be eliminated by IRV in exactly the case where S is the already-eliminated set, 
-    # prune here.  Tag with NEN assertion number we used to prune.
+    # prune here.  Tag with IRV assertion number we used to prune.
     for winner in IRVElims:
         if c==winner[0] and winner[1]==S:
             pruneThisBranch = True
-            NENTags.append((IRVElims.index(winner),winner[2]))
+            IRVTags.append((IRVElims.index(winner),winner[2]))
 
     if pruneThisBranch:
     # Base case: if we prune here, tag it with all the assertions
     # that could be used to prune.
-        tree=[LeafNode(cand=c,NEBTagList=NEBTags,NENTagList=NENTags)]        
+        tree=[LeafNode(cand=c,NEBTagList=NEBTags,IRVTagList=IRVTags)]        
     # if S is empty, return the leaf
     # Note that this indicates an error in the RAIRE audit
     # process - we're producing a tree 
@@ -217,7 +217,7 @@ def buildRemainingTreeAsLists(c,S,WOLosers,IRVElims):
     # The intention is to make it visually obvious to an auditor.
     # Hence the ***
     elif not S:
-        return [LeafNode(cand=c,NEBTagList=[],NENTagList=[])]
+        return [LeafNode(cand=c,NEBTagList=[],IRVTagList=[])]
         warn("***Unpruned leaf "+c+". RAIRE assertions do not exclude all other winners!***")      
     else:
     # if we didn't prune here, recurse        
@@ -241,7 +241,7 @@ def printAssertions(WOLosers,IRVElims):
         print("Not-Eliminated-Next assertions: ")
     for winner in IRVElims:
         proofString = makeProofString(winner,Fore.RED)
-        print(proofString+'NEN {0:2d}:'.format(IRVElims.index(winner))+Fore.BLACK+' Candidate '+str(winner[0])+' cannot be eliminated next when '+(str(winner[1]) if winner[1] else '{}')+' are eliminated.')
+        print(proofString+'IRV {0:2d}:'.format(IRVElims.index(winner))+Fore.BLACK+' Candidate '+str(winner[0])+' cannot be eliminated next when '+(str(winner[1]) if winner[1] else '{}')+' are eliminated.')
         
 def makeProofString(assertionTriple,colourString):
     if(assertionTriple[2]):
