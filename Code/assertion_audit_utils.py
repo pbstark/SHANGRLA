@@ -224,13 +224,16 @@ class Assertion:
     def make_supermajority_assertion(cls, contest, winner, losers, share_to_win):
         """
         Construct a set of assertions that imply that the winner got at least a fraction 
-        fraction_to_win of the valid votes.
+        share_to_win of the valid votes.
         
         An equivalent condition is:
         
         (votes for winner)/(2*share_to_win) + (invalid votes)/2 > 1/2.
         
-        Thus the correctness of a super-majority outcome can be checked with a single assertion.
+        Thus the correctness of a super-majority outcome--where share_to_win >= 1/2--can be checked with a single assertion.
+
+        share_to_win < 1/2 might be useful for some social choice functions, including primaries where candidates who receive
+        less than some threshold share are eliminated.
         
         A CVR with a mark for more than one candidate in the contest is considered an invalid vote.
             
@@ -250,7 +253,6 @@ class Assertion:
         a dict containing one Assertion
         
         """
-        assert share_to_win > 1/2, "share_to_win must be at least 1/2"
         assert share_to_win < 1, "share_to_win must be less than 1"
 
         assertions = {}
