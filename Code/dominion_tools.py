@@ -138,10 +138,12 @@ def sample_from_cvr(cvr_list, manifest, sample):
     cards = []
     cvr_sample = []
     mvr_phantoms = []
+    
     for s in sample-1:
         cvr_sample.append(cvr_list[s])
         cvr_id = cvr_list[s].id
         tab, batch, card_num = cvr_id.split("-")
+
         if not cvr_list[s].phantom:
             manifest_row = manifest[(manifest['Tabulator ID'] == str(tab)) \
                                     & (manifest['Batch ID'] == str(batch))].iloc[0]
@@ -156,7 +158,6 @@ def sample_from_cvr(cvr_list, manifest, sample):
     # sort by id
     cards.sort(key = lambda x: x[5])
     return cards, cvr_sample, mvr_phantoms
-
 
 def write_cards_sampled(sample_file, cards, print_phantoms=True):
     """

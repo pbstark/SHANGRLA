@@ -10,6 +10,7 @@ from numpy import testing
 from collections import OrderedDict
 from cryptorandom.cryptorandom import SHA256, random
 from cryptorandom.sample import random_permutation
+from cryptorandom.sample import sample_by_index
 
 
 class Assertion:
@@ -1309,6 +1310,7 @@ def new_sample_size(contests, assertions, mvr_sample, cvr_sample, manifest_type,
         sample size
     """
     new_size = 0
+
     for c in contests:
         for asrtn in assertions[c]:
             if not assertions[c][asrtn].proved:    
