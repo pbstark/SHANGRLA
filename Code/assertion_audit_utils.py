@@ -1322,10 +1322,13 @@ def prep_sample(mvr_sample, cvr_sample):
         assert mvr_sample[i].id == cvr_sample[i].id, \
     "Mismatch between id of cvr ({}) and mvr ({})".format(cvr_sample[i].id, mvr_sample[i].id)
 
-def new_sample_size(contests, assertions, mvr_sample, cvr_sample, manifest_type, risk_function):
+def new_sample_size(contests, assertions, mvr_sample, cvr_sample, manifest_type,\
+                    risk_function, quantile=0.5, reps=200, seed=1234567890):
     """
     Estimate the total sample size expected to allow the audit to complete,
     if discrepancies continue at the same rate already observed.
+    
+    Uses simulations. For speed, uses the numpy.random Mersenne Twister instead of cryptorandom.
         
     Parameters:
     -----------
@@ -1344,29 +1347,45 @@ def new_sample_size(contests, assertions, mvr_sample, cvr_sample, manifest_type,
         "ALL" or "STYLE". See documentation
         
     risk_function : callable
-        function to calculate the p-value from overstatement_assorter values
+        function to calculate the p-value from overstatement_assorter values.
+        Should take one argument, the sample x
+        
+    quantile : float
+        estimated quantile of the sample size to return
+        
+    reps : int
+        number of replications to use to estimate the quantile
+    
+    seed : int
+        seed for the Mersenne Twister prng
     
     Returns:
     --------
-    next_size : int
-        sample size
+    new_size : int
+        new sample size
+    sams : array of ints
+        array of all sizes found in the simulation
     """
     new_size = 0
-
-    for c in contests:
-        for asrtn in assertions[c]:
-            if not assertions[c][asrtn].proved:    
-                a = assertions[c][asrtn]
-                p = a.p_value
-                d = [a.overstatement_assorter(mvr_sample[i], cvr_sample[i],\
-                     a.margin, manifest_type=manifest_type) for i in range(len(mvr_sample))]
-                while p > contests[c]['risk_limit']:
-                    one_more = sample_by_index(len(d), 1, prng=prng)
-                    d.append(d[one_more-1])
-                    p = risk_function(d)
-                new_size = np.max([new_size, len(d)])
-            
-    return new_size
+    prng = np.random.RandomState(seed=seed)
+    sams = np.zeros(reps)
+    for r in range(reps):
+        new_size = 0
+        for c in contests:
+            for asrtn in assertions[c]:
+                if not assertions[c][asrtn].proved:    
+                    a = assertions[c][asrtn]
+                    p = a.p_value
+                    d = [a.overstatement_assorter(mvr_sample[i], cvr_sample[i],\
+                         a.margin, manifest_type=manifest_type) for i in range(len(mvr_sample))]
+                    while p > contests[c]['risk_limit']:
+                        one_more = sample_by_index(len(d), 1, prng=prng)[0]
+                        d.append(d[one_more-1])
+                        p = risk_function(d)
+                    new_size = np.max([new_size, len(d)])
+        sams[r] = new_size 
+    new_size = np.quantile(sams, quantile)
+    return new_size, sams
 
 def summarize_status(contests, assertions):
     """
