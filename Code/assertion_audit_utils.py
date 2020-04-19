@@ -10,6 +10,7 @@ from numpy import testing
 from collections import OrderedDict
 from cryptorandom.cryptorandom import SHA256, random
 from cryptorandom.sample import random_permutation
+from cryptorandom.sample import sample_by_index
 
 
 class Assertion:
@@ -946,15 +947,15 @@ class TestNonnegMean:
         assert N == int(N), 'Non-integer population size!'
         
         sample_total = 0.0
-        mart = x[0]/t if t > 0 else 1
+        mart = (x[0]+g)/(t+g) if t > 0 else 1
         mart_max = mart
         for j in range(1, len(x)):
-            mart *= x[j]*(1-j/N)/(t - (1/N)*sample_total)
+            mart *= (x[j]+g)*(1-j/N)/(t+g - (1/N)*sample_total)
             if mart < 0:
                 mart = np.inf
                 break
             else:
-                sample_total += x[j]
+                sample_total += x[j]+g
             mart_max = max(mart, mart_max)
         p = min((1/mart_max if random_order else 1/mart),1)
         return p 
@@ -1050,48 +1051,89 @@ class TestNonnegMean:
             mart_vec = np.multiply(Y_norm,integrals)
             mart_max = max(mart_vec) if random_order else mart_vec[-1]
         p = min(1/mart_max,1)
-        return p, mart_vec
-
+        return p, mart_vec                  
+        
     @classmethod
-    def kaplan_martingale_sample_size(cls, N, margin, error_rate, alpha=0.05, t=1/2):
+    def initial_sample_size(cls, risk_function, N, margin, error_rate, alpha=0.05, t=1/2, reps=None,\
+                            quantile=0.5, seed=1234567890):
         """
-        Estimate the sample size needed to reject the null hypothesis
-        that the population mean is <=t at significance level alpha, using simulations,
-        for the kaplan_kolmogorov method
+        Estimate the sample size needed to reject the null hypothesis that the population 
+        mean is <=t at significance level alpha, for the specified risk function, on the 
+        assumption that the rate of one-vote overstatements is error_rate.  This function is
+        for a single contest.
+        
+        Implements two strategies:
+
+            1. If reps is not None, the function uses simulations to estimate the <quantile> quantile
+            of sample size required. The simulations use the numpy Mersenne Twister PRNG.
+            
+            2. If reps is None, puts discrepancies into the sample in a deterministic way, starting 
+            with a discrepancy in the first item, then including an additional discrepancy after 
+            every int(1/error_rate) items in the sample. "Frontloading" the errors should make this
+            _slightly_ conservative on average
+        
         
         Parameters:
         -----------
+        risk_function : callable
+            risk function to use. risk_function should take one argument, x. 
         N : int
             population size, or N = np.infty for sampling with replacement
         margin : double
             assorter margin 
         error_rate : float 
-            assumed rates of 1-vote overstatements 
+            assumed rate of 1-vote overstatements 
         alpha : double
             significance level in (0, 0.5)
         t : double
             hypothesized value of the population mean
+        reps : int
+            if reps is not none, performs reps simulations to estimate the <quantile> quantile
+            of sample sizes
+        quantile : double
+            quantile of the distribution of sample sizes to report, if reps is not None.
+            If reps is None, quantile is not used
+        seed : int
+            if reps is not none, use this value as the seed for simulations.
             
         Returns:
         --------
         sample_size : int
-            sample size sufficient to confirm the outcome if discrepancies are not more frequent
-            in fact than the assumed rates
+            sample size estimated to be sufficient to confirm the outcome if one-vote overstatements 
+            are not more frequent in fact than the assumed rate
+            
         """
+                             
         assert alpha > 0 and alpha < 1/2
         assert margin > 0
-        prng = SHA256(1234567890)
         clean = 1/(2-margin)
         one_vote_over = 0.5/(2-margin)
-        p = 1
-        j = 0
-        while (p > alpha) and (j < N):
-            j = j+1
-            x = clean*np.ones(j)
-            for k in range(j):
-                x[k] = one_vote_over if (k+1) % int(1/error_rate) == 0 else x[k]                   
-            p = TestNonnegMean.kaplan_martingale(x, N, t, random_order = False)[0]
-        return j
+        if reps is None:
+            p = 1
+            j = 0
+            while (p > alpha) and (j <= N):
+                j = j+1
+                x = clean*np.ones(j)
+                for k in range(j):
+                    x[k] = one_vote_over if (k+1) % int(1/error_rate) == 0 else x[k]                   
+                p = risk_function(x)
+            sam_size = j
+        else:
+            prng = np.random.RandomState(1234567890)  # use the Mersenne Twister for speed
+            sams = np.zeros(int(reps))
+            for r in range(reps):
+                new_size = 0
+                pop = clean*np.ones(N)
+                inx = (prng.random(size=N) <= error_rate)  # randomly allocate errors
+                pop[inx] = one_vote_over
+                j = 1
+                p = 1
+                while (p > alpha) and (j <= N):
+                    p = risk_function(pop[:j])
+                    j += 1
+                sams[r] = j
+            sam_size = np.quantile(sams, quantile)
+        return sam_size
           
 # utilities
        
@@ -1279,10 +1321,13 @@ def prep_sample(mvr_sample, cvr_sample):
         assert mvr_sample[i].id == cvr_sample[i].id, \
     "Mismatch between id of cvr ({}) and mvr ({})".format(cvr_sample[i].id, mvr_sample[i].id)
 
-def new_sample_size(contests, assertions, mvr_sample, cvr_sample, manifest_type, risk_function):
+def new_sample_size(contests, assertions, mvr_sample, cvr_sample, manifest_type,\
+                    risk_function, quantile=0.5, reps=200, seed=1234567890):
     """
     Estimate the total sample size expected to allow the audit to complete,
     if discrepancies continue at the same rate already observed.
+    
+    Uses simulations. For speed, uses the numpy.random Mersenne Twister instead of cryptorandom.
         
     Parameters:
     -----------
@@ -1301,28 +1346,45 @@ def new_sample_size(contests, assertions, mvr_sample, cvr_sample, manifest_type,
         "ALL" or "STYLE". See documentation
         
     risk_function : callable
-        function to calculate the p-value from overstatement_assorter values
+        function to calculate the p-value from overstatement_assorter values.
+        Should take one argument, the sample x
+        
+    quantile : float
+        estimated quantile of the sample size to return
+        
+    reps : int
+        number of replications to use to estimate the quantile
+    
+    seed : int
+        seed for the Mersenne Twister prng
     
     Returns:
     --------
-    next_size : int
-        sample size
+    new_size : int
+        new sample size
+    sams : array of ints
+        array of all sizes found in the simulation
     """
     new_size = 0
-    for c in contests:
-        for asrtn in assertions[c]:
-            if not assertions[c][asrtn].proved:    
-                a = assertions[c][asrtn]
-                p = a.p_value
-                d = [a.overstatement_assorter(mvr_sample[i], cvr_sample[i],\
-                     a.margin, manifest_type=manifest_type) for i in range(len(mvr_sample))]
-                while p > contests[c]['risk_limit']:
-                    one_more = sample_by_index(len(d), 1, prng=prng)
-                    d.append(d[one_more-1])
-                    p = risk_function(d)
-                new_size = np.max([new_size, len(d)])
-            
-    return new_size
+    prng = np.random.RandomState(seed=seed)
+    sams = np.zeros(reps)
+    for r in range(reps):
+        new_size = 0
+        for c in contests:
+            for asrtn in assertions[c]:
+                if not assertions[c][asrtn].proved:    
+                    a = assertions[c][asrtn]
+                    p = a.p_value
+                    d = [a.overstatement_assorter(mvr_sample[i], cvr_sample[i],\
+                         a.margin, manifest_type=manifest_type) for i in range(len(mvr_sample))]
+                    while p > contests[c]['risk_limit']:
+                        one_more = sample_by_index(len(d), 1, prng=prng)[0]
+                        d.append(d[one_more-1])
+                        p = risk_function(d)
+                    new_size = np.max([new_size, len(d)])
+        sams[r] = new_size 
+    new_size = np.quantile(sams, quantile)
+    return new_size, sams
 
 def summarize_status(contests, assertions):
     """
@@ -1751,11 +1813,22 @@ def test_kaplan_wald():
         pass
     else:
         raise AssertionError
+        
+def test_kaplan_kolmogorov():
+    # NEEDS WORK! This just prints; it doesn't really test anything.
+    N = 100
+    x = np.ones(10)
+    p1 = TestNonnegMean.kaplan_kolmogorov(x, N, t=1/2, g=0, random_order = True)
+    x = np.zeros(10)
+    p2 = TestNonnegMean.kaplan_kolmogorov(x, N, t=1/2, g=0.1, random_order = True)
+    print("kaplan_kolmogorov: {} {}".format(p1, p2))
 
-def test_kaplan_martingale_sample_size():
-    n = TestNonnegMean.kaplan_martingale_sample_size(100000, margin=0.01, error_rate=0.001,\
-                                                     alpha=0.05, t=1/2)
-    print(n)
+def test_initial_sample_size():
+    N_cards = int(10**3)
+    risk_function = lambda x: TestNonnegMean.kaplan_kolmogorov(x, N=N_cards, t=1/2, g=0.1) 
+    n_det = TestNonnegMean.initial_sample_size(risk_function, N_cards, 0.1, 0.001)
+    n_rand = TestNonnegMean.initial_sample_size(risk_function, N_cards, 0.1, 0.001, reps=100)
+    print(n_det, n_rand)
 
     # This tests whether, in a simple example in which null hypothesis is true, 
     # the distribution of p-values is dominated by the uniform distribution, 
@@ -1813,4 +1886,5 @@ if __name__ == "__main__":
     
     test_kaplan_markov()
     test_kaplan_wald()
-    test_kaplan_martingale_sample_size()
+    test_kaplan_kolmogorov()
+    test_initial_sample_size()
