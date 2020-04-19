@@ -1076,8 +1076,7 @@ class TestNonnegMean:
         Parameters:
         -----------
         risk_function : callable
-            risk function to use. risk_function should take two arguments, x, N. 
-            x is the sample, N is the population size
+            risk function to use. risk_function should take one argument, x. 
         N : int
             population size, or N = np.infty for sampling with replacement
         margin : double
@@ -1117,7 +1116,7 @@ class TestNonnegMean:
                 x = clean*np.ones(j)
                 for k in range(j):
                     x[k] = one_vote_over if (k+1) % int(1/error_rate) == 0 else x[k]                   
-                p = risk_function(x, N)
+                p = risk_function(x)
             sam_size = j
         else:
             prng = np.random.RandomState(1234567890)  # use the Mersenne Twister for speed
@@ -1130,7 +1129,7 @@ class TestNonnegMean:
                 j = 1
                 p = 1
                 while (p > alpha) and (j <= N):
-                    p = risk_function(pop[:j], N)
+                    p = risk_function(pop[:j])
                     j += 1
                 sams[r] = j
             sam_size = np.quantile(sams, quantile)
@@ -1825,9 +1824,10 @@ def test_kaplan_kolmogorov():
     print("kaplan_kolmogorov: {} {}".format(p1, p2))
 
 def test_initial_sample_size():
-    risk_function = lambda x, N: TestNonnegMean.kaplan_kolmogorov(x, N, t=1/2, g=0.1) 
-    n_det = TestNonnegMean.initial_sample_size(risk_function, 100000, 0.1, 0.001)
-    n_rand = TestNonnegMean.initial_sample_size(risk_function, 100000, 0.1, 0.001, reps=100)
+    N_cards = int(10**3)
+    risk_function = lambda x: TestNonnegMean.kaplan_kolmogorov(x, N=N_cards, t=1/2, g=0.1) 
+    n_det = TestNonnegMean.initial_sample_size(risk_function, N_cards, 0.1, 0.001)
+    n_rand = TestNonnegMean.initial_sample_size(risk_function, N_cards, 0.1, 0.001, reps=100)
     print(n_det, n_rand)
 
     # This tests whether, in a simple example in which null hypothesis is true, 
