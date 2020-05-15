@@ -1872,6 +1872,24 @@ def test_kaplan_martingale():
     s = [0.6,0.8,1.0,1.2,1.4]
     np.testing.assert_array_less(TestNonnegMean.kaplan_martingale(s, N=100000, t=0, random_order = True)[:1],[eps])
 
+    s1 = [1, 0, 1, 1, 0, 0, 1]
+    kmart1 = TestNonnegMean.kaplan_martingale(s1,
+                                              N=7,
+                                              t=3/7,
+                                              random_order=True)
+    # No nans introduced
+    assert(not any(np.isnan(kmart1[1])))
+
+    s2 = [1, 0, 1, 1, 0, 0, 0]
+    kmart2 = TestNonnegMean.kaplan_martingale(s2,
+                                              N=7,
+                                              t=3/7,
+                                              random_order=True)
+    # Since s1 and s2 only differ in the last observation,
+    # the resulting martingales should be identical up to the second
+    # last entry.
+    assert(all(kmart2[1][1:len(kmart2)] == kmart1[1][1:len(kmart1)]))
+
 def test_assorter_mean():
     pass # [FIX ME]
 
