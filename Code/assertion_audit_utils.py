@@ -1034,23 +1034,44 @@ class TestNonnegMean:
         assert N > 0,       'Population size not positive!'
         if np.isfinite(N):
             assert N == int(N), 'Non-integer population size!'
+
         Stilde = (np.insert(np.cumsum(x),0,0)/N)[0:len(x)] # \tilde{S}_{j-1}
         t_minus_Stilde = t - Stilde
         mart_max = 1
         mart_vec = np.ones_like(x, dtype=np.float)
-        if any(t_minus_Stilde < 0): # sample total exceeds hypothesized population total 
-            mart_max = np.inf
-        elif np.mean(x) <= t: # sample mean does not exceed hypothesized population mean
-            mart_max = 1
-        else: 
-            jtilde = 1 - np.array(list(range(len(x))))/N
-            c = np.multiply(x, np.divide(jtilde, t_minus_Stilde))-1 
-            r = -np.array([1/cc for cc in c[0:len(x)+1] if cc != 0]) # roots
-            Y_norm = np.cumprod(np.array([cc for cc in c[0:len(x)+1] if cc != 0])) # mult constant
-            integral, integrals = TestNonnegMean.integral_from_roots(r, maximal = False)
-            mart_vec = np.multiply(Y_norm,integrals)
-            mart_max = max(mart_vec) if random_order else mart_vec[-1]
+
+        jtilde = 1 - np.array(list(range(len(x))))/N
+        # The term being mutliplied by gamma in the SHANGRLA paper
+        c = x * jtilde / t_minus_Stilde - 1
+        # as a convention, 0/0 is 0 here. This prevents c from
+        # having nans.
+        c[np.logical_and(x == 0, t_minus_Stilde == 0)] = -1
+        c_nonzero = c[c != 0]
+        # integral should not contain c_j if c_j = 0
+        r = -np.array(1/c_nonzero) # roots
+        # Create a copy of c but 0s replaced with 1s
+        # (for computing Y_norm)
+        c_zeroone = c.copy()
+        c_zeroone[c == 0] = 1
+        Y_norm = np.cumprod(np.array(c_zeroone)) # mult constant
+        integral, integrals = TestNonnegMean.integral_from_roots(r, maximal = False)
+        # Create integrals vector of same length as c
+        integrals_all = np.ones(len(c))
+        # Whenever c was not zero (i.e. 1/c could be passed to
+        # integrals_from_roots), set integrals_all to the returned
+        # value
+
+        integrals_all[c != 0] = integrals
+        mart_vec = Y_norm * integrals_all
+        mart_max = max(mart_vec)
+
+        # If t - Stilde < 0, then we know deterministically
+        # that the null is false.
+        mart_vec[t_minus_Stilde < 0] = np.inf
+
+        # get p-value as inverse of martingale
         p = min(1/mart_max,1)
+
         return p, mart_vec                  
         
     @classmethod
