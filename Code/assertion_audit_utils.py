@@ -1865,8 +1865,44 @@ def test_kaplan_martingale():
     s = [0.6,0.8,1.0,1.2,1.4]
     np.testing.assert_array_less(TestNonnegMean.kaplan_martingale(s, N=100000, t=0, random_order = True)[:1],[eps])
 
+    s = [1, 0, 0, 0, 0, 1, 1, 1, 1]
+    np.testing.assert_almost_equal(TestNonnegMean.kaplan_martingale(s, N=10, t=1/2, random_order=True)[0], 1/1.5)
+    np.testing.assert_almost_equal(TestNonnegMean.kaplan_martingale(s, N=10, t=1/2, random_order=False)[0], 1)
+
+    s = [0, 0, 0, 0, 1, 1, 1, 1, 1]
+    np.testing.assert_almost_equal(TestNonnegMean.kaplan_martingale(s, N=10, t=1/2, random_order=True)[0], 1)
+    np.testing.assert_almost_equal(TestNonnegMean.kaplan_martingale(s, N=10, t=1/2, random_order=False)[0], 1)
+
+    s1 = [1, 1, 1, 1, 0, 0, 0, 0, 1]
+    s2 = [1, 1, 1, 1, 0, 0, 0, 0, 0.6]
+    p1, kmart1 = TestNonnegMean.kaplan_martingale(s1, N=10, t=1/2)
+    p2, kmart2 = TestNonnegMean.kaplan_martingale(s2, N=10, t=1/2)
+    np.testing.assert_array_equal(kmart1[:len(kmart1)-1], kmart2[:len(kmart2)-1])
+    np.testing.assert_almost_equal(p1, p2)
+
 def test_assorter_mean():
-    pass # [FIX ME]
+    cvr_dict = [{'id': 1, 'votes': {'AvB': {'Alice':True}, 'CvD': {'Dan':True}}},\
+            {'id': 2, 'votes': {'AvB': {'Bob':True}, 'CvD': {'Candy':True, 'Dan':True}}},\
+            {'id': 3, 'votes': {'AvB': {}, 'CvD': {'Dan':False}}},\
+            {'id': 4, 'votes': {'CvD': {'Elvis':True}}},\
+            {'id': 5, 'votes': {'AvB': {'Alice':True}, 'CvD': {'Dan':True}}},\
+            {'id': 'phantom_1', 'votes': {}, 'phantom': True}]
+    cvrs = CVR.from_dict(cvr_dict)
+
+    aVb = Assertion("AvB", Assorter(contest="AvB", \
+                    assort = lambda c, contest="AvB", winr="Alice", losr="Bob":\
+                    ( CVR.as_vote(CVR.get_vote_from_cvr("AvB", winr, c)) \
+                    - CVR.as_vote(CVR.get_vote_from_cvr("AvB", losr, c)) \
+                    + 1)/2, upper_bound = 1))
+
+    cVd = Assertion("CvD", Assorter(contest="CvD", \
+                    assort = lambda c, contest="CvD", winr="Dan", losr="Candy":\
+                    (CVR.as_vote(CVR.get_vote_from_cvr("CvD", winr, c)) \
+                    - CVR.as_vote(CVR.get_vote_from_cvr("CvD", losr, c)) \
+                    + 1)/2, upper_bound = 1))
+
+    np.testing.assert_almost_equal(aVb.assorter_mean(cvrs), 3.5/6)
+    np.testing.assert_almost_equal(cVd.assorter_mean(cvrs), 2/3)
 
 def test_cvr_from_raire():
     raire_cvrs = [['1'],\
@@ -1897,8 +1933,10 @@ if __name__ == "__main__":
     test_rcv_lfunc_wo()
     test_rcv_votefor_cand()
     test_rcv_assorter()
+    test_assorter_mean()
 
     test_kaplan_markov()
     test_kaplan_wald()
     test_kaplan_kolmogorov()
+    test_kaplan_martingale()
     test_initial_sample_size()
