@@ -1126,11 +1126,11 @@ class TestNonnegMean:
                 pop = clean*np.ones(N)
                 inx = (prng.random(size=N) <= error_rate)  # randomly allocate errors
                 pop[inx] = one_vote_over
-                j = 1
+                j = 0
                 p = 1
                 while (p > alpha) and (j <= N):
-                    p = risk_function(pop[:j])
                     j += 1
+                    p = risk_function(pop[:j])
                 sams[r] = j
             sam_size = np.quantile(sams, quantile)
         return sam_size
@@ -1818,38 +1818,44 @@ def test_kaplan_kolmogorov():
     N = 100
     x = np.ones(10)
     np.testing.assert_almost_equal(TestNonnegMean.kaplan_kolmogorov(x, N), \
-        np.prod(np.arange(42, 51), dtype=np.int64)/np.prod(np.arange(91, 100), dtype=np.int64)/2)
+        np.prod(np.divide(np.arange(42, 51), np.arange(91, 100)))/2)
 
     x = np.zeros(10)
     np.testing.assert_almost_equal(TestNonnegMean.kaplan_kolmogorov(x, N, g=0.1), 1)
 
     x = np.array([1, 1, 1, 1, 1, 1, 1, 0, 0, 0])
     np.testing.assert_almost_equal(TestNonnegMean.kaplan_kolmogorov(x, N, g=0.1), 1.1**-7 * 0.6 * \
-        np.prod(np.linspace(60, 54.5, 6)) / np.prod(np.arange(94, 100), dtype=np.int64))
+        np.prod(np.divide(np.linspace(60, 54.5, 6), np.arange(94, 100))))
     np.testing.assert_almost_equal(TestNonnegMean.kaplan_kolmogorov(x, N, g=0.1, random_order=False), 1)
 
     x = np.array([1, 1, 1, 0, 1, 1, 1, 1, 1, 0])
     np.testing.assert_almost_equal(TestNonnegMean.kaplan_kolmogorov(x, N, g=0.1), 1.1**-8 * \
-        0.1**-1 * 0.6 * np.prod(np.array([60, 58.9, 57.8, 57.7, 56.6, 55.5, 54.4, 53.3])) / \
-            np.prod(np.arange(92, 100), dtype=np.int64))
-    np.testing.assert_almost_equal(TestNonnegMean.kaplan_kolmogorov(x, N, g=0.1, random_order=False), \
-        1.1**-8 * 0.1**-2 * 0.6 * np.prod(np.array([60, 58.9, 57.8, 57.7, 56.6, 55.5, 54.4, 53.3, 52.2])) / \
-            np.prod(np.arange(91, 100), dtype=np.int64))
+        0.1**-1 * 0.6 * np.prod(np.divide(np.array([60, 58.9, 57.8, 57.7, 56.6, 55.5, 54.4, 53.3]), \
+            np.arange(92, 100))))
+    np.testing.assert_almost_equal(TestNonnegMean.kaplan_kolmogorov(x, N, g=0.1, random_order=False), 1.1**-8 * \
+        0.1**-2 * 0.6 * np.prod(np.divide(np.array([60, 58.9, 57.8, 57.7, 56.6, 55.5, 54.4, 53.3, 52.2]), \
+            np.arange(91, 100))))
 
 
 def test_initial_sample_size():
     N_cards = int(10**3)
+    margin = 0.1
+    risk_limit = 0.05
     risk_function = lambda x: TestNonnegMean.kaplan_kolmogorov(x, N=N_cards, t=1/2, g=0.1)
-    n_det = TestNonnegMean.initial_sample_size(risk_function, N_cards, 0.1, 0.001)
-    n_rand = TestNonnegMean.initial_sample_size(risk_function, N_cards, 0.1, 0.001, reps=100)
-    print(n_det, n_rand)
+
+    n_det = TestNonnegMean.initial_sample_size(risk_function, N_cards, margin=0.1, error_rate=0.001)
+
+    x = 1/(2-margin)*np.ones(69)
+    assert TestNonnegMean.kaplan_kolmogorov(x[:len(x)-1], N=N_cards, t=1/2, g=0.1) >= risk_limit
+    assert TestNonnegMean.kaplan_kolmogorov(x, N=N_cards, t=1/2, g=0.1) < risk_limit
+    assert n_det==len(x)
+
+    n_rand = TestNonnegMean.initial_sample_size(risk_function, N_cards, margin=0.1, error_rate=0.001, reps=100)
+    assert n_det == n_rand
 
     # This tests whether, in a simple example in which null hypothesis is true,
     # the distribution of p-values is dominated by the uniform distribution,
     # that is, Prob(p \le x) \le x, x \in [0, 1].
-    # VT: I have just added some basic sanity checks to ensure that p is small
-    # when the claimed mean is much higher than the data suggests.
-    # TODO add some tests that use the specific values we expect.
 
 def test_kaplan_martingale():
     eps = 0.0001  # Generic small value for use when not sure exactly how small it should be.
@@ -1883,26 +1889,77 @@ def test_kaplan_martingale():
 def test_assorter_mean():
     cvr_dict = [{'id': 1, 'votes': {'AvB': {'Alice':True}, 'CvD': {'Dan':True}}},\
             {'id': 2, 'votes': {'AvB': {'Bob':True}, 'CvD': {'Candy':True, 'Dan':True}}},\
-            {'id': 3, 'votes': {'AvB': {}, 'CvD': {'Dan':False}}},\
+            {'id': 3, 'votes': {'AvB': {}, 'CvD': {'Dan':True}}},\
             {'id': 4, 'votes': {'CvD': {'Elvis':True}}},\
             {'id': 5, 'votes': {'AvB': {'Alice':True}, 'CvD': {'Dan':True}}},\
+            {'id': 6, 'votes': {'AvB': {'Adam':True}, 'CvD': {'Candy':False}}},\
+            {'id': 7, 'votes': {'AvB': {'Alice':True}, 'CvD': {'David':True}}},\
+            {'id': 8, 'votes': {'AvB': {'Bob':True}, 'CvD': {'Dan':True}}},\
+            {'id': 9, 'votes': {'AvB': {'Alice':True}, 'CvD': {'Candy':True}}},\
             {'id': 'phantom_1', 'votes': {}, 'phantom': True}]
     cvrs = CVR.from_dict(cvr_dict)
 
+    # Simple Majority
     aVb = Assertion("AvB", Assorter(contest="AvB", \
                     assort = lambda c, contest="AvB", winr="Alice", losr="Bob":\
-                    ( CVR.as_vote(CVR.get_vote_from_cvr("AvB", winr, c)) \
+                    (CVR.as_vote(CVR.get_vote_from_cvr("AvB", winr, c)) \
                     - CVR.as_vote(CVR.get_vote_from_cvr("AvB", losr, c)) \
                     + 1)/2, upper_bound = 1))
+    np.testing.assert_almost_equal(aVb.assorter_mean(cvrs), 6/10)
 
     cVd = Assertion("CvD", Assorter(contest="CvD", \
                     assort = lambda c, contest="CvD", winr="Dan", losr="Candy":\
                     (CVR.as_vote(CVR.get_vote_from_cvr("CvD", winr, c)) \
                     - CVR.as_vote(CVR.get_vote_from_cvr("CvD", losr, c)) \
                     + 1)/2, upper_bound = 1))
+    np.testing.assert_almost_equal(cVd.assorter_mean(cvrs), 6.5/10)
 
-    np.testing.assert_almost_equal(aVb.assorter_mean(cvrs), 3.5/6)
-    np.testing.assert_almost_equal(cVd.assorter_mean(cvrs), 2/3)
+    # Super-majority: f=2/3
+    aVb.assorter.set_assort(lambda c, contest="AvB", winr="Alice", losr="Bob": \
+        ((3/2-1) * CVR.as_vote(CVR.get_vote_from_cvr("AvB", winr, c)) \
+        - CVR.as_vote(CVR.get_vote_from_cvr("AvB", losr, c)) + 1)/2)
+    np.testing.assert_almost_equal(aVb.assorter_mean(cvrs), 5/10)
+
+    cVd.assorter.set_assort(lambda c, contest="CvD", winr="Dan", losr="Candy": \
+        ((3/2-1) * CVR.as_vote(CVR.get_vote_from_cvr("CvD", winr, c)) \
+        - CVR.as_vote(CVR.get_vote_from_cvr("CvD", losr, c)) + 1)/2)
+    np.testing.assert_almost_equal(cVd.assorter_mean(cvrs), 5.25/10)
+
+    # Plurality Election
+    winner = ["Alice", "Bob"]
+    loser = "Adam"
+    aVb.assorter.set_assort(lambda c, contest="AvB", winr=winner[0], losr=loser: \
+        (CVR.as_vote(CVR.get_vote_from_cvr("AvB", winr, c)) \
+        - CVR.as_vote(CVR.get_vote_from_cvr("AvB", losr, c)) + 1)/2)
+    np.testing.assert_almost_equal(aVb.assorter_mean(cvrs), 6.5/10)
+    aVb.assorter.set_assort(lambda c, contest="AvB", winr=winner[1], losr=loser: \
+        (CVR.as_vote(CVR.get_vote_from_cvr("AvB", winr, c)) \
+        - CVR.as_vote(CVR.get_vote_from_cvr("AvB", losr, c)) + 1)/2)
+    np.testing.assert_almost_equal(aVb.assorter_mean(cvrs), 5.5/10)
+
+    # Approval voting
+    winner = ["Candy", "Dan"]
+    loser = "David"
+    cVd.assorter.set_assort(lambda c, contest="CvD", winr=winner[0], losr=loser: \
+        (CVR.as_vote(CVR.get_vote_from_cvr("CvD", winr, c)) \
+        - CVR.as_vote(CVR.get_vote_from_cvr("CvD", losr, c)) + 1)/2)
+    np.testing.assert_almost_equal(cVd.assorter_mean(cvrs), 5.5/10)
+    cVd.assorter.set_assort(lambda c, contest="CvD", winr=winner[1], losr=loser: \
+        (CVR.as_vote(CVR.get_vote_from_cvr("CvD", winr, c)) \
+        - CVR.as_vote(CVR.get_vote_from_cvr("CvD", losr, c)) + 1)/2)
+    np.testing.assert_almost_equal(cVd.assorter_mean(cvrs), 7/10)
+
+    ## RANKED VOTES
+    cvr_dict = [{'id': 1, 'votes': {'mayor': {'Alice': 1, 'Bob': 2, 'Candy': 3, 'Dan': ''}}},\
+            {'id': 2, 'votes': {'mayor': {'Alice': 4, 'Bob': 1, 'Candy': 3, 'Dan': 2}}},\
+            {'id': 3, 'votes': {'mayor': {'Alice': '', 'Bob': 2, 'Candy': 1, 'Dan': ''}}},\
+            {'id': 4, 'votes': {'mayor': {'Alice': 3, 'Bob': '', 'Candy': 2, 'Dan': 1}}},\
+            {'id': 5, 'votes': {'mayor': {'Alice': 2, 'Bob': 4, 'Candy': 3, 'Dan': 1}}},\
+            {'id': 6, 'votes': {'mayor': {'Alice': '', 'Bob': 2, 'Candy': 3, 'Dan': 1}}},\
+            {'id': 6, 'votes': {'mayor': {'Alice': '', 'Bob': '', 'Candy': 1, 'Dan': ''}}}]
+    cvrs = CVR.from_dict(cvr_dict)
+
+    # TODO Tests for Winner only, IRV contests
 
 def test_cvr_from_raire():
     raire_cvrs = [['1'],\
@@ -1933,6 +1990,7 @@ if __name__ == "__main__":
     test_rcv_lfunc_wo()
     test_rcv_votefor_cand()
     test_rcv_assorter()
+
     test_assorter_mean()
 
     test_kaplan_markov()
