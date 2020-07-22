@@ -1055,7 +1055,7 @@ class TestNonnegMean:
 
     @classmethod
     def initial_sample_size(cls, risk_function, N, margin, error_rate, alpha=0.05, t=1/2, reps=None,\
-                            quantile=0.5, seed=1234567890):
+                            bias_up = True, quantile=0.5, seed=1234567890):
         """
         Estimate the sample size needed to reject the null hypothesis that the population
         mean is <=t at significance level alpha, for the specified risk function, on the
@@ -1066,10 +1066,10 @@ class TestNonnegMean:
 
             1. If reps is not None, the function uses simulations to estimate the <quantile> quantile
             of sample size required. The simulations use the numpy Mersenne Twister PRNG.
-
-            2. If reps is None, puts discrepancies into the sample in a deterministic way, starting
-            with a discrepancy in the first item, then including an additional discrepancy after
-            every int(1/error_rate) items in the sample. "Frontloading" the errors should make this
+            
+            2. If reps is None, puts discrepancies into the sample in a deterministic way, starting 
+            with a discrepancy in the first item if bias_up is true, then including an additional discrepancy after 
+            every int(1/error_rate) items in the sample. "Frontloading" the errors (bias_up == True) should make this
             _slightly_ conservative on average
 
 
@@ -1090,6 +1090,9 @@ class TestNonnegMean:
         reps : int
             if reps is not none, performs reps simulations to estimate the <quantile> quantile
             of sample sizes
+        bias_up : boolean
+            if True, front loads the discrepancies (biases sample size up). 
+            If False, back loads them (biases sample size down).
         quantile : double
             quantile of the distribution of sample sizes to report, if reps is not None.
             If reps is None, quantile is not used
@@ -1109,13 +1112,14 @@ class TestNonnegMean:
         clean = 1/(2-margin)
         one_vote_over = 0.5/(2-margin)
         if reps is None:
+            offset = 0 if bias_up else 1                
             p = 1
             j = 0
             while (p > alpha) and (j <= N):
-                j = j+1
+                j += 1
                 x = clean*np.ones(j)
                 for k in range(j):
-                    x[k] = one_vote_over if (k+1) % int(1/error_rate) == 0 else x[k]
+                    x[k] = one_vote_over if (k+offset) % int(1/error_rate) == 0 else x[k]                   
                 p = risk_function(x)
             sam_size = j
         else:
