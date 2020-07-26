@@ -1062,6 +1062,8 @@ class TestNonnegMean:
         assumption that the rate of one-vote overstatements is error_rate.  This function is
         for a single contest.
         
+        This function is [currently] only for comparison audits, not ballot-polling audits.
+        
         Implements two strategies:
 
             1. If reps is not None, the function uses simulations to estimate the <quantile> quantile
@@ -1103,7 +1105,7 @@ class TestNonnegMean:
         --------
         sample_size : int
             sample size estimated to be sufficient to confirm the outcome if one-vote overstatements 
-            are not more frequent in fact than the assumed rate
+            are not more frequent than the assumed rate
             
         """
                              
@@ -1525,7 +1527,6 @@ def test_supermajority_assorter():
     votes = CVR.from_vote({"Alice": False, "Bob": True, "Candy": True})
     assert assn['Alice v all'].assorter.assort(votes) == 1/2, "wrong value for invalid vote--Bob & Candy"
 
-
 def test_rcv_lfunc_wo():
     votes = CVR.from_vote({"Alice": 1, "Bob": 2, "Candy": 3, "Dan": ''})
     assert CVR.rcv_lfunc_wo("AvB", "Bob", "Alice", votes) == 1
@@ -1841,6 +1842,35 @@ def test_initial_sample_size():
     # when the claimed mean is much higher than the data suggests.
     # TODO add some tests that use the specific values we expect.
     
+def test_initial_sample_size_KW():
+    # Test the initial_sample_size on the Kaplan-Wald risk function
+    g = 0
+    alpha = 0.05
+    error_rate = 0.01
+    N = int(10**4)
+    margin = 0.1
+    one_over = 1/3.8 # 0.5/(2-margin)
+    clean = 1/1.9    # 1/(2-margin)
+
+    risk_function = lambda x: TestNonnegMean.kaplan_wald(x, t=1/2, g=g, random_order=False)
+    # first test
+    bias_up = False
+    sam_size = TestNonnegMean.initial_sample_size(risk_function, N, margin, error_rate, alpha=alpha, t=1/2, reps=None,\
+                            bias_up=bias_up, quantile=0.5, seed=1234567890)
+    sam_size_0 = 59 # math.ceil(math.log(20)/math.log(2/1.9)), since this is < 1/error_rate
+    np.testing.assert_almost_equal(sam_size, sam_size_0)
+    # second test
+    bias_up = True
+    sam_size = TestNonnegMean.initial_sample_size(risk_function, N, margin, error_rate, alpha=alpha, t=1/2, reps=None,\
+                            bias_up=bias_up, quantile=0.5, seed=1234567890)
+    sam_size_1 = 72 # (1/1.9)*(2/1.9)**71 = 20.08
+    np.testing.assert_almost_equal(sam_size, sam_size_1)
+    # third test
+    sam_size = TestNonnegMean.initial_sample_size(risk_function, N, margin, error_rate, alpha=alpha, t=1/2, reps=1000,\
+                            bias_up=bias_up, quantile=0.5, seed=1234567890)
+    np.testing.assert_array_less(sam_size_0, sam_size+1) # crude test, but ballpark
+    np.testing.assert_array_less(sam_size, sam_size_1+1) # crude test, but ballpark
+    
 def test_kaplan_martingale():
     eps = 0.0001  # Generic small value for use when not sure exactly how small it should be.
     
@@ -1892,3 +1922,4 @@ if __name__ == "__main__":
     test_kaplan_wald()
     test_kaplan_kolmogorov()
     test_initial_sample_size()
+    test_initial_sample_size_KW()
