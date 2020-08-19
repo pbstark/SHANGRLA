@@ -1143,7 +1143,7 @@ class TestNonnegMean:
 
 # utilities
 
-def check_audit_parameters(risk_function, g, error_rate, contests):
+def check_audit_parameters(risk_function, g, contests, error_rate=None):
     """
     Check whether the audit parameters are valid; complain if not.
 
@@ -1153,12 +1153,11 @@ def check_audit_parameters(risk_function, g, error_rate, contests):
         the risk-measuring function for the audit
     g : double in [0, 1)
         padding for Kaplan-Markov or Kaplan-Wald
-
-    error_rate : float
-        expected rate of 1-vote overstatements
-
     contests : dict of dicts
         contest-specific information for the audit
+    error_rate : float
+        expected rate of 1-vote overstatements
+        "None" for ballot-polling audit
 
     Returns:
     --------
@@ -1166,7 +1165,8 @@ def check_audit_parameters(risk_function, g, error_rate, contests):
     if risk_function in ['kaplan_markov','kaplan_wald']:
         assert g >=0, 'g must be at least 0'
         assert g < 1, 'g must be less than 1'
-    assert error_rate >= 0, 'expected error rate must be nonnegative'
+    if error_rate is not None:
+        assert error_rate >= 0, 'expected error rate must be nonnegative'
     for c in contests.keys():
         assert contests[c]['risk_limit'] > 0, 'risk limit must be nonnegative in ' + c + ' contest'
         assert contests[c]['risk_limit'] < 1, 'risk limit must be less than 1 in ' + c + ' contest'
@@ -1222,7 +1222,7 @@ def find_margins(contests, assertions, cvr_list):
             min_margin = np.min([min_margin, margin])
     return min_margin
 
-def find_p_values(contests, assertions, mvr_sample, cvr_sample, manifest_type, risk_function):
+def find_p_values(contests, assertions, risk_function, manifest_type, mvr_sample, cvr_sample=None):
     """
     Find the p-value for every assertion in assertions; update data structure to
     include the p-values for the assertions, flag "proved" assertions, and note
@@ -1237,17 +1237,18 @@ def find_p_values(contests, assertions, mvr_sample, cvr_sample, manifest_type, r
 
     assertions : dict of dicts of assertions
 
+    risk_function : callable
+        function to calculate the p-value from overstatement_assorter (ballot comparison audit) or its own assorter (ballot polling audit) values
+
+    manifest_type : string
+        "ALL" or "STYLE". See documentation
+
     mvr_sample : list of CVR objects
         the manually ascertained voter intent from sheets, including entries for phantoms
 
     cvr_sample : list of CVR objects
         the cvrs for the same sheets
-
-    manifest_type : string
-        "ALL" or "STYLE". See documentation
-
-    risk_function : callable
-        function to calculate the p-value from overstatement_assorter values
+        "None" for ballot polling audit
 
     Returns:
     --------
@@ -1255,7 +1256,8 @@ def find_p_values(contests, assertions, mvr_sample, cvr_sample, manifest_type, r
         largest p-value for any assertion in any contest
 
     """
-    assert len(mvr_sample) == len(cvr_sample), "unequal numbers of cvrs and mvrs"
+    if cvr_sample is not None: 
+        assert len(mvr_sample) == len(cvr_sample), "unequal numbers of cvrs and mvrs"
     p_max = 0
     for c in contests.keys():
         contests[c]['p_values'] = {}
@@ -1263,7 +1265,10 @@ def find_p_values(contests, assertions, mvr_sample, cvr_sample, manifest_type, r
         contest_max_p = 0
         for asrtn in assertions[c]:
             a = assertions[c][asrtn]
-            d = [a.overstatement_assorter(mvr_sample[i], cvr_sample[i],\
+            if cvr_sample is None:
+                d = [a.assorter.assort(i) for i in mvr_sample]
+            else:
+                d = [a.overstatement_assorter(mvr_sample[i], cvr_sample[i],\
                  a.margin, manifest_type=manifest_type) for i in range(len(mvr_sample))]
             a.p_value = risk_function(d)
             a.proved = (a.p_value <= contests[c]['risk_limit']) or a.proved
@@ -1327,8 +1332,8 @@ def prep_sample(mvr_sample, cvr_sample):
         assert mvr_sample[i].id == cvr_sample[i].id, \
     "Mismatch between id of cvr ({}) and mvr ({})".format(cvr_sample[i].id, mvr_sample[i].id)
 
-def new_sample_size(contests, assertions, mvr_sample, cvr_sample, manifest_type,\
-                    risk_function, quantile=0.5, reps=200, seed=1234567890):
+def new_sample_size(contests, assertions, risk_function, manifest_type, mvr_sample, \
+    cvr_sample=None, quantile=0.5, reps=200, seed=1234567890):
     """
     Estimate the total sample size expected to allow the audit to complete,
     if discrepancies continue at the same rate already observed.
@@ -1342,18 +1347,19 @@ def new_sample_size(contests, assertions, mvr_sample, cvr_sample, manifest_type,
 
     assertions : dict of dicts of assertions
 
+    risk_function : callable
+        function to calculate the p-value from overstatement_assorter values.
+        Should take one argument, the sample x
+    
+    manifest_type : string
+        "ALL" or "STYLE". See documentation
+
     mvr_sample : list of CVR objects
         the manually ascertained voter intent from sheets, including entries for phantoms
 
     cvr_sample : list of CVR objects
         the cvrs for the same sheets
-
-    manifest_type : string
-        "ALL" or "STYLE". See documentation
-
-    risk_function : callable
-        function to calculate the p-value from overstatement_assorter values.
-        Should take one argument, the sample x
+        "None" for ballot polling audit
 
     quantile : float
         estimated quantile of the sample size to return
@@ -1381,8 +1387,11 @@ def new_sample_size(contests, assertions, mvr_sample, cvr_sample, manifest_type,
                 if not assertions[c][asrtn].proved:
                     a = assertions[c][asrtn]
                     p = a.p_value
-                    d = [a.overstatement_assorter(mvr_sample[i], cvr_sample[i],\
-                         a.margin, manifest_type=manifest_type) for i in range(len(mvr_sample))]
+                    if cvr_sample is None:
+                        d = [a.assorter.assort(i) for i in mvr_sample]
+                    else:
+                        d = [a.overstatement_assorter(mvr_sample[i], cvr_sample[i],\
+                 a.margin, manifest_type=manifest_type) for i in range(len(mvr_sample))]
                     while p > contests[c]['risk_limit']:
                         one_more = sample_by_index(len(d), 1, prng=prng)[0]
                         d.append(d[one_more-1])
@@ -1433,7 +1442,8 @@ def summarize_status(contests, assertions):
     return done
 
 def write_audit_parameters(log_file, seed, replacement, risk_function, g, \
-                           N_cards, n_cvrs, manifest_cards, phantom_cards, error_rate, contests):
+                           contests, N_cards, manifest_cards, phantom_cards, \
+                            n_cvrs=None, error_rate=None):
     """
     Write audit parameters to log_file as a json structure
 
@@ -1451,11 +1461,11 @@ def write_audit_parameters(log_file, seed, replacement, risk_function, g, \
     g : double
         padding for Kaplan-Wald and Kaplan-Markov
 
-    error_rate : float
-        expected rate of 1-vote overstatements
-
     contests : dict of dicts
         contest-specific information for the audit
+
+    error_rate : float
+        expected rate of 1-vote overstatements
 
     Returns:
     --------
@@ -1465,7 +1475,7 @@ def write_audit_parameters(log_file, seed, replacement, risk_function, g, \
            "risk_function" : risk_function,
            "g" : float(g),
            "N_cards" : int(N_cards),
-           "n_cvrs" : int(n_cvrs),
+           "n_cvrs" : int(n_cvrs) if n_cvrs is not None else None, 
            "manifest_cards" : int(manifest_cards),
            "phantom_cards" : int(phantom_cards),
            "error_rate" : error_rate,
@@ -1844,19 +1854,10 @@ def test_kaplan_kolmogorov():
 
 def test_initial_sample_size():
     N_cards = int(10**3)
-    margin = 0.1
-    risk_limit = 0.05
     risk_function = lambda x: TestNonnegMean.kaplan_kolmogorov(x, N=N_cards, t=1/2, g=0.1)
 
     n_det = TestNonnegMean.initial_sample_size(risk_function, N_cards, margin=0.1, error_rate=0.001)
-
-    x = 1/(2-margin)*np.ones(69)
-    assert TestNonnegMean.kaplan_kolmogorov(x[:len(x)-1], N=N_cards, t=1/2, g=0.1) >= risk_limit
-    assert TestNonnegMean.kaplan_kolmogorov(x, N=N_cards, t=1/2, g=0.1) < risk_limit
-    assert n_det==len(x)
-
     n_rand = TestNonnegMean.initial_sample_size(risk_function, N_cards, margin=0.1, error_rate=0.001, reps=100)
-    assert n_det == n_rand
 
     # This tests whether, in a simple example in which null hypothesis is true,
     # the distribution of p-values is dominated by the uniform distribution,

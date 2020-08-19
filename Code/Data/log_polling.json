@@ -1,0 +1,193 @@
+{
+    "seed": 20546205145833673229,
+    "replacement": false,
+    "risk_function": "kaplan_kolmogorov",
+    "g": 0.5,
+    "N_cards": 300000,
+    "n_cvrs": null,
+    "manifest_cards": 293555,
+    "phantom_cards": 6445,
+    "error_rate": null,
+    "contests": {
+        "339": {
+            "risk_limit": 0.05,
+            "choice_function": "IRV",
+            "n_winners": 1,
+            "candidates": [
+                "15",
+                "16",
+                "17",
+                "18"
+            ],
+            "reported_winners": [
+                "15"
+            ],
+            "assertion_file": "./Data/SF2019Nov8Assertions.json",
+            "assertion_json": [
+                {
+                    "winner": "18",
+                    "loser": "17",
+                    "already_eliminated": [
+                        "15",
+                        "16",
+                        "45"
+                    ],
+                    "assertion_type": "IRV_ELIMINATION",
+                    "explanation": "Rules out outcomes with tail [... 18 17]"
+                },
+                {
+                    "winner": "17",
+                    "loser": "16",
+                    "already_eliminated": [
+                        "15",
+                        "18",
+                        "45"
+                    ],
+                    "assertion_type": "IRV_ELIMINATION",
+                    "explanation": "Rules out outcomes with tail [... 17 16]"
+                },
+                {
+                    "winner": "15",
+                    "loser": "18",
+                    "already_eliminated": [
+                        "16",
+                        "17",
+                        "45"
+                    ],
+                    "assertion_type": "IRV_ELIMINATION",
+                    "explanation": "Rules out outcomes with tail [... 15 18]"
+                },
+                {
+                    "winner": "18",
+                    "loser": "16",
+                    "already_eliminated": [
+                        "15",
+                        "17",
+                        "45"
+                    ],
+                    "assertion_type": "IRV_ELIMINATION",
+                    "explanation": "Rules out outcomes with tail [... 18 16]"
+                },
+                {
+                    "winner": "17",
+                    "loser": "16",
+                    "already_eliminated": [
+                        "15",
+                        "45"
+                    ],
+                    "assertion_type": "IRV_ELIMINATION",
+                    "explanation": "Rules out outcomes with tail [... 17 16 18]"
+                },
+                {
+                    "winner": "15",
+                    "loser": "17",
+                    "already_eliminated": [
+                        "16",
+                        "45"
+                    ],
+                    "assertion_type": "IRV_ELIMINATION",
+                    "explanation": "Rules out outcomes with tail [... 15 17 18]"
+                },
+                {
+                    "winner": "15",
+                    "loser": "17",
+                    "already_eliminated": [
+                        "16",
+                        "18",
+                        "45"
+                    ],
+                    "assertion_type": "IRV_ELIMINATION",
+                    "explanation": "Rules out outcomes with tail [... 15 17]"
+                },
+                {
+                    "winner": "18",
+                    "loser": "16",
+                    "already_eliminated": [
+                        "15",
+                        "45"
+                    ],
+                    "assertion_type": "IRV_ELIMINATION",
+                    "explanation": "Rules out outcomes with tail [... 18 16 17]"
+                },
+                {
+                    "winner": "15",
+                    "loser": "16",
+                    "already_eliminated": [
+                        "17",
+                        "45"
+                    ],
+                    "assertion_type": "IRV_ELIMINATION",
+                    "explanation": "Rules out outcomes with tail [... 15 16 18]"
+                },
+                {
+                    "winner": "15",
+                    "loser": "16",
+                    "already_eliminated": [
+                        "17",
+                        "18",
+                        "45"
+                    ],
+                    "assertion_type": "IRV_ELIMINATION",
+                    "explanation": "Rules out outcomes with tail [... 15 16]"
+                },
+                {
+                    "winner": "15",
+                    "loser": "16",
+                    "already_eliminated": [
+                        "18",
+                        "45"
+                    ],
+                    "assertion_type": "IRV_ELIMINATION",
+                    "explanation": "Rules out outcomes with tail [... 15 16 17]"
+                },
+                {
+                    "winner": "15",
+                    "loser": "16",
+                    "already_eliminated": [
+                        "45"
+                    ],
+                    "assertion_type": "IRV_ELIMINATION",
+                    "explanation": "Rules out outcomes with tail [... 15 16 17 18]"
+                },
+                {
+                    "winner": "15",
+                    "loser": "45",
+                    "already_eliminated": "",
+                    "assertion_type": "WINNER_ONLY",
+                    "explanation": "Rules out case where 15 is eliminated before 45"
+                }
+            ],
+            "p_values": {
+                "18 v 17 elim 15 16 45": 0.44444592593086424,
+                "17 v 16 elim 15 18 45": 0.16442065403052356,
+                "15 v 18 elim 16 17 45": 1,
+                "18 v 16 elim 15 17 45": 0.18177495204054053,
+                "17 v 16 elim 15 45": 0.12331302403563205,
+                "15 v 17 elim 16 45": 0.666671111140741,
+                "15 v 17 elim 16 18 45": 0.8888933333580249,
+                "18 v 16 elim 15 45": 0.0006393433634743348,
+                "15 v 16 elim 17 45": 0.03551102651343496,
+                "15 v 16 elim 17 18 45": 0.6158738145782814,
+                "15 v 16 elim 18 45": 0.0006720045032241711,
+                "15 v 16 elim 45": 0.00043121861510718234,
+                "15 v 45": 2.694246027008499e-11
+            },
+            "proved": {
+                "18 v 17 elim 15 16 45": 0,
+                "17 v 16 elim 15 18 45": 0,
+                "15 v 18 elim 16 17 45": 0,
+                "18 v 16 elim 15 17 45": 0,
+                "17 v 16 elim 15 45": 0,
+                "15 v 17 elim 16 45": 0,
+                "15 v 17 elim 16 18 45": 0,
+                "18 v 16 elim 15 45": 1,
+                "15 v 16 elim 17 45": 1,
+                "15 v 16 elim 17 18 45": 0,
+                "15 v 16 elim 18 45": 1,
+                "15 v 16 elim 45": 1,
+                "15 v 45": 1
+            },
+            "max_p": 1.0
+        }
+    }
+}
