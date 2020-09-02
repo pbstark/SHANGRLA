@@ -23,12 +23,14 @@ def fisher_combined_pvalue(pvalues):
     obs = -2*np.sum(np.log(pvalues))
     return 1-scipy.stats.chi2.cdf(obs, df=2*len(pvalues))
 
-def create_modulus(N1, N2, n1, n2):
+def create_modulus(risk_funs, N1, N2, n1, n2, margin, upper_bound, g, x1, x2):
     """
     The modulus of continuity for the Fisher's combined p-value. This function
     returns the modulus of continuity, as a function of the distance between two
-    beta values. Uses kaplan_markov risk function to calculate modulus.
+    beta values. 
 
+    Parameters
+    ----------
     risk_funs : list
         risk functions used for strata
     N1 : int
@@ -39,17 +41,55 @@ def create_modulus(N1, N2, n1, n2):
         ballots sampled from stratum 1
     n2 : int 
         ballots sampled from stratum 2
+    margin : double
+        reported assorter margin
+    upper_bound : double
+        assorter upper bound
+    g : double in [0, 1)
+        padding for assorted values of 0
+    x1 : array-like
+        assorted sample ballots in stratum 1
+    x2 : array-like
+        assorted sample ballots in stratum 2
 
+    Returns
+    -------
+    mod : callable
+        modulus of continuity
     """
+    for index, function in enumerate(risk_funs):
+        if function == "kaplan_markov":
+            if index == 0:
+                T1 = lambda delta: 2*n1*np.log(1 + margin/(2*upper_bound-margin)* \
+                                    (N1 + N2)/N1*delta)
+            else:
+                T2 = lambda delta: 2*n2*np.log(1 + (N1 + N2)/N2*delta)
+
+        elif function == "kaplan_kolmogorov":
+            if index == 0:
+                T1 = lambda delta: 2*sum(np.log(1 + np.divide(margin*(N1+N2), \
+                                    (2*upper_bound - margin)*np.multiply(np.array(x1) + \
+                                    g, N1 - np.array(range(len(x1)))))*delta))
+            else:
+                T2 = lambda delta: 2*sum(np.log(1 + np.divide(N1 + N2, np.multiply(np.array(x2) \
+                                    + g, N2 - np.array(range(len(x2)))))*delta))
+        
+        elif function == "kaplan_wald": 
+            if index == 0:
+                T1 = lambda delta: 2*n1*(np.log(1 + margin/(2*upper_bound - margin)* \
+                                    (N1 + N2)/N1*delta) + np.log(1 + g*margin/(2* \
+                                    upper_bound - margin)*(N1 + N2)/N1*delta))
+            else:
+                T2 = lambda delta: 2*n2*(np.log(1+(N1 + N2)/N2*delta) + \
+                                    np.log(1 + g*(N1 + N2)/N2*delta))
+        else: 
+            return None
+
     if N1 == 0:
         T1 = lambda delta: 0
-    else:
-        T1 = lambda delta: 2*n1*np.log(1 + (N1+N2)/N1*delta)
 
-    if N2 == 0:
+    if N2 == 0: 
         T2 = lambda delta: 0
-    else:
-        T2 = lambda delta: 2*n2*np.log(1 + (N1+N2)/N2*delta)
 
     return lambda delta: T1(delta) + T2(delta)
 
@@ -90,8 +130,8 @@ def maximize_fisher_combined_pvalue(N1, N2, pvalue_funs, beta_test_count=10, mod
         feasible_beta_range = calculate_beta_range(N1, N2)
 
     (beta_lower, beta_upper) = feasible_beta_range
-
     test_betas = np.array(np.linspace(beta_lower, beta_upper, beta_test_count))
+
     stepsize = (beta_upper - beta_lower)/(beta_test_count + 1)
 
     fisher_pvalues = np.empty_like(test_betas)
@@ -99,7 +139,7 @@ def maximize_fisher_combined_pvalue(N1, N2, pvalue_funs, beta_test_count=10, mod
         pvalue1 = np.min([1, pvalue_funs[0](test_betas[i])])
         pvalue2 = np.min([1, pvalue_funs[1](test_betas[i])])
         fisher_pvalues[i] = fisher_combined_pvalue([pvalue1, pvalue2])
-    
+ 
     pvalue = np.max(fisher_pvalues)
     alloc_beta = test_betas[np.argmax(fisher_pvalues)]
 
@@ -129,8 +169,8 @@ def maximize_fisher_combined_pvalue(N1, N2, pvalue_funs, beta_test_count=10, mod
                 'refined' : False
                 }
     else:
-        beta_lower = alloc_beta - 2*stepsize
-        beta_upper = alloc_beta + 2*stepsize
+        beta_lower = max(alloc_beta - 2*stepsize, 0)
+        beta_upper = min(alloc_beta + 2*stepsize, 1/2)
         refined = maximize_fisher_combined_pvalue(N1, N2, pvalue_funs, \
             beta_test_count=beta_test_count*10, modulus=modulus, alpha=alpha, 
             feasible_beta_range=(beta_lower, beta_upper))
