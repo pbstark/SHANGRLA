@@ -189,6 +189,36 @@ class Assertion:
         return (1-self.overstatement(mvr, cvr, manifest_type)/self.assorter.upper_bound)\
                 /(2-margin/self.assorter.upper_bound)
 
+    def generic_assorter(self, mvr, manifest_type="STYLE"):
+        """
+        The assorter which takes into account the manifest type for an assertion.
+
+        If manifest_type == "STYLE", the manifest purportedly only contains ballots
+        that include the contests under the audit. Then if the MVR does not contain
+        the contest, that is considered to be a vote for the loser.
+
+        If manifest_type == "ALL", then the ballot manifest can include ballots that
+        do not contain the audited contest. Then if the MVR does not contain the
+        contest, the MVR is considered to be a non-vote in the contest.
+
+        Parameters:
+        -----------
+        mvr : Cvr
+            the manual interpretation of voter intent
+
+        Returns: 
+        --------
+        ballot value
+        """
+        assert manifest_type in Assertion.MANIFEST_TYPES, "unrecognized manifest type"
+        if manifest_type == "ALL":
+            value = self.assorter.assort(mvr) if not mvr.phantom else 0
+        elif manifest_type == "STYLE":
+            value = self.assorter.assort(mvr) if mvr.has_contest(self.contest) else 0
+        else:
+            raise NotImplementedError
+        return value
+
 
     @classmethod
     def make_plurality_assertions(cls, contest, winners, losers):
@@ -1266,7 +1296,8 @@ def find_p_values(contests, assertions, risk_function, manifest_type, mvr_sample
         for asrtn in assertions[c]:
             a = assertions[c][asrtn]
             if cvr_sample is None:
-                d = [a.assorter.assort(i) for i in mvr_sample]
+                d = [a.generic_assorter(mvr_sample[i], manifest_type=manifest_type) \
+                     for i in range(len(mvr_sample))]
             else:
                 d = [a.overstatement_assorter(mvr_sample[i], cvr_sample[i],\
                  a.margin, manifest_type=manifest_type) for i in range(len(mvr_sample))]
@@ -1787,6 +1818,38 @@ def test_overstatement_assorter():
     assert aVb.overstatement_assorter(mvrs[2], cvrs[0], margin=0.1, manifest_type="STYLE") == 0.5/1.9
     assert aVb.overstatement_assorter(mvrs[2], cvrs[0], margin=0.1, manifest_type="ALL") == 0.5/1.9
 
+def test_generic_assorter():
+    mvr_dict = [{'id': 1, 'votes': {'AvB': {'Alice':True}}},\
+                {'id': 2, 'votes': {'AvB': {'Bob':True}}},
+                {'id': 3, 'votes': {'AvB': {}}},\
+                {'id': 4, 'votes': {'CvD': {'Elvis':True, 'Candy':False}}},\
+                {'id': 'phantom_1', 'votes': {}, 'phantom': True}]
+    mvrs = CVR.from_dict(mvr_dict)
+
+    winners = ["Alice"]
+    losers = ["Bob"]
+
+    aVb = Assertion("AvB", Assorter(contest="AvB", \
+                    assort = lambda c, contest="AvB", winr="Alice", losr="Bob":\
+                    ( CVR.as_vote(CVR.get_vote_from_cvr("AvB", winr, c)) \
+                    - CVR.as_vote(CVR.get_vote_from_cvr("AvB", losr, c)) \
+                    + 1)/2, upper_bound = 1))
+
+    assert aVb.generic_assorter(mvrs[0], manifest_type="STYLE") == 1
+    assert aVb.generic_assorter(mvrs[0], manifest_type="ALL") == 1
+
+    assert aVb.generic_assorter(mvrs[1], manifest_type="STYLE") == 0
+    assert aVb.generic_assorter(mvrs[1], manifest_type="ALL") == 0
+
+    assert aVb.generic_assorter(mvrs[2], manifest_type="STYLE") == 1/2
+    assert aVb.generic_assorter(mvrs[2], manifest_type="ALL") == 1/2
+
+    assert aVb.generic_assorter(mvrs[3], manifest_type="STYLE") == 0
+    assert aVb.generic_assorter(mvrs[3], manifest_type="ALL") == 1/2
+
+    assert aVb.generic_assorter(mvrs[4], manifest_type="STYLE") == 0
+    assert aVb.generic_assorter(mvrs[4], manifest_type="ALL") == 0
+
 def test_cvr_has_contest():
     cvr_dict = [{'id': 1, 'votes': {'AvB': {}, 'CvD': {'Candy':True}}},\
                 {'id': 2, 'votes': {'CvD': {'Elvis':True, 'Candy':False}}}]
@@ -2024,6 +2087,7 @@ if __name__ == "__main__":
 
     test_overstatement()
     test_overstatement_assorter()
+    test_generic_assorter()
 
     test_rcv_lfunc_wo()
     test_rcv_votefor_cand()
