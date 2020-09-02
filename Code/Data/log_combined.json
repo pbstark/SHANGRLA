@@ -1,0 +1,337 @@
+{
+    "seed": 93686630803205229070,
+    "replacement": false,
+    "stratum 1": {
+        "risk_function": "kaplan_markov",
+        "g": 0.1,
+        "N_cards": 146662,
+        "n_cvrs": 146662,
+        "manifest_cards": 293555,
+        "phantom_cards": 0,
+        "error_rate": 0.002
+    },
+    "stratum 2": {
+        "risk_function": "kaplan_markov",
+        "g": 0.1,
+        "N_cards": 3000,
+        "n_cvrs": null,
+        "manifest_cards": 293555,
+        "phantom_cards": -290555,
+        "error_rate": null
+    },
+    "contests": {
+        "339": {
+            "risk_limit": 0.05,
+            "choice_function": "IRV",
+            "n_winners": 1,
+            "candidates": [
+                "15",
+                "16",
+                "17",
+                "18"
+            ],
+            "reported_winners": [
+                "15"
+            ],
+            "assertion_file": "./Data/SF2019Nov8Assertions.json",
+            "assertion_json": [
+                {
+                    "winner": "18",
+                    "loser": "17",
+                    "already_eliminated": [
+                        "15",
+                        "16",
+                        "45"
+                    ],
+                    "assertion_type": "IRV_ELIMINATION",
+                    "explanation": "Rules out outcomes with tail [... 18 17]"
+                },
+                {
+                    "winner": "17",
+                    "loser": "16",
+                    "already_eliminated": [
+                        "15",
+                        "18",
+                        "45"
+                    ],
+                    "assertion_type": "IRV_ELIMINATION",
+                    "explanation": "Rules out outcomes with tail [... 17 16]"
+                },
+                {
+                    "winner": "15",
+                    "loser": "18",
+                    "already_eliminated": [
+                        "16",
+                        "17",
+                        "45"
+                    ],
+                    "assertion_type": "IRV_ELIMINATION",
+                    "explanation": "Rules out outcomes with tail [... 15 18]"
+                },
+                {
+                    "winner": "18",
+                    "loser": "16",
+                    "already_eliminated": [
+                        "15",
+                        "17",
+                        "45"
+                    ],
+                    "assertion_type": "IRV_ELIMINATION",
+                    "explanation": "Rules out outcomes with tail [... 18 16]"
+                },
+                {
+                    "winner": "17",
+                    "loser": "16",
+                    "already_eliminated": [
+                        "15",
+                        "45"
+                    ],
+                    "assertion_type": "IRV_ELIMINATION",
+                    "explanation": "Rules out outcomes with tail [... 17 16 18]"
+                },
+                {
+                    "winner": "15",
+                    "loser": "17",
+                    "already_eliminated": [
+                        "16",
+                        "45"
+                    ],
+                    "assertion_type": "IRV_ELIMINATION",
+                    "explanation": "Rules out outcomes with tail [... 15 17 18]"
+                },
+                {
+                    "winner": "15",
+                    "loser": "17",
+                    "already_eliminated": [
+                        "16",
+                        "18",
+                        "45"
+                    ],
+                    "assertion_type": "IRV_ELIMINATION",
+                    "explanation": "Rules out outcomes with tail [... 15 17]"
+                },
+                {
+                    "winner": "18",
+                    "loser": "16",
+                    "already_eliminated": [
+                        "15",
+                        "45"
+                    ],
+                    "assertion_type": "IRV_ELIMINATION",
+                    "explanation": "Rules out outcomes with tail [... 18 16 17]"
+                },
+                {
+                    "winner": "15",
+                    "loser": "16",
+                    "already_eliminated": [
+                        "17",
+                        "45"
+                    ],
+                    "assertion_type": "IRV_ELIMINATION",
+                    "explanation": "Rules out outcomes with tail [... 15 16 18]"
+                },
+                {
+                    "winner": "15",
+                    "loser": "16",
+                    "already_eliminated": [
+                        "17",
+                        "18",
+                        "45"
+                    ],
+                    "assertion_type": "IRV_ELIMINATION",
+                    "explanation": "Rules out outcomes with tail [... 15 16]"
+                },
+                {
+                    "winner": "15",
+                    "loser": "16",
+                    "already_eliminated": [
+                        "18",
+                        "45"
+                    ],
+                    "assertion_type": "IRV_ELIMINATION",
+                    "explanation": "Rules out outcomes with tail [... 15 16 17]"
+                },
+                {
+                    "winner": "15",
+                    "loser": "16",
+                    "already_eliminated": [
+                        "45"
+                    ],
+                    "assertion_type": "IRV_ELIMINATION",
+                    "explanation": "Rules out outcomes with tail [... 15 16 17 18]"
+                },
+                {
+                    "winner": "15",
+                    "loser": "45",
+                    "already_eliminated": "",
+                    "assertion_type": "WINNER_ONLY",
+                    "explanation": "Rules out case where 15 is eliminated before 45"
+                }
+            ],
+            "margins": {
+                "18 v 17 elim 15 16 45": 0.045792366120740224,
+                "17 v 16 elim 15 18 45": 0.019902906001554532,
+                "15 v 18 elim 16 17 45": 0.028923647570604505,
+                "18 v 16 elim 15 17 45": 0.0830003681935334,
+                "17 v 16 elim 15 45": 0.058079120699294995,
+                "15 v 17 elim 16 45": 0.08064120222007065,
+                "15 v 17 elim 16 18 45": 0.10951712099930444,
+                "18 v 16 elim 15 45": 0.14875018750596603,
+                "15 v 16 elim 17 45": 0.13548158350492967,
+                "15 v 16 elim 17 18 45": 0.1365247985163165,
+                "15 v 16 elim 18 45": 0.16666893946625572,
+                "15 v 16 elim 45": 0.15626406294745743,
+                "15 v 45": 0.2956457705472446
+            },
+            "beta_test_values": [
+                0.47995483155376784,
+                0.4821820724922381,
+                0.4844093134307083,
+                0.4866365543691786,
+                0.4888637953076488,
+                0.49109103624611905,
+                0.49331827718458926,
+                0.4955455181230595,
+                0.49777275906152973,
+                0.5
+            ],
+            "assertion_summaries": {
+                "18 v 17 elim 15 16 45": {
+                    "max_pvalue": 0.10840969417437585,
+                    "min_chisq": 7.575874996121552,
+                    "allocation beta": 0.47995483155376784,
+                    "tol": null,
+                    "stepsize": 0.0018222880405665603,
+                    "refined": false
+                },
+                "17 v 16 elim 15 18 45": {
+                    "max_pvalue": 0.5140167509135976,
+                    "min_chisq": 3.2680097624077398,
+                    "allocation beta": 0.47995483155376784,
+                    "tol": null,
+                    "stepsize": 0.0018222880405665603,
+                    "refined": false
+                },
+                "15 v 18 elim 16 17 45": {
+                    "max_pvalue": 0.31264039571878244,
+                    "min_chisq": 4.7616397955654985,
+                    "allocation beta": 0.47995483155376784,
+                    "tol": null,
+                    "stepsize": 0.0018222880405665603,
+                    "refined": false
+                },
+                "18 v 16 elim 15 17 45": {
+                    "max_pvalue": 0.008046409385325304,
+                    "min_chisq": 13.775706703991613,
+                    "allocation beta": 0.4763102554726347,
+                    "stepsize": 7.216982338877447e-05,
+                    "tol": 1.4388331619215928,
+                    "refined": true
+                },
+                "17 v 16 elim 15 45": {
+                    "max_pvalue": 0.048403963039792,
+                    "min_chisq": 9.566232545029075,
+                    "allocation beta": 0.47616591582585716,
+                    "stepsize": 2.8839090265248604e-07,
+                    "tol": 0.0057583004985008995,
+                    "refined": true
+                },
+                "15 v 17 elim 16 45": {
+                    "max_pvalue": 0.009582338739282825,
+                    "min_chisq": 13.374837278118896,
+                    "allocation beta": 0.4763102554726347,
+                    "stepsize": 7.216982338877447e-05,
+                    "tol": 1.4387953857009632,
+                    "refined": true
+                },
+                "15 v 17 elim 16 18 45": {
+                    "max_pvalue": 0.001068282318011593,
+                    "min_chisq": 18.320358645035423,
+                    "allocation beta": 0.4763102554726347,
+                    "stepsize": 7.216982338877447e-05,
+                    "tol": 1.4392642475198478,
+                    "refined": true
+                },
+                "18 v 16 elim 15 45": {
+                    "max_pvalue": 4.6312908403844943e-05,
+                    "min_chisq": 25.178756636170007,
+                    "allocation beta": 0.4763102554726347,
+                    "stepsize": 7.216982338877447e-05,
+                    "tol": 1.4399247156070116,
+                    "refined": true
+                },
+                "15 v 16 elim 17 45": {
+                    "max_pvalue": 0.00013623347326918722,
+                    "min_chisq": 22.84097555645682,
+                    "allocation beta": 0.4763102554726347,
+                    "stepsize": 7.216982338877447e-05,
+                    "tol": 1.4396982351921026,
+                    "refined": true
+                },
+                "15 v 16 elim 17 18 45": {
+                    "max_pvalue": 0.00012523034747780049,
+                    "min_chisq": 23.024095471322507,
+                    "allocation beta": 0.4763102554726347,
+                    "stepsize": 7.216982338877447e-05,
+                    "tol": 1.4397159249044444,
+                    "refined": true
+                },
+                "15 v 16 elim 18 45": {
+                    "max_pvalue": 1.0513308880688577e-05,
+                    "min_chisq": 28.366096285387712,
+                    "allocation beta": 0.4763102554726347,
+                    "stepsize": 7.216982338877447e-05,
+                    "tol": 1.440235771666583,
+                    "refined": true
+                },
+                "15 v 16 elim 45": {
+                    "max_pvalue": 2.4956505131012996e-05,
+                    "min_chisq": 26.511040523059886,
+                    "allocation beta": 0.4763102554726347,
+                    "stepsize": 7.216982338877447e-05,
+                    "tol": 1.4400544147700614,
+                    "refined": true
+                },
+                "15 v 45": {
+                    "max_pvalue": 9.271139411737295e-11,
+                    "min_chisq": 52.82505988616154,
+                    "allocation beta": 0.47995483155376784,
+                    "stepsize": 0.0018222880405665603,
+                    "tol": 34.933557633652164,
+                    "refined": false
+                }
+            },
+            "max_fisher_pvalues": {
+                "18 v 17 elim 15 16 45": 0.10840969417437585,
+                "17 v 16 elim 15 18 45": 0.5140167509135976,
+                "15 v 18 elim 16 17 45": 0.31264039571878244,
+                "18 v 16 elim 15 17 45": 0.008046409385325304,
+                "17 v 16 elim 15 45": 0.048403963039792,
+                "15 v 17 elim 16 45": 0.009582338739282825,
+                "15 v 17 elim 16 18 45": 0.001068282318011593,
+                "18 v 16 elim 15 45": 4.6312908403844943e-05,
+                "15 v 16 elim 17 45": 0.00013623347326918722,
+                "15 v 16 elim 17 18 45": 0.00012523034747780049,
+                "15 v 16 elim 18 45": 1.0513308880688577e-05,
+                "15 v 16 elim 45": 2.4956505131012996e-05,
+                "15 v 45": 9.271139411737295e-11
+            },
+            "proved": {
+                "18 v 17 elim 15 16 45": 0,
+                "17 v 16 elim 15 18 45": 0,
+                "15 v 18 elim 16 17 45": 0,
+                "18 v 16 elim 15 17 45": 1,
+                "17 v 16 elim 15 45": 1,
+                "15 v 17 elim 16 45": 1,
+                "15 v 17 elim 16 18 45": 1,
+                "18 v 16 elim 15 45": 1,
+                "15 v 16 elim 17 45": 1,
+                "15 v 16 elim 17 18 45": 1,
+                "15 v 16 elim 18 45": 1,
+                "15 v 16 elim 45": 1,
+                "15 v 45": 1
+            },
+            "max_fisher_p": 0.5140167509135976
+        }
+    }
+}

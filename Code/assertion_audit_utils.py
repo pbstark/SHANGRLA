@@ -11,6 +11,8 @@ from collections import OrderedDict
 from cryptorandom.cryptorandom import SHA256, random
 from cryptorandom.sample import random_permutation
 from cryptorandom.sample import sample_by_index
+from fishers_combination import calculate_beta_range, fisher_combined_pvalue, \
+    create_modulus, maximize_fisher_combined_pvalue
 
 
 class Assertion:
@@ -1310,6 +1312,92 @@ def find_p_values(contests, assertions, risk_function, manifest_type, mvr_sample
         p_max = np.max([p_max, contests[c]['max_p']])
     return p_max
 
+def find_fisher_p_values(contests, assertions, pvalue_tests, pvalue_funs, g, \
+    manifest_types, N_cards, mvr_samples, cvr_sample, beta_test_count=10):
+    """
+    Find the p-value for every assertion in assertions; update data structure to
+    include the p-values for the assertions, flag "proved" assertions, and note
+    the maximum p-value for each contest.
+
+    Primarily about side-effects.
+
+    Parameters:
+    -----------
+    contests : dict of dicts
+        the contest data structure. outer keys are contest identifiers; inner keys are assertions
+
+    assertions : dict of dicts of assertions
+
+    pvalue_tests : list of strings
+        names of pvalue functions for each stratum
+    
+    pvalue_funs : list of callable functions
+        function to calculate the p-value from assorter array and beta value
+        [cvr_pvalue(d, b), nocvr_pvalue(d, b)]
+
+    g : double in [0, 1)
+        padding for assorted values of 0
+
+    manifest_types : list of strings
+        "ALL" or "STYLE". See documentation
+        [cvr_manifest_type, nocvr_manifest_type]
+
+    N_cards : list of ints
+        upper bound of votes cast per stratum
+        [N1, N2]
+
+    mvr_samples : list of lists of CVR objects
+        the manually ascertained voter intent from sheets, including entries for phantoms
+
+    cvr_sample : list of CVR objects
+        the cvrs for mvr sample in stratum 1
+
+    Returns: 
+    --------
+    p_max : double
+        largest fisher combined p-value for any assertion in each stratum in any contest
+    """
+    assert len(mvr_samples[0]) == len(cvr_sample), "unequal numbers of cvrs and mvrs"
+    (beta_lower, beta_upper) = calculate_beta_range(N_cards[0], N_cards[1])
+    test_betas = np.linspace(beta_lower, beta_upper, beta_test_count)
+    
+    fisher_p_max = 0
+    for c in contests.keys():
+        contests[c]['beta_test_values'] = list(test_betas)
+        contests[c]['assertion_summaries'] = {}
+        contests[c]['max_fisher_pvalues'] = {}
+        contests[c]['proved'] = {}
+        contest_max_fisher_p = 0
+        for asrtn in assertions[c]: 
+            a = assertions[c][asrtn]
+            d1 = [a.overstatement_assorter(mvr_samples[0][i], cvr_sample[i],\
+            a.margin, manifest_type=manifest_types[0]) for i in range(len(mvr_samples[0]))]
+            d2 = [a.generic_assorter(mvr_samples[1][i], manifest_type=manifest_types[1]) for i in range(len(mvr_samples[1]))]
+
+            mod = create_modulus(pvalue_tests, N_cards[0], N_cards[1], len(mvr_samples[0]), \
+                                len(mvr_samples[1]), a.margin, a.assorter.upper_bound, g, d1, d2)
+            
+            cvr_pvalue_0 = lambda t_0: pvalue_funs[0](x=d1, t=(a.assorter.upper_bound \
+                                    - a.margin*t_0)/(2*a.assorter.upper_bound - a.margin))
+            cvr_pvalue = lambda beta: cvr_pvalue_0(t_0=beta*sum(N_cards)/N_cards[0])
+            nocvr_pvalue = lambda beta: pvalue_funs[1](x=d2, t=(1/2-beta)*sum(N_cards)/N_cards[1])
+
+            asrtn_summary = maximize_fisher_combined_pvalue(N1=N_cards[0], \
+                            N2=N_cards[1], pvalue_funs=[cvr_pvalue, nocvr_pvalue], \
+                            beta_test_count=beta_test_count, modulus=mod, \
+                            alpha=contests[c]['risk_limit'], \
+                            feasible_beta_range=(beta_lower, beta_upper))
+            contests[c]['assertion_summaries'].update({asrtn: asrtn_summary})
+            a.p_value = asrtn_summary['max_pvalue']
+            a.proved = (a.p_value <= contests[c]['risk_limit'])
+            contest_max_fisher_p = max(contest_max_fisher_p, a.p_value)
+
+            contests[c]['max_fisher_pvalues'].update({asrtn: a.p_value})
+            contests[c]['proved'].update({asrtn: int(a.proved)})
+        contests[c].update({'max_fisher_p': contest_max_fisher_p})
+        fisher_p_max = np.max([fisher_p_max, contests[c]['max_fisher_p']])
+    return fisher_p_max
+
 def find_sample_size(contests, assertions, sample_size_function):
     """
     Find initial sample size
@@ -1510,6 +1598,71 @@ def write_audit_parameters(log_file, seed, replacement, risk_function, g, \
            "manifest_cards" : int(manifest_cards),
            "phantom_cards" : int(phantom_cards),
            "error_rate" : error_rate,
+           "contests" : contests
+          }
+    with open(log_file, 'w') as f:
+        f.write(json.dumps(out))
+
+def write_fisher_audit_parameters(log_file, seed, replacement, contests, risk_function, \
+                                    g, N_cards, manifest_cards, phantom_cards, \
+                                    n_cvrs=None, error_rate=None):
+    """
+    Write audit parameters to log_file as a json structure
+
+    Parameters:
+    ---------
+    log_file : string
+        filename to write to
+
+    seed : string
+        seed for the PRNG for sampling ballots
+
+    contests : dict of dicts
+        contest-specific information for the audit
+
+    risk_function : list of strings
+        risk-measuring function used for each stratum in the audit
+
+    g : double
+        padding for Kaplan-Wald, Kaplan-Markov, and Kaplan-Kolmogorov
+
+    N_cards : list of ints
+        upper bound of votes cast per stratum
+        [N1, N2]
+
+    manifest_cards : list of ints
+        number of cards reported in the manifest per stratum
+        [N1, N2]
+
+    phantom_cards : list of ints
+        number of phantom cards generated per stratum 
+        [N1, N2]
+
+    n_cvrs : int
+        number of CVRs in stratum 1
+
+    error_rate : float
+        expected rate of 1-vote overstatements in the cvr stratum
+
+    Returns:
+    --------
+    """
+    out = {"seed" : seed,
+           "replacement" : replacement,
+           "stratum 1" : {"risk_function" : risk_function[0],
+                            "g" : float(g),
+                            "N_cards" : int(N_cards[0]),
+                            "n_cvrs" : int(n_cvrs), 
+                            "manifest_cards" : int(manifest_cards[0]),
+                            "phantom_cards" : int(phantom_cards[0]),
+                            "error_rate" : error_rate},
+            "stratum 2" : {"risk_function" : risk_function[1],
+                            "g" : float(g),
+                            "N_cards" : int(N_cards[1]),
+                            "n_cvrs" : None, 
+                            "manifest_cards" : int(manifest_cards[1]),
+                            "phantom_cards" : int(phantom_cards[1]),
+                            "error_rate" : None},
            "contests" : contests
           }
     with open(log_file, 'w') as f:
