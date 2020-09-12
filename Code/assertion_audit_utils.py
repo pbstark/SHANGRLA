@@ -908,6 +908,7 @@ class TestNonnegMean:
         p-value
 
         """
+        x = np.array(x)
         if any(x < 0):
             raise ValueError('Negative value in sample from a nonnegative population.')
         return np.min([1, np.min(np.cumprod((t+g)/(x+g))) if random_order else np.prod((t+g)/(x+g))])
@@ -942,6 +943,7 @@ class TestNonnegMean:
         p-value
 
         """
+        x = np.array(x)
         if g < 0:
             raise ValueError('g cannot be negative')
         if any(x < 0):
@@ -1027,6 +1029,36 @@ class TestNonnegMean:
         return integral, integrals
 
     @classmethod
+    def integral_from_roots2(cls, c, maximal=True):
+        '''
+        Same integration algorithm as integral_from_roots but performs the Y_norm
+        multiplication from kaplan_martingale during integration to avoid overflow.
+
+        Parameters:
+        -----------
+        c : array of roots
+
+        Returns
+        ------
+        the integral or maximum integral and the vector of nested integrals
+        '''
+        n = len(c)
+        a = np.zeros((n+1,n+1))
+        a[0,0]=1
+        for k in np.arange(n):
+            for j in np.arange(n+1):
+                a[k+1,j] = ((k+1-j)/(k+1))*a[k,j]
+                a[k+1,j] += 0 if j==0 else (1-1/c[k])*(j/(k+1))*a[k,j-1]
+        integrals = np.zeros(n)
+        for k in np.arange(1,n+1):
+            integrals[k-1] = np.sum(a[k,:])/(k+1)
+        if maximal:
+            integral = np.max(integrals)
+        else:
+            integral = integrals[-1]
+        return integral, integrals
+
+    @classmethod
     def kaplan_martingale(cls, x, N, t=1/2, random_order = True):
         """
         p-value for the hypothesis that the mean of a nonnegative population with
@@ -1077,11 +1109,8 @@ class TestNonnegMean:
         else:
             jtilde = 1 - np.array(list(range(len(x))))/N
             c = np.multiply(x, np.divide(jtilde, t_minus_Stilde))-1
-            r = -np.array([1/cc for cc in c[0:len(x)+1] if cc != 0]) # roots
-            Y_norm = np.cumprod(np.array([cc for cc in c[0:len(x)+1] if cc != 0])) # mult constant
-            integral, integrals = TestNonnegMean.integral_from_roots(r, maximal = False)
-            mart_vec = np.multiply(Y_norm,integrals)
-            mart_max = max(mart_vec) if random_order else mart_vec[-1]
+            r = -np.array([1/cc for cc in c if cc != 0]) # roots
+            mart_max, mart_vec = TestNonnegMean.integral_from_roots2(r, maximal=random_order)
         p = min(1/mart_max,1)
         return p, mart_vec
 
