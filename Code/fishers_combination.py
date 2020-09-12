@@ -140,7 +140,7 @@ def maximize_fisher_combined_pvalue(N1, N2, pvalue_funs, beta_test_count=10, mod
         pvalue1 = np.min([1, pvalue_funs[0](test_betas[i])])
         pvalue2 = np.min([1, pvalue_funs[1](test_betas[i])])
         fisher_pvalues[i] = fisher_combined_pvalue([pvalue1, pvalue2])
- 
+
     pvalue = np.max(fisher_pvalues)
     alloc_beta = test_betas[np.argmax(fisher_pvalues)]
 
@@ -216,38 +216,23 @@ def calculate_beta_range(N1, N2, upper_bound=1):
     in terms of stratum sizes that have the possibility of producing P-values not
     close to 0, 1.
 
-    Let beta = beta_1 and beta_2 = 1/2-beta_1 to maximize the p-value for stratum 2.
-    Let the assorter's upper bound be A_ub and N=N1+N2. 
+    Let beta_1 = beta and beta_2 = 1/2 - beta to maximize the error allocation for 
+    stratum 2. Let A_ub be the assorter's upper bound and let N=N1+N2. 
 
-    If N1 > N2, N1 has stricter bounds on the beta range:
-        Stratum 1
-            beta_1*N/N1 < A_ub
-            beta_1 < A_ub*N1/N
-        Stratum 2
-            beta_2*N/N2 < A_ub
-            (1/2-beta_1)*N/N2 < A_ub
-            1/2-A_ub*N2/N < beta_1
-        Thus, beta_1 is bounded by (1/2-A_ub*N2/N, A_ub*N1/N). 
-        Combining with the sharp bounds
-            beta_1 >= max(1/2-A_ub*N2/N, 0) = 1/2-A_ub*N2/N
-            beta_1 <= min(A_ub*N1/N, 1/2) = 1/2
+    Stratum 1
+        beta_1*N/N1 <= A_ub
+        beta_1 <= A_ub*N1/N
+    Stratum 2
+        beta_2*N/N2 <= A_ub
+        (1/2-beta_1)*N/N2 <= A_ub
+        1/2-A_ub*N2/N <= beta_1
+    Thus, beta_1 is bounded by [1/2-A_ub*N2/N, A_ub*N1/N]. 
 
-    If N2 > N1, N2 has stricter bounds on the beta range:
-        Using the derivation above and switching the cases for stratum 1 and
-        stratum 2, beta_2 can be defined as
-            [1] beta_2 >= max(1/2-A_ub*N1/N, 0) = 1/2-A_ub*N1/N
-            [2] beta_2 <= min(A_ub*N2/N, 1/2) = 1/2
-        
-        Solving for beta_1 (beta):
-            [1] beta_2 >= 1/2-A_ub*N1/N
-                1/2-beta_2 <= A_ub*N1/N
-                beta <= A_ub*N1/N
-            [2] beta_2 <= 1/2
-                1/2-beta_2 >= 0
-                beta >= 0
+    Combined bounds: 
+        beta_1 >= max(1/2-A_ub*N2/N, 0)
+        beta_1 <= min(A_ub*N1/N, 1/2)
     '''
-    return (1/2-upper_bound*N2/(N1+N2), 1/2) if N1>N2 else (0, upper_bound*N1/(N1+N2))
-    #return (1/2-upper_bound*N2/(N1+N2), N1/(N1+N2)/2) if N1>N2 else (0, min(upper_bound*N1/(N1+N2), N1/(N1+N2)/2))
+    return (max(1/2-upper_bound*N2/(N1+N2), 0), min(upper_bound*N1/(N1+N2), 1/2))
 
 def plot_fisher_pvalues(N, pvalue_funs, beta_test_count=10, alpha=None, plot_strata=False):
     """
