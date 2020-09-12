@@ -1406,8 +1406,8 @@ def find_fisher_p_values(contests, assertions, pvalue_tests, pvalue_funs, g, \
             mod = create_modulus(pvalue_tests, N_cards[0], N_cards[1], len(mvr_samples[0]), \
                                 len(mvr_samples[1]), a.margin, a.assorter.upper_bound, g, d1, d2)
             
-            cvr_pvalue_0 = lambda t_0: pvalue_funs[0](x=d1, t=(a.assorter.upper_bound \
-                                    - a.margin*t_0)/(2*a.assorter.upper_bound - a.margin))
+            cvr_pvalue_0 = lambda t_0: pvalue_funs[0](x=d1, t=1/2 + (t_0 - 1/2)/ \
+                            (2*a.assorter.upper_bound - a.margin))
             cvr_pvalue = lambda beta: cvr_pvalue_0(t_0=beta*sum(N_cards)/N_cards[0])
             nocvr_pvalue = lambda beta: pvalue_funs[1](x=d2, t=(1/2-beta)*sum(N_cards)/N_cards[1])
 
