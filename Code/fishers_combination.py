@@ -60,27 +60,28 @@ def create_modulus(risk_funs, N1, N2, n1, n2, margin, upper_bound, g, x1, x2):
     for index, function in enumerate(risk_funs):
         if function == "kaplan_markov":
             if index == 0:
-                T1 = lambda delta: 2*n1*np.log(1 + margin/(2*upper_bound-margin)* \
+                T1 = lambda delta: 2*n1*np.log(1 + 1/(2*upper_bound - margin)* \
                                     (N1 + N2)/N1*delta)
+    
             else:
                 T2 = lambda delta: 2*n2*np.log(1 + (N1 + N2)/N2*delta)
 
         elif function == "kaplan_kolmogorov":
             if index == 0:
-                T1 = lambda delta: 2*sum(np.log(1 + np.divide(margin*(N1+N2), \
-                                    (2*upper_bound - margin)*np.multiply(np.array(x1) + \
-                                    g, N1 - np.array(range(len(x1)))))*delta))
+                T1 = lambda delta: 2*sum(np.log(1 + np.divide(N1 + N2, 
+                                    (2*upper_bound - margin)*np.multiply(np.array(x1) \
+                                    + g, N1 - np.array(range(len(x1)))))*delta))
             else:
                 T2 = lambda delta: 2*sum(np.log(1 + np.divide(N1 + N2, np.multiply(np.array(x2) \
                                     + g, N2 - np.array(range(len(x2)))))*delta))
         
         elif function == "kaplan_wald": 
             if index == 0:
-                T1 = lambda delta: 2*n1*(np.log(1 + margin/(2*upper_bound - margin)* \
-                                    (N1 + N2)/N1*delta) + np.log(1 + g*margin/(2* \
-                                    upper_bound - margin)*(N1 + N2)/N1*delta))
+                T1 = lambda delta: 2*n1*(np.log(1 + 1/(2*upper_bound-margin)* \
+                                    (N1 + N2)/N1*delta) + np.log(1 + g/ \
+                                    (2*upper_bound - margin)* (N1 + N2)/N1*delta))
             else:
-                T2 = lambda delta: 2*n2*(np.log(1+(N1 + N2)/N2*delta) + \
+                T2 = lambda delta: 2*n2*(np.log(1 + (N1 + N2)/N2*delta) + \
                                     np.log(1 + g*(N1 + N2)/N2*delta))
         else: 
             return None
@@ -246,6 +247,7 @@ def calculate_beta_range(N1, N2, upper_bound=1):
                 beta >= 0
     '''
     return (1/2-upper_bound*N2/(N1+N2), 1/2) if N1>N2 else (0, upper_bound*N1/(N1+N2))
+    #return (1/2-upper_bound*N2/(N1+N2), N1/(N1+N2)/2) if N1>N2 else (0, min(upper_bound*N1/(N1+N2), N1/(N1+N2)/2))
 
 def plot_fisher_pvalues(N, pvalue_funs, beta_test_count=10, alpha=None, plot_strata=False):
     """
