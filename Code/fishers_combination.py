@@ -95,7 +95,7 @@ def create_modulus(risk_funs, N1, N2, n1, n2, margin, upper_bound, g, x1, x2):
     return lambda delta: T1(delta) + T2(delta)
 
 def maximize_fisher_combined_pvalue(N1, N2, pvalue_funs, beta_test_count=10, modulus=None, \
-    alpha=0.05, feasible_beta_range=(0, 1/2)):
+    alpha=0.05, feasible_beta_range=(0, 1/2), plot=False):
     """
     Grid search to find the maximum P-value.
 
@@ -123,6 +123,9 @@ def maximize_fisher_combined_pvalue(N1, N2, pvalue_funs, beta_test_count=10, mod
     feasible_beta_range : array-like
         lower and upper limits to search over beta.
         Optional, but a smaller interval will speed up the search.
+    plot : Boolean
+        If True, plots 2 graphs: strata p-values and Fisher's combined p-values. 
+        Default is False. 
     """
     assert len(pvalue_funs)==2
 
@@ -136,11 +139,33 @@ def maximize_fisher_combined_pvalue(N1, N2, pvalue_funs, beta_test_count=10, mod
     stepsize = (beta_upper - beta_lower)/(beta_test_count + 1)
 
     fisher_pvalues = np.empty_like(test_betas)
+    cvr_pvalues = np.empty_like(test_betas)
+    nocvr_pvalues = np.empty_like(test_betas)
     for i in range(len(test_betas)):
         pvalue1 = np.min([1, pvalue_funs[0](test_betas[i])])
         pvalue2 = np.min([1, pvalue_funs[1](test_betas[i])])
+        cvr_pvalues[i] = pvalue1
+        nocvr_pvalues[i] = pvalue2
         fisher_pvalues[i] = fisher_combined_pvalue([pvalue1, pvalue2])
 
+    if plot: 
+        plt.scatter(test_betas, cvr_pvalues, color='r', label='CVR')
+        plt.scatter(test_betas, nocvr_pvalues, color='b', label='no-CVR')
+        plt.title('Strata P-values')
+        plt.legend()
+        plt.xlabel('beta')
+        plt.ylabel('P-value')
+        plt.ylim(0, 1)
+        plt.show()
+
+        plt.scatter(test_betas, fisher_pvalues, color='black')
+        plt.axhline(y=alpha, linestyle='--', color='gray')
+        plt.title("Fisher's Combined P-values")
+        plt.xlabel("beta")
+        plt.ylabel("P-value")
+        plt.show()
+        
+    
     pvalue = np.max(fisher_pvalues)
     alloc_beta = test_betas[np.argmax(fisher_pvalues)]
 
@@ -174,7 +199,7 @@ def maximize_fisher_combined_pvalue(N1, N2, pvalue_funs, beta_test_count=10, mod
         beta_upper = min(alloc_beta + 2*stepsize, 1/2)
         refined = maximize_fisher_combined_pvalue(N1, N2, pvalue_funs, \
             beta_test_count=beta_test_count*10, modulus=modulus, alpha=alpha, 
-            feasible_beta_range=(beta_lower, beta_upper))
+            feasible_beta_range=(beta_lower, beta_upper), plot=plot)
         refined['refined'] = True
         return refined
     
