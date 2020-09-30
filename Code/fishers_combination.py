@@ -228,34 +228,30 @@ def calculate_beta_range(N1, N2, upper_bound=1):
         A_s*N_s/N <= beta_s
         A_s <= beta_s*N/N_s
 
-    Strict bounds:
-    A_s is bounded by the range of non-negative values assigned by the assorter which
-    is [0, 1]. Thus, beta_s must also have a strict lower bound of 0. By definition
-    of the assertion, beta <= 1/2 so beta_s must have a strict upper bound of 1/2.
-
-    Loose bounds:
     A result of testing the assertion A_s <= beta_s*N/N_s is that beta_s*N/N_s can be
-    greater than 1 which will make the p-value 1. If one stratum has a large P-value,
-    the other will have a small P-value. The combined P-value in these cases will
-    likely not produce the maximum P-value. We can solve for a range of beta values
-    in terms of stratum sizes that have the possibility of producing P-values not
-    close to 0, 1.
+    greater than the upper bound of the assorter in cases of small N_s sizes. So, 
+    the range of possible beta_s*N/N_s values must be at most the range of the 
+    assorter. 
 
-    Let beta_1 = beta and beta_2 = 1/2 - beta to maximize the error allocation for 
-    stratum 2. Let A_ub be the assorter's upper bound and let N=N1+N2. 
+    We only need to test the 1-dimensional space $\beta_1+\beta_2=1/2$ since for 
+    every pair $(\beta_1, \beta_2)$ that is not satisfied, the $P$-value will only 
+    increase as the pair sum approaches $1/2$. 
+
+    Let beta_1 = beta and beta_2 = 1/2 - beta. Let A_ub be the assorter's upper bound
+    and let N=N1+N2. 
 
     Stratum 1
-        beta_1*N/N1 <= A_ub
-        beta_1 <= A_ub*N1/N
+        0 <= beta_1*N/N1 <= A_ub
+        0 <= beta_1 <= A_ub*N1/N
     Stratum 2
-        beta_2*N/N2 <= A_ub
-        (1/2-beta_1)*N/N2 <= A_ub
-        1/2-A_ub*N2/N <= beta_1
-    Thus, beta_1 is bounded by [1/2-A_ub*N2/N, A_ub*N1/N]. 
-
-    Combined bounds: 
-        beta_1 >= max(1/2-A_ub*N2/N, 0)
-        beta_1 <= min(A_ub*N1/N, 1/2)
+        0 <= beta_2*N/N2 <= A_ub
+        0 <= (1/2-beta_1)*N/N2 <= A_ub
+        -1/2 <= -beta_1 <= A_ub*N2/N-1/2
+        1/2-A_ub*N2/N <= beta_1 <= 1/2
+    
+    The overlap of both intervals is the final beta range:  
+        beta >= max(1/2-A_ub*N2/N, 0)
+        beta <= min(A_ub*N1/N, 1/2)
     '''
     return (max(1/2-upper_bound*N2/(N1+N2), 0), min(upper_bound*N1/(N1+N2), 1/2))
 
