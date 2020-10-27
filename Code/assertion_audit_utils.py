@@ -1076,12 +1076,14 @@ class TestNonnegMean:
         
     @classmethod
     def initial_sample_size(cls, risk_function, N, margin, error_rate, alpha=0.05, t=1/2, reps=None,\
-                            quantile=0.5, seed=1234567890):
+                            bias_up = True, quantile=0.5, seed=1234567890):
         """
         Estimate the sample size needed to reject the null hypothesis that the population 
         mean is <=t at significance level alpha, for the specified risk function, on the 
         assumption that the rate of one-vote overstatements is error_rate.  This function is
         for a single contest.
+        
+        This function is [currently] only for comparison audits, not ballot-polling audits.
         
         Implements two strategies:
 
@@ -1089,8 +1091,8 @@ class TestNonnegMean:
             of sample size required. The simulations use the numpy Mersenne Twister PRNG.
             
             2. If reps is None, puts discrepancies into the sample in a deterministic way, starting 
-            with a discrepancy in the first item, then including an additional discrepancy after 
-            every int(1/error_rate) items in the sample. "Frontloading" the errors should make this
+            with a discrepancy in the first item if bias_up is true, then including an additional discrepancy after 
+            every int(1/error_rate) items in the sample. "Frontloading" the errors (bias_up == True) should make this
             _slightly_ conservative on average
         
         
@@ -1111,6 +1113,9 @@ class TestNonnegMean:
         reps : int
             if reps is not none, performs reps simulations to estimate the <quantile> quantile
             of sample sizes
+        bias_up : boolean
+            if True, front loads the discrepancies (biases sample size up). 
+            If False, back loads them (biases sample size down).
         quantile : double
             quantile of the distribution of sample sizes to report, if reps is not None.
             If reps is None, quantile is not used
@@ -1121,7 +1126,7 @@ class TestNonnegMean:
         --------
         sample_size : int
             sample size estimated to be sufficient to confirm the outcome if one-vote overstatements 
-            are not more frequent in fact than the assumed rate
+            are not more frequent than the assumed rate
             
         """
                              
@@ -1130,13 +1135,14 @@ class TestNonnegMean:
         clean = 1/(2-margin)
         one_vote_over = 0.5/(2-margin)
         if reps is None:
+            offset = 0 if bias_up else 1                
             p = 1
             j = 0
             while (p > alpha) and (j <= N):
-                j = j+1
+                j += 1
                 x = clean*np.ones(j)
                 for k in range(j):
-                    x[k] = one_vote_over if (k+1) % int(1/error_rate) == 0 else x[k]                   
+                    x[k] = one_vote_over if (k+offset) % int(1/error_rate) == 0 else x[k]                   
                 p = risk_function(x)
             sam_size = j
         else:
@@ -1147,11 +1153,11 @@ class TestNonnegMean:
                 pop = clean*np.ones(N)
                 inx = (prng.random(size=N) <= error_rate)  # randomly allocate errors
                 pop[inx] = one_vote_over
-                j = 1
+                j = 0
                 p = 1
                 while (p > alpha) and (j <= N):
-                    p = risk_function(pop[:j])
                     j += 1
+                    p = risk_function(pop[:j])
                 sams[r] = j
             sam_size = np.quantile(sams, quantile)
         return sam_size
@@ -1542,7 +1548,6 @@ def test_supermajority_assorter():
     votes = CVR.from_vote({"Alice": False, "Bob": True, "Candy": True})
     assert assn['Alice v all'].assorter.assort(votes) == 1/2, "wrong value for invalid vote--Bob & Candy"
 
-
 def test_rcv_lfunc_wo():
     votes = CVR.from_vote({"Alice": 1, "Bob": 2, "Candy": 3, "Dan": ''})
     assert CVR.rcv_lfunc_wo("AvB", "Bob", "Alice", votes) == 1
@@ -1858,6 +1863,35 @@ def test_initial_sample_size():
     # when the claimed mean is much higher than the data suggests.
     # TODO add some tests that use the specific values we expect.
     
+def test_initial_sample_size_KW():
+    # Test the initial_sample_size on the Kaplan-Wald risk function
+    g = 0
+    alpha = 0.05
+    error_rate = 0.01
+    N = int(10**4)
+    margin = 0.1
+    one_over = 1/3.8 # 0.5/(2-margin)
+    clean = 1/1.9    # 1/(2-margin)
+
+    risk_function = lambda x: TestNonnegMean.kaplan_wald(x, t=1/2, g=g, random_order=False)
+    # first test
+    bias_up = False
+    sam_size = TestNonnegMean.initial_sample_size(risk_function, N, margin, error_rate, alpha=alpha, t=1/2, reps=None,\
+                            bias_up=bias_up, quantile=0.5, seed=1234567890)
+    sam_size_0 = 59 # math.ceil(math.log(20)/math.log(2/1.9)), since this is < 1/error_rate
+    np.testing.assert_almost_equal(sam_size, sam_size_0)
+    # second test
+    bias_up = True
+    sam_size = TestNonnegMean.initial_sample_size(risk_function, N, margin, error_rate, alpha=alpha, t=1/2, reps=None,\
+                            bias_up=bias_up, quantile=0.5, seed=1234567890)
+    sam_size_1 = 72 # (1/1.9)*(2/1.9)**71 = 20.08
+    np.testing.assert_almost_equal(sam_size, sam_size_1)
+    # third test
+    sam_size = TestNonnegMean.initial_sample_size(risk_function, N, margin, error_rate, alpha=alpha, t=1/2, reps=1000,\
+                            bias_up=bias_up, quantile=0.5, seed=1234567890)
+    np.testing.assert_array_less(sam_size_0, sam_size+1) # crude test, but ballpark
+    np.testing.assert_array_less(sam_size, sam_size_1+1) # crude test, but ballpark
+    
 def test_kaplan_martingale():
     eps = 0.0001  # Generic small value for use when not sure exactly how small it should be.
     
@@ -1928,3 +1962,4 @@ if __name__ == "__main__":
     test_kaplan_wald()
     test_kaplan_kolmogorov()
     test_initial_sample_size()
+    test_initial_sample_size_KW()
