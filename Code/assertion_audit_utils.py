@@ -1043,9 +1043,9 @@ class TestNonnegMean:
         jtilde = 1 - np.array(list(range(len(x))))/N
         # The term being mutliplied by gamma in the SHANGRLA paper
         c = x * jtilde / t_minus_Stilde - 1
-        # as a convention, 0/0 is 0 here. This prevents c from
-        # having nans.
-        c[np.logical_and(x == 0, t_minus_Stilde == 0)] = -1
+        # as a convention, 0/0 is 1 here. This prevents c from
+        # having nans and ensures the martingale property
+        c[np.logical_and(x == 0, t_minus_Stilde == 0)] = 0 
         c_nonzero = c[c != 0]
         # integral should not contain c_j if c_j = 0
         r = -np.array(1/c_nonzero) # roots
