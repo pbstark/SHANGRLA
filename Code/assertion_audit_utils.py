@@ -73,7 +73,8 @@ class Assertion:
     
     def assorter_mean(self, cvr_list):
         """
-        find the mean of the assorter values for a list of CVRs        
+        find the mean of the assorter applied to a list of CVRs  
+        
         Parameters:
         ----------
         cvr_list : list
@@ -81,27 +82,30 @@ class Assertion:
         
         Returns:
         ----------
-        double
+        mean : float
+            the mean value of the assorter over the list of cvrs
         """
         return np.mean([self.assorter.assort(c) for c in cvr_list])      
         
     def assorter_sum(self, cvr_list):
         """
-        find the sum of the assorter values for a list of CVRs        
+        find the sum of the assorter applied to a list of CVRs   
+        
         Parameters:
         ----------
-        cvr_list : list
+        cvr_list : list of CVRs
             a list of cast-vote records
         
         Returns:
         ----------
-        double
+        sum : float
+            sum of the value of the assorter over a list of CVRs
         """
         return np.sum([self.assorter.assort(c) for c in cvr_list])
 
     def assorter_margin(self, cvr_list):
         """
-        find the margin for a list of CVRs. 
+        find the margin for a list of Cvrs. 
         By definition, the margin is the mean of the assorter minus 1/2, times 2
         
         Parameters:
@@ -111,7 +115,7 @@ class Assertion:
         
         Returns:
         ----------
-        margin : double
+        margin : float
         """
         return 2*self.assorter_mean(cvr_list)-1
 
@@ -139,7 +143,7 @@ class Assertion:
             
         Returns:
         --------
-        overstatement
+        overstatement : float
         """        
         assert manifest_type in Assertion.MANIFEST_TYPES, "unrecognized manifest type"
         if manifest_type == "ALL":
@@ -175,12 +179,12 @@ class Assertion:
             the manual interpretation of voter intent
         cvr : Cvr
             the machine-reported cast vote record
-        margin : double
+        margin : float
             2*(assorter applied to all CVRs) - 1, the assorter margin
             
         Returns:
         --------
-        over : double
+        over : float
             (1-o/u)/(2-v/u), where 
                 o is the overstatement
                 u is the upper bound on the value the assorter assigns to any ballot
@@ -246,7 +250,7 @@ class Assertion:
             identifier of winning candidate
         losers : list
             list of identifiers of losing candidate(s)
-        share_to_win : double
+        share_to_win : float
             fraction of the valid votes the winner must get to win        
         
         Returns:
@@ -384,9 +388,9 @@ class Assorter:
         maps a dict of selections into the value 1 if the dict represents a vote for the winner
     
     assort : callable
-        maps dict of selections into double
+        maps dict of selections into float
     
-    upper_bound : double
+    upper_bound : float
         a priori upper bound on the value the assorter assigns to any dict of selections
 
     The basic method is assort, but the constructor can be called with (winner, loser)
@@ -817,9 +821,9 @@ class TestNonnegMean:
         N : int
             population size for sampling without replacement, or np.infinity for 
             sampling with replacement
-        t : double in (0,1)
+        t : float in (0,1)
             hypothesized fraction of ones in the population
-        p1 : double in (0,1) greater than t
+        p1 : float in (0,1) greater than t
             alternative hypothesized fraction of ones in the population
         random_order : Boolean
             if the data are in random order, setting this to True can improve the power.
@@ -863,9 +867,9 @@ class TestNonnegMean:
         -----------
         x : array-like
             the sample
-        t : double
+        t : float
             the null value of the mean
-        g : double
+        g : float
             "padding" in case there any values in the sample are zero
         random_order : Boolean
             if the sample is in random order, it is legitimate to stop early, which 
@@ -897,9 +901,9 @@ class TestNonnegMean:
         -----------
         x : array-like
             the sample
-        t : double
+        t : float
             the null value of the mean
-        g : double
+        g : float
             "padding" in case there any values in the sample are zero
         random_order : Boolean
             if the sample is in random order, it is legitimate to stop early, which 
@@ -935,9 +939,9 @@ class TestNonnegMean:
             observations
         N : int
             population size
-        t : double
+        t : float
             null value of the population mean
-        g : double in [0, 1)
+        g : float in [0, 1)
             "padding" to protect against zeros
         '''
         x = np.array(x)
@@ -1015,14 +1019,14 @@ class TestNonnegMean:
             the sample
         N : int
             population size. Use np.inf for sampling with replacement
-        t : double
+        t : float
             the hypothesized population mean
         random_order : boolean
             is the sample in random order?
             
         Returns: 
         -------  
-        p : double 
+        p : float 
             p-value of the null
         mart_vec : array
             martingale as elements are added to the sample
@@ -1102,13 +1106,13 @@ class TestNonnegMean:
             risk function to use. risk_function should take one argument, x. 
         N : int
             population size, or N = np.infty for sampling with replacement
-        margin : double
+        margin : float
             assorter margin 
         error_rate : float 
             assumed rate of 1-vote overstatements 
-        alpha : double
+        alpha : float
             significance level in (0, 0.5)
-        t : double
+        t : float
             hypothesized value of the population mean
         reps : int
             if reps is not none, performs reps simulations to estimate the <quantile> quantile
@@ -1116,7 +1120,7 @@ class TestNonnegMean:
         bias_up : boolean
             if True, front loads the discrepancies (biases sample size up). 
             If False, back loads them (biases sample size down).
-        quantile : double
+        quantile : float
             quantile of the distribution of sample sizes to report, if reps is not None.
             If reps is None, quantile is not used
         seed : int
@@ -1172,7 +1176,7 @@ def check_audit_parameters(risk_function, g, error_rate, contests):
     ---------
     risk_function : string
         the risk-measuring function for the audit
-    g : double in [0, 1)
+    g : float in [0, 1)
         padding for Kaplan-Markov or Kaplan-Wald 
         
     error_rate : float
@@ -1225,7 +1229,7 @@ def find_margins(contests, assertions, cvr_list):
     
     Returns:
     --------
-    min_margin : double
+    min_margin : float
         smallest margin in the audit        
     """
     assorter_means = {}
@@ -1272,7 +1276,7 @@ def find_p_values(contests, assertions, mvr_sample, cvr_sample, manifest_type, r
         
     Returns:
     --------
-    p_max : double
+    p_max : float
         largest p-value for any assertion in any contest
         
     """
@@ -1469,7 +1473,7 @@ def write_audit_parameters(log_file, seed, replacement, risk_function, g, \
     risk_function : string
         risk-measuring function used in the audit
         
-    g : double
+    g : float
         padding for Kaplan-Wald and Kaplan-Markov
         
     error_rate : float
@@ -1480,6 +1484,7 @@ def write_audit_parameters(log_file, seed, replacement, risk_function, g, \
         
     Returns:
     --------
+    no return value
     """                      
     out = {"seed" : seed,
            "replacement" : replacement,
@@ -1496,6 +1501,17 @@ def write_audit_parameters(log_file, seed, replacement, risk_function, g, \
         f.write(json.dumps(out))
 
 def trim_ints(x):
+    '''
+    turn int64 into an int
+    
+    Parameters
+    ----------
+    x : int64
+    
+    Returns
+    -------
+    int(x) : int
+   '''
     if isinstance(x, np.int64): 
         return int(x)  
     else:
