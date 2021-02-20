@@ -1,4 +1,3 @@
-from __future__ import division, print_function
 import math
 import numpy as np
 import scipy as sp
@@ -14,20 +13,21 @@ from cryptorandom.sample import sample_by_index
 
 
 class Assertion:
-    """
+    '''
     Objects and methods for assertions about elections.
+    
     An _assertion_ is a statement of the form 
       "the average value of this assorter applied to the ballots is greater than 1/2"
     The _assorter_ maps votes to nonnegative numbers not exceeding `upper_bound`
-    """
+    '''
     
     JSON_ASSERTION_TYPES = ["WINNER_ONLY", "IRV_ELIMINATION"]  # supported json assertion types
     MANIFEST_TYPES = ["ALL","STYLE"]  # supported manifest types
     
     def __init__(self, contest = None, assorter = None, margin = 0, p_value = 1, proved = False):
-        """
+        '''
         The assorter is callable; should produce a non-negative real.
-        """
+        '''
         self.assorter = assorter
         self.contest = contest
         self.margin = margin
@@ -72,7 +72,7 @@ class Assertion:
         return self.assorter(cvr)
     
     def assorter_mean(self, cvr_list):
-        """
+        '''
         find the mean of the assorter applied to a list of CVRs  
         
         Parameters:
@@ -84,11 +84,11 @@ class Assertion:
         ----------
         mean : float
             the mean value of the assorter over the list of cvrs
-        """
+        '''
         return np.mean([self.assorter.assort(c) for c in cvr_list])      
         
     def assorter_sum(self, cvr_list):
-        """
+        '''
         find the sum of the assorter applied to a list of CVRs   
         
         Parameters:
@@ -100,11 +100,11 @@ class Assertion:
         ----------
         sum : float
             sum of the value of the assorter over a list of CVRs
-        """
+        '''
         return np.sum([self.assorter.assort(c) for c in cvr_list])
 
     def assorter_margin(self, cvr_list):
-        """
+        '''
         find the margin for a list of Cvrs. 
         By definition, the margin is the mean of the assorter minus 1/2, times 2
         
@@ -116,23 +116,24 @@ class Assertion:
         Returns:
         ----------
         margin : float
-        """
+        '''
         return 2*self.assorter_mean(cvr_list)-1
 
     def overstatement(self, mvr, cvr, manifest_type="STYLE"):
-        """
-        The overstatement error for a CVR compared to the human reading of the ballot
+        '''
+        overstatement error for a CVR compared to the human reading of the ballot
         
-        If manifest_type == "STYLE", then if the CVR contains the contest but the MVR does not,
-        that is considered to be an overstatement, because the ballot should have contained
-        the contest.
+        If manifest_type == "STYLE", then if the CVR contains the contest but the MVR does 
+        not, that is considered to be an overstatement, because the ballot should have 
+        contained the contest.
         
         If manifest_type == "ALL", then if the CVR contains the contest but the MVR does not,
         the MVR is considered to be a non-vote in the contest.
         
         Phantom CVRs and MVRs are treated specially:
-            A phantom CVR is considered a non-vote in every contest (assort() = 1/2).             
-            A phantom MVR is considered a vote for the loser (i.e., assort() = 0) in every contest.
+            A phantom CVR is considered a non-vote in every contest (assort() = 1/2).
+            A phantom MVR is considered a vote for the loser (i.e., assort() = 0) in every 
+            contest.
 
         Parameters:
         -----------
@@ -144,7 +145,8 @@ class Assertion:
         Returns:
         --------
         overstatement : float
-        """        
+            the overstatement error
+        '''        
         assert manifest_type in Assertion.MANIFEST_TYPES, "unrecognized manifest type"
         if manifest_type == "ALL":
             overstatement = self.assorter.assort(cvr)\
@@ -163,8 +165,8 @@ class Assertion:
         return overstatement   
     
     def overstatement_assorter(self, mvr, cvr, margin, manifest_type="STYLE"):
-        """
-        The assorter that corresponds to normalized overstatement error for an assertion
+        '''
+        assorter that corresponds to normalized overstatement error for an assertion
         
         If manifest_type == "STYLE", then if the CVR contains the contest but the MVR does not,
         that is considered to be an overstatement, because the ballot is presumed to contain
@@ -189,15 +191,15 @@ class Assertion:
                 o is the overstatement
                 u is the upper bound on the value the assorter assigns to any ballot
                 v is the assorter margin
-        """        
+        '''        
         return (1-self.overstatement(mvr, cvr, manifest_type)/self.assorter.upper_bound)\
                 /(2-margin/self.assorter.upper_bound)
         
       
     @classmethod
     def make_plurality_assertions(cls, contest, winners, losers):
-        """
-        Construct a set of assertions that imply that the winner(s) got more votes than the loser(s).
+        '''
+        Construct assertions that imply the winner(s) got more votes than the loser(s).
         
         The assertions are that every winner beat every loser: there are
         len(winners)*len(losers) pairwise assertions in all.
@@ -213,7 +215,7 @@ class Assertion:
         --------
         a dict of Assertions
         
-        """
+        '''
         assertions = {}
         for winr in winners:
             for losr in losers:
@@ -227,20 +229,22 @@ class Assertion:
     
     @classmethod
     def make_supermajority_assertion(cls, contest, winner, losers, share_to_win):
-        """
-        Construct a set of assertions that imply that the winner got at least a fraction 
-        share_to_win of the valid votes.
+        '''
+        Construct assertion that winner got >= share_to_win \in (0,1) of the valid votes
         
         An equivalent condition is:
         
         (votes for winner)/(2*share_to_win) + (invalid votes)/2 > 1/2.
         
-        Thus the correctness of a super-majority outcome--where share_to_win >= 1/2--can be checked with a single assertion.
+        Thus the correctness of a super-majority outcome--where share_to_win >= 1/2--can 
+        be checked with a single assertion.
 
-        share_to_win < 1/2 might be useful for some social choice functions, including primaries where candidates who receive
-        less than some threshold share are eliminated.
+        share_to_win < 1/2 might be useful for some social choice functions, including 
+        primaries where candidates who receive less than some threshold share are 
+        eliminated.
         
-        A CVR with a mark for more than one candidate in the contest is considered an invalid vote.
+        A CVR with a mark for more than one candidate in the contest is considered an 
+        invalid vote.
             
         Parameters:
         -----------
@@ -257,7 +261,7 @@ class Assertion:
         --------
         a dict containing one Assertion
         
-        """
+        '''
         assert share_to_win < 1, "share_to_win must be less than 1"
 
         assertions = {}
@@ -274,12 +278,11 @@ class Assertion:
 
     @classmethod
     def make_assertions_from_json(cls, contest, candidates, json_assertions):
-        """
-        Construct a dict of Assertion objects from a RAIRE-style json representation 
-        of a list of assertions for a given contest.
+        '''
+        dict of Assertion objects from a RAIRE-style json representations of assertions.
         
-        The assertion_type for each assertion must be one of the JSON_ASSERTION_TYPES (class constants)
-        Each assertion should contain a winner and a 
+        The assertion_type for each assertion must be one of the JSON_ASSERTION_TYPES 
+        (class constants).
 
         Parameters:
         -----------
@@ -294,8 +297,8 @@ class Assertion:
 
         Returns:
         --------
-        A dict of assertions for each assertion specified in 'json_assertions'.
-        """        
+        dict of assertions for each assertion specified in 'json_assertions'.
+        '''        
         assertions = {}
         for assrtn in json_assertions:
             winr = assrtn['winner']
@@ -339,7 +342,7 @@ class Assertion:
     
     @classmethod
     def make_all_assertions(cls, contests):
-        """
+        '''
         Construct all the assertions to audit the contests.
         
         Parameters:
@@ -350,7 +353,7 @@ class Assertion:
         Returns:
         --------
         A dict of dicts of Assertion objects
-        """
+        '''
         all_assertions = {}
         for c in contests:
             scf = contests[c]['choice_function']
@@ -370,7 +373,7 @@ class Assertion:
         return all_assertions
 
 class Assorter:
-    """
+    '''
     Class for generic Assorter.
     
     An assorter must either have an `assort` method or both `winner` and `loser` must be defined
@@ -398,10 +401,10 @@ class Assorter:
     
         assort = (winner - loser + 1)/2
 
-    """
+    '''
         
     def __init__(self, contest=None, assort=None, winner=None, loser=None, upper_bound = 1):
-        """
+        '''
         Constructs an Assorter.
         
         If assort is defined and callable, it becomes the class instance of assort
@@ -418,7 +421,7 @@ class Assorter:
             maps a pattern into {0, 1}
         loser  : callable
             maps a pattern into {0, 1}
-        """   
+        '''   
         self.contest = contest
         self.winner = winner
         self.loser = loser
@@ -457,7 +460,7 @@ class Assorter:
 
 
 class CVR:
-    """
+    '''
     Generic class for cast-vote records.
     
     The CVR class DOES NOT IMPOSE VOTING RULES. For instance, the social choice
@@ -506,7 +509,7 @@ class CVR:
     get_id : returns ballot id
     set_id : updates the ballot id
         
-    """
+    '''
     
     def __init__(self, id = None, votes = {}, phantom = False):
         self.votes = votes
@@ -546,7 +549,7 @@ class CVR:
     
     @classmethod
     def from_dict(cls, cvr_dict):
-        """
+        '''
         Construct a list of CVR objects from a list of dicts containing cvr data
         
         Parameters:
@@ -556,7 +559,7 @@ class CVR:
         Returns:
         ---------
         list of CVR objects
-        """
+        '''
         cvr_list = []
         for c in cvr_dict:
             phantom = False if 'phantom' not in c.keys() else c['phantom']
@@ -565,7 +568,7 @@ class CVR:
     
     @classmethod
     def from_raire(cls, raire, phantom=False):
-        """
+        '''
         Create a list of CVR objects from a list of cvrs in RAIRE format
         
         Parameters:
@@ -589,7 +592,7 @@ class CVR:
         Returns:
         --------
         list of CVR objects corresponding to the RAIRE cvrs
-        """
+        '''
         skip = int(raire[0][0])
         cvr_list = []
         for c in raire[(skip+1):]:
@@ -603,7 +606,7 @@ class CVR:
     
     @classmethod
     def merge_cvrs(cls, cvr_list):
-        """
+        '''
         Takes a list of CVRs that might contain duplicated ballot ids and merges the votes
         so that each identifier is listed only once, and votes from different records for that
         identifier are merged.
@@ -621,7 +624,7 @@ class CVR:
         Returns:
         -----------
         list of merged CVRs
-        """
+        '''
         od = OrderedDict()
         for c in cvr_list:
             if c.id not in od:
@@ -633,7 +636,7 @@ class CVR:
     
     @classmethod
     def from_vote(cls, vote, id = 1, contest = 'AvB', phantom=False):
-        """
+        '''
         Wraps a vote and creates a CVR, for unit tests
     
         Parameters:
@@ -643,7 +646,7 @@ class CVR:
         Returns:
         --------
         CVR containing that vote in the contest "AvB", with CVR id=1.
-        """
+        '''
         return CVR(id=id, votes={contest: vote}, phantom=phantom)
 
     @classmethod
@@ -656,7 +659,7 @@ class CVR:
     
     @classmethod
     def get_vote_from_votes(cls, contest, candidate, votes):
-        """
+        '''
         Returns the vote for a candidate if the dict of votes contains a vote for that candidate
         in that contest; otherwise returns False
         
@@ -673,13 +676,13 @@ class CVR:
         Returns:
         --------
         vote
-        """
+        '''
         return False if (contest not in votes or candidate not in votes[contest])\
                else votes[contest][candidate]
     
     @classmethod
     def get_vote_from_cvr(cls, contest, candidate, cvr):
-        """
+        '''
         Returns the vote for a candidate if the cvr contains a vote for that candidate; 
         otherwise returns False
         
@@ -695,13 +698,13 @@ class CVR:
         Returns:
         --------
         vote
-        """
+        '''
         return False if (contest not in cvr.votes or candidate not in cvr.votes[contest])\
                else cvr.votes[contest][candidate]
     
     @classmethod
     def has_one_vote(cls, contest, candidates, cvr):
-        """
+        '''
         Is there exactly one vote among the candidates in the contest?
         
         Parameters:
@@ -715,14 +718,14 @@ class CVR:
         ----------
         True if there is exactly one vote among those candidates in that contest, where a 
         vote means that the value for that key casts as boolean True.
-        """
+        '''
         v = np.sum([0 if c not in cvr.votes[contest] else bool(cvr.votes[contest][c]) \
                     for c in candidates])
         return True if v==1 else False
     
     @classmethod
     def rcv_lfunc_wo(cls, contest, winner, loser, cvr):
-        """
+        '''
         Check whether vote is a vote for the loser with respect to a 'winner only' 
         assertion between the given 'winner' and 'loser'.  
 
@@ -740,7 +743,7 @@ class CVR:
         Returns:
         --------
         1 if the given vote is a vote for 'loser' and 0 otherwise
-        """
+        '''
         rank_winner = CVR.get_vote_from_cvr(contest, winner, cvr)
         rank_loser = CVR.get_vote_from_cvr(contest, loser, cvr)
 
@@ -753,7 +756,7 @@ class CVR:
 
     @classmethod
     def rcv_votefor_cand(cls, contest, cand, remaining, cvr):
-        """
+        '''
         Check whether 'vote' is a vote for the given candidate in the context
         where only candidates in 'remaining' remain standing.
 
@@ -773,7 +776,7 @@ class CVR:
         1 if the given vote for the contest counts as a vote for 'cand' and 0 otherwise. Essentially,
         if you reduce the ballot down to only those candidates in 'remaining',
         and 'cand' is the first preference, return 1; otherwise return 0.
-        """
+        '''
         if not cand in remaining:
             return 0
 
@@ -791,8 +794,8 @@ class CVR:
             return 1 
 
 class TestNonnegMean:
-    r"""Tests of the hypothesis that the mean of a non-negative population is less than
-        a threshold t.
+    '''
+    Tests of the hypothesis that the mean of a non-negative population is less than t.
         Several tests are implemented, all ultimately based on martingales:
             Kaplan-Markov
             Kaplan-Wald
@@ -800,13 +803,13 @@ class TestNonnegMean:
             Wald SPRT with replacement (only for binary-valued populations)
             Wald SPRT without replacement (only for binary-valued populations)
             Kaplan's martingale (KMart)        
-    """
+    '''
     
     TESTS = ['kaplan_markov','kaplan_wald','kaplan_kolmogorov','wald_sprt','kaplan_martingale']
     
     @classmethod
     def wald_sprt(cls, x, N, t = 1/2, p1=1, random_order = True):
-        """
+        '''
         Finds the p value for the hypothesis that the population 
         mean is less than or equal to t against the alternative that it is p1,
         for a binary population of size N.
@@ -828,7 +831,7 @@ class TestNonnegMean:
         random_order : Boolean
             if the data are in random order, setting this to True can improve the power.
             If the data are not in random order, set to False
-        """
+        '''
         if any(xx not in [0,1] for xx in x):
             raise ValueError("Data must be binary")
         terms = np.ones(len(x))
@@ -852,7 +855,7 @@ class TestNonnegMean:
 
     @classmethod
     def kaplan_markov(cls, x, t=1/2, g=0, random_order=True):
-        """
+        '''
         Kaplan-Markov p-value for the hypothesis that the sample x is drawn IID from a population
         with mean t against the alternative that the mean is less than t.
         
@@ -879,14 +882,14 @@ class TestNonnegMean:
         --------
         p-value
         
-        """       
+        '''       
         if any(x < 0):
             raise ValueError('Negative value in sample from a nonnegative population.')
         return np.min([1, np.min(np.cumprod((t+g)/(x+g))) if random_order else np.prod((t+g)/(x+g))])
 
     @classmethod
     def kaplan_wald(cls, x, t=1/2, g=0, random_order=True):
-        """
+        '''
         Kaplan-Wald p-value for the hypothesis that the sample x is drawn IID from a population
         with mean t against the alternative that the mean is less than t.
         
@@ -913,7 +916,7 @@ class TestNonnegMean:
         --------
         p-value
        
-        """       
+        '''       
         if g < 0:
             raise ValueError('g cannot be negative')
         if any(x < 0):
@@ -1000,7 +1003,7 @@ class TestNonnegMean:
 
     @classmethod
     def kaplan_martingale(cls, x, N, t=1/2, random_order = True):
-        """
+        '''
         p-value for the hypothesis that the mean of a nonnegative population with 
         N elements is t, based on a result of Kaplan, computed with a recursive 
         algorithm devised by Steve Evans.
@@ -1031,7 +1034,7 @@ class TestNonnegMean:
         mart_vec : array
             martingale as elements are added to the sample
           
-        """
+        '''
         x = np.array(x)
         assert all(x >=0),  'Negative value in a nonnegative population!'
         assert len(x) <= N, 'Sample size is larger than the population!'
@@ -1081,7 +1084,7 @@ class TestNonnegMean:
     @classmethod
     def initial_sample_size(cls, risk_function, N, margin, error_rate, alpha=0.05, t=1/2, reps=None,\
                             bias_up = True, quantile=0.5, seed=1234567890):
-        """
+        '''
         Estimate the sample size needed to reject the null hypothesis that the population 
         mean is <=t at significance level alpha, for the specified risk function, on the 
         assumption that the rate of one-vote overstatements is error_rate.  This function is
@@ -1132,7 +1135,7 @@ class TestNonnegMean:
             sample size estimated to be sufficient to confirm the outcome if one-vote overstatements 
             are not more frequent than the assumed rate
             
-        """
+        '''
                              
         assert alpha > 0 and alpha < 1/2
         assert margin > 0
@@ -1169,7 +1172,7 @@ class TestNonnegMean:
 # utilities
        
 def check_audit_parameters(risk_function, g, error_rate, contests):
-    """
+    '''
     Check whether the audit parameters are valid; complain if not.
     
     Parameters:
@@ -1187,7 +1190,7 @@ def check_audit_parameters(risk_function, g, error_rate, contests):
         
     Returns:
     --------
-    """
+    '''
     if risk_function in ['kaplan_markov','kaplan_wald']:
         assert g >=0, 'g must be at least 0'
         assert g < 1, 'g must be less than 1'
@@ -1215,7 +1218,7 @@ def check_audit_parameters(risk_function, g, error_rate, contests):
                 'super-majority contest requires winning at least 50% of votes in ' + c + ' contest'
 
 def find_margins(contests, assertions, cvr_list):
-    """
+    '''
     Find all the assorter margins in a set of Assertions. Updates the dict of dicts of assertions,
     and the contest dict.
     
@@ -1231,7 +1234,7 @@ def find_margins(contests, assertions, cvr_list):
     --------
     min_margin : float
         smallest margin in the audit        
-    """
+    '''
     assorter_means = {}
     min_margin = np.infty
     for c in contests:
@@ -1248,7 +1251,7 @@ def find_margins(contests, assertions, cvr_list):
     return min_margin
 
 def find_p_values(contests, assertions, mvr_sample, cvr_sample, manifest_type, risk_function):
-    """
+    '''
     Find the p-value for every assertion in assertions; update data structure to
     include the p-values for the assertions, flag "proved" assertions, and note 
     the maximum p-value for each contest.
@@ -1279,7 +1282,7 @@ def find_p_values(contests, assertions, mvr_sample, cvr_sample, manifest_type, r
     p_max : float
         largest p-value for any assertion in any contest
         
-    """
+    '''
     assert len(mvr_sample) == len(cvr_sample), "unequal numbers of cvrs and mvrs"
     p_max = 0
     for c in contests.keys():
@@ -1300,7 +1303,7 @@ def find_p_values(contests, assertions, mvr_sample, cvr_sample, manifest_type, r
     return p_max
 
 def find_sample_size(contests, assertions, sample_size_function):
-    """
+    '''
     Find initial sample size
     
     Parameters:
@@ -1314,7 +1317,7 @@ def find_sample_size(contests, assertions, sample_size_function):
     --------
     size : int
         sample size expected to be adequate to confirm all assertions
-    """
+    '''
     sample_size = 0
     for c in contests:
         risk = contests[c]['risk_limit']
@@ -1325,7 +1328,7 @@ def find_sample_size(contests, assertions, sample_size_function):
     return sample_size
 
 def prep_sample(mvr_sample, cvr_sample):
-    """
+    '''
     prepare the MVRs and CVRs for comparison by putting the MVRs into the same (random) order
     in which the CVRs were selected
     
@@ -1342,7 +1345,7 @@ def prep_sample(mvr_sample, cvr_sample):
     
     Returns:
     --------
-    """
+    '''
     id_lookup = [c.id for c in cvr_sample]
     mvr_sample.sort(key= lambda x: id_lookup.index(x.id))
 
@@ -1354,7 +1357,7 @@ def prep_sample(mvr_sample, cvr_sample):
 
 def new_sample_size(contests, assertions, mvr_sample, cvr_sample, manifest_type,\
                     risk_function, quantile=0.5, reps=200, seed=1234567890):
-    """
+    '''
     Estimate the total sample size expected to allow the audit to complete,
     if discrepancies continue at the same rate already observed.
     
@@ -1395,7 +1398,7 @@ def new_sample_size(contests, assertions, mvr_sample, cvr_sample, manifest_type,
         new sample size
     sams : array of ints
         array of all sizes found in the simulation
-    """
+    '''
     new_size = 0
     prng = np.random.RandomState(seed=seed)
     sams = np.zeros(reps)
@@ -1418,7 +1421,7 @@ def new_sample_size(contests, assertions, mvr_sample, cvr_sample, manifest_type,
     return new_size, sams
 
 def summarize_status(contests, assertions):
-    """
+    '''
     Determine whether the audit of individual assertions, contests, and the election
     are finished.
     
@@ -1435,7 +1438,7 @@ def summarize_status(contests, assertions):
     Returns:
     --------
     done : boolean
-        is the audit finished?"""
+        is the audit finished?'''
     done = True
     for c in contests:
         print("p-values for assertions in contest {}".format(c))
@@ -1459,7 +1462,7 @@ def summarize_status(contests, assertions):
 
 def write_audit_parameters(log_file, seed, replacement, risk_function, g, \
                            N_cards, n_cvrs, manifest_cards, phantom_cards, error_rate, contests):
-    """
+    '''
     Write audit parameters to log_file as a json structure
     
     Parameters:
@@ -1485,7 +1488,7 @@ def write_audit_parameters(log_file, seed, replacement, risk_function, g, \
     Returns:
     --------
     no return value
-    """                      
+    '''                      
     out = {"seed" : seed,
            "replacement" : replacement,
            "risk_function" : risk_function,
@@ -1782,9 +1785,9 @@ def test_overstatement():
     
 
 def test_overstatement_assorter():
-    """
+    '''
     (1-o/u)/(2-v/u)
-    """
+    '''
     mvr_dict = [{'id': 1, 'votes': {'AvB': {'Alice':True}}},\
                 {'id': 2, 'votes': {'AvB': {'Bob':True}}},\
                 {'id': 3, 'votes': {'AvB': {'Candy':True}}}]
