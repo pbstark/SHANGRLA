@@ -1082,7 +1082,7 @@ class TestNonnegMean:
         return p, mart_vec                  
         
     @classmethod
-    def initial_sample_size(cls, risk_function, N, margin, error_rate, alpha=0.05, t=1/2, reps=None,\
+    def initial_sample_size(cls, risk_function, N, margin, error_rate, alpha=0.05, t=1/2, u=1, reps=None,\
                             bias_up = True, quantile=0.5, seed=1234567890):
         '''
         Estimate the sample size needed to reject the null hypothesis that the population 
@@ -1117,6 +1117,8 @@ class TestNonnegMean:
             significance level in (0, 0.5)
         t : float
             hypothesized value of the population mean
+        u : float
+            maximum value assigned to any ballot in the contest (1 for plurality contests)
         reps : int
             if reps is not none, performs reps simulations to estimate the <quantile> quantile
             of sample sizes
@@ -1133,14 +1135,13 @@ class TestNonnegMean:
         --------
         sample_size : int
             sample size estimated to be sufficient to confirm the outcome if one-vote overstatements 
-            are not more frequent than the assumed rate
+            in the sample are not more frequent than the assumed rate
             
-        '''
-                             
+        '''                            
         assert alpha > 0 and alpha < 1/2
         assert margin > 0
-        clean = 1/(2-margin)
-        one_vote_over = 0.5/(2-margin)
+        clean = 1/(2-margin/u)
+        one_vote_over = (1-0.5)/(2-margin/u)  # (1-(u/2)/u)/(2-margin/u)
         if reps is None:
             offset = 0 if bias_up else 1                
             p = 1
@@ -1148,8 +1149,11 @@ class TestNonnegMean:
             while (p > alpha) and (j <= N):
                 j += 1
                 x = clean*np.ones(j)
-                for k in range(j):
-                    x[k] = one_vote_over if (k+offset) % int(1/error_rate) == 0 else x[k]                   
+                if error_rate > 0:
+                    for k in range(j):
+                        x[k] = (one_vote_over if (k+offset) % int(1/error_rate) == 0 
+                                else x[k]
+                               )
                 p = risk_function(x)
             sam_size = j
         else:
