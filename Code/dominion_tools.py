@@ -10,7 +10,7 @@ import copy
 from assertion_audit_utils import CVR
 
 
-def prep_dominion_manifest(manifest, N_cards, n_cvrs):
+def prep_manifest(manifest, N_cards, n_cvrs):
     """
     Prepare a Dominion Excel ballot manifest (read as a pandas dataframe) for sampling.
     The manifest may have cards that do not contain the contest, but every listed CVR
@@ -46,7 +46,7 @@ def prep_dominion_manifest(manifest, N_cards, n_cvrs):
         manifest[c] = manifest[c].astype(str)
     return manifest, manifest_cards, N_cards - n_cvrs
 
-def read_dominion_cvrs(cvr_file):
+def read_cvrs(cvr_file):
     """
     Read CVRs in Dominion format.
     Dominion uses:
