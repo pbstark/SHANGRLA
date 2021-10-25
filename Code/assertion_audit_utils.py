@@ -22,7 +22,6 @@ class Assertion:
     '''
     
     JSON_ASSERTION_TYPES = ["WINNER_ONLY", "IRV_ELIMINATION"]  # supported json assertion types
-    MANIFEST_TYPES = ["ALL","STYLE"]  # supported manifest types
     
     def __init__(self, contest = None, assorter = None, margin = 0, p_value = 1, proved = False):
         '''
@@ -119,15 +118,15 @@ class Assertion:
         '''
         return 2*self.assorter_mean(cvr_list)-1
 
-    def overstatement(self, mvr, cvr, manifest_type="STYLE"):
+    def overstatement(self, mvr, cvr, use_style=True):
         '''
         overstatement error for a CVR compared to the human reading of the ballot
         
-        If manifest_type == "STYLE", then if the CVR contains the contest but the MVR does 
+        If use_style, then if the CVR contains the contest but the MVR does 
         not, that is considered to be an overstatement, because the ballot should have 
         contained the contest.
         
-        If manifest_type == "ALL", then if the CVR contains the contest but the MVR does not,
+        If not use_style, then if the CVR contains the contest but the MVR does not,
         the MVR is considered to be a non-vote in the contest.
         
         Phantom CVRs and MVRs are treated specially:
@@ -147,11 +146,10 @@ class Assertion:
         overstatement : float
             the overstatement error
         '''        
-        assert manifest_type in Assertion.MANIFEST_TYPES, "unrecognized manifest type"
-        if manifest_type == "ALL":
+        if not use_style:
             overstatement = self.assorter.assort(cvr)\
                             - (self.assorter.assort(mvr) if not mvr.phantom else 0)
-        elif manifest_type == "STYLE":
+        elif use_style:
             if mvr.has_contest(self.contest):
                 overstatement = self.assorter.assort(cvr)-self.assorter.assort(mvr)
             elif not mvr.has_contest(self.contest) and cvr.has_contest(self.contest):
@@ -164,15 +162,15 @@ class Assertion:
             raise NotImplementedError
         return overstatement   
     
-    def overstatement_assorter(self, mvr, cvr, margin, manifest_type="STYLE"):
+    def overstatement_assorter(self, mvr, cvr, margin, use_style=True):
         '''
         assorter that corresponds to normalized overstatement error for an assertion
         
-        If manifest_type == "STYLE", then if the CVR contains the contest but the MVR does not,
+        If use_style, then if the CVR contains the contest but the MVR does not,
         that is considered to be an overstatement, because the ballot is presumed to contain
         the contest.
         
-        If manifest_type == "ALL", then if the CVR contains the contest but the MVR does not,
+        If not use_style, then if the CVR contains the contest but the MVR does not,
         the MVR is considered to be a non-vote in the contest.
 
         Parameters:
@@ -192,7 +190,7 @@ class Assertion:
                 u is the upper bound on the value the assorter assigns to any ballot
                 v is the assorter margin
         '''        
-        return (1-self.overstatement(mvr, cvr, manifest_type)/self.assorter.upper_bound)\
+        return (1-self.overstatement(mvr, cvr, use_style)/self.assorter.upper_bound)\
                 /(2-margin/self.assorter.upper_bound)
         
       
@@ -1254,7 +1252,7 @@ def find_margins(contests, assertions, cvr_list):
             min_margin = np.min([min_margin, margin])
     return min_margin
 
-def find_p_values(contests, assertions, mvr_sample, cvr_sample, manifest_type, risk_function):
+def find_p_values(contests, assertions, mvr_sample, cvr_sample, use_style, risk_function):
     '''
     Find the p-value for every assertion in assertions; update data structure to
     include the p-values for the assertions, flag "proved" assertions, and note 
@@ -1275,8 +1273,8 @@ def find_p_values(contests, assertions, mvr_sample, cvr_sample, manifest_type, r
     cvr_sample : list of CVR objects
         the cvrs for the same sheets
         
-    manifest_type : string
-        "ALL" or "STYLE". See documentation
+    use_style : Boolean
+        See documentation
         
     risk_function : callable
         function to calculate the p-value from overstatement_assorter values
@@ -1296,7 +1294,7 @@ def find_p_values(contests, assertions, mvr_sample, cvr_sample, manifest_type, r
         for asrtn in assertions[c]:
             a = assertions[c][asrtn]
             d = [a.overstatement_assorter(mvr_sample[i], cvr_sample[i],\
-                 a.margin, manifest_type=manifest_type) for i in range(len(mvr_sample))]
+                 a.margin, use_style=use_style) for i in range(len(mvr_sample))]
             a.p_value = risk_function(d)
             a.proved = (a.p_value <= contests[c]['risk_limit']) or a.proved
             contests[c]['p_values'].update({asrtn: a.p_value})
@@ -1359,7 +1357,7 @@ def prep_sample(mvr_sample, cvr_sample):
         assert mvr_sample[i].id == cvr_sample[i].id, \
     "Mismatch between id of cvr ({}) and mvr ({})".format(cvr_sample[i].id, mvr_sample[i].id)
 
-def new_sample_size(contests, assertions, mvr_sample, cvr_sample, manifest_type,\
+def new_sample_size(contests, assertions, mvr_sample, cvr_sample, use_style,\
                     risk_function, quantile=0.5, reps=200, seed=1234567890):
     '''
     Estimate the total sample size expected to allow the audit to complete,
@@ -1380,8 +1378,9 @@ def new_sample_size(contests, assertions, mvr_sample, cvr_sample, manifest_type,
     cvr_sample : list of CVR objects
         the cvrs for the same sheets
         
-    manifest_type : string
-        "ALL" or "STYLE". See documentation
+    use_style : Boolean
+        If True, use style information inferred from CVRs to target the sample on cards that contain
+        each contest. Otherwise, sample from all cards.
         
     risk_function : callable
         function to calculate the p-value from overstatement_assorter values.
@@ -1414,7 +1413,7 @@ def new_sample_size(contests, assertions, mvr_sample, cvr_sample, manifest_type,
                     a = assertions[c][asrtn]
                     p = a.p_value
                     d = [a.overstatement_assorter(mvr_sample[i], cvr_sample[i],\
-                         a.margin, manifest_type=manifest_type) for i in range(len(mvr_sample))]
+                         a.margin, use_style=use_style) for i in range(len(mvr_sample))]
                     while p > contests[c]['risk_limit']:
                         one_more = sample_by_index(len(d), 1, prng=prng)[0]
                         d.append(d[one_more-1])
@@ -1754,38 +1753,38 @@ def test_overstatement():
                     ( CVR.as_vote(CVR.get_vote_from_cvr("AvB", winr, c)) \
                     - CVR.as_vote(CVR.get_vote_from_cvr("AvB", losr, c)) \
                     + 1)/2, upper_bound = 1))
-    assert aVb.overstatement(mvrs[0], cvrs[0], manifest_type="STYLE") == 0
-    assert aVb.overstatement(mvrs[0], cvrs[0], manifest_type="ALL") == 0
+    assert aVb.overstatement(mvrs[0], cvrs[0], use_style=True) == 0
+    assert aVb.overstatement(mvrs[0], cvrs[0], use_style=False) == 0
 
-    assert aVb.overstatement(mvrs[0], cvrs[1], manifest_type="STYLE") == -1
-    assert aVb.overstatement(mvrs[0], cvrs[1], manifest_type="ALL") == -1
+    assert aVb.overstatement(mvrs[0], cvrs[1], use_style=True) == -1
+    assert aVb.overstatement(mvrs[0], cvrs[1], use_style=False) == -1
 
-    assert aVb.overstatement(mvrs[2], cvrs[0], manifest_type="STYLE") == 1/2
-    assert aVb.overstatement(mvrs[2], cvrs[0], manifest_type="ALL") == 1/2
+    assert aVb.overstatement(mvrs[2], cvrs[0], use_style=True) == 1/2
+    assert aVb.overstatement(mvrs[2], cvrs[0], use_style=False) == 1/2
 
-    assert aVb.overstatement(mvrs[2], cvrs[1], manifest_type="STYLE") == -1/2
-    assert aVb.overstatement(mvrs[2], cvrs[1], manifest_type="ALL") == -1/2
+    assert aVb.overstatement(mvrs[2], cvrs[1], use_style=True) == -1/2
+    assert aVb.overstatement(mvrs[2], cvrs[1], use_style=False) == -1/2
 
 
-    assert aVb.overstatement(mvrs[1], cvrs[0], manifest_type="STYLE") == 1
-    assert aVb.overstatement(mvrs[1], cvrs[0], manifest_type="ALL") == 1
+    assert aVb.overstatement(mvrs[1], cvrs[0], use_style=True) == 1
+    assert aVb.overstatement(mvrs[1], cvrs[0], use_style=False) == 1
 
-    assert aVb.overstatement(mvrs[2], cvrs[0], manifest_type="STYLE") == 1/2
-    assert aVb.overstatement(mvrs[2], cvrs[0], manifest_type="ALL") == 1/2
+    assert aVb.overstatement(mvrs[2], cvrs[0], use_style=True) == 1/2
+    assert aVb.overstatement(mvrs[2], cvrs[0], use_style=False) == 1/2
 
-    assert aVb.overstatement(mvrs[3], cvrs[0], manifest_type="STYLE") == 1
-    assert aVb.overstatement(mvrs[3], cvrs[0], manifest_type="ALL") == 1/2
+    assert aVb.overstatement(mvrs[3], cvrs[0], use_style=True) == 1
+    assert aVb.overstatement(mvrs[3], cvrs[0], use_style=False) == 1/2
 
-    assert aVb.overstatement(mvrs[3], cvrs[3], manifest_type="STYLE") == 0
-    assert aVb.overstatement(mvrs[3], cvrs[3], manifest_type="ALL") == 0
+    assert aVb.overstatement(mvrs[3], cvrs[3], use_style=True) == 0
+    assert aVb.overstatement(mvrs[3], cvrs[3], use_style=False) == 0
     
-    assert aVb.overstatement(mvrs[4], cvrs[4], manifest_type="STYLE") == 1/2
-    assert aVb.overstatement(mvrs[4], cvrs[4], manifest_type="ALL") == 1/2
-    assert aVb.overstatement(mvrs[4], cvrs[4], manifest_type="ALL") == 1/2
-    assert aVb.overstatement(mvrs[4], cvrs[0], manifest_type="STYLE") == 1
-    assert aVb.overstatement(mvrs[4], cvrs[0], manifest_type="ALL") == 1
-    assert aVb.overstatement(mvrs[4], cvrs[1], manifest_type="STYLE") == 0
-    assert aVb.overstatement(mvrs[4], cvrs[1], manifest_type="ALL") == 0
+    assert aVb.overstatement(mvrs[4], cvrs[4], use_style=True) == 1/2
+    assert aVb.overstatement(mvrs[4], cvrs[4], use_style=False) == 1/2
+    assert aVb.overstatement(mvrs[4], cvrs[4], use_style=False) == 1/2
+    assert aVb.overstatement(mvrs[4], cvrs[0], use_style=True) == 1
+    assert aVb.overstatement(mvrs[4], cvrs[0], use_style=False) == 1
+    assert aVb.overstatement(mvrs[4], cvrs[1], use_style=True) == 0
+    assert aVb.overstatement(mvrs[4], cvrs[1], use_style=False) == 0
     
 
 def test_overstatement_assorter():
@@ -1809,17 +1808,17 @@ def test_overstatement_assorter():
                     ( CVR.as_vote(CVR.get_vote_from_cvr("AvB", winr, c)) \
                     - CVR.as_vote(CVR.get_vote_from_cvr("AvB", losr, c)) \
                     + 1)/2, upper_bound = 1))
-    assert aVb.overstatement_assorter(mvrs[0], cvrs[0], margin=0.2, manifest_type="STYLE") == 1/1.8
-    assert aVb.overstatement_assorter(mvrs[0], cvrs[0], margin=0.2, manifest_type="ALL") == 1/1.8
+    assert aVb.overstatement_assorter(mvrs[0], cvrs[0], margin=0.2, use_style=True) == 1/1.8
+    assert aVb.overstatement_assorter(mvrs[0], cvrs[0], margin=0.2, use_style=False) == 1/1.8
     
-    assert aVb.overstatement_assorter(mvrs[1], cvrs[0], margin=0.2, manifest_type="STYLE") == 0
-    assert aVb.overstatement_assorter(mvrs[1], cvrs[0], margin=0.2, manifest_type="ALL") == 0
+    assert aVb.overstatement_assorter(mvrs[1], cvrs[0], margin=0.2, use_style=True) == 0
+    assert aVb.overstatement_assorter(mvrs[1], cvrs[0], margin=0.2, use_style=False) == 0
 
-    assert aVb.overstatement_assorter(mvrs[0], cvrs[1], margin=0.3, manifest_type="STYLE") == 2/1.7
-    assert aVb.overstatement_assorter(mvrs[0], cvrs[1], margin=0.3, manifest_type="ALL") == 2/1.7
+    assert aVb.overstatement_assorter(mvrs[0], cvrs[1], margin=0.3, use_style=True) == 2/1.7
+    assert aVb.overstatement_assorter(mvrs[0], cvrs[1], margin=0.3, use_style=False) == 2/1.7
 
-    assert aVb.overstatement_assorter(mvrs[2], cvrs[0], margin=0.1, manifest_type="STYLE") == 0.5/1.9
-    assert aVb.overstatement_assorter(mvrs[2], cvrs[0], margin=0.1, manifest_type="ALL") == 0.5/1.9
+    assert aVb.overstatement_assorter(mvrs[2], cvrs[0], margin=0.1, use_style=True) == 0.5/1.9
+    assert aVb.overstatement_assorter(mvrs[2], cvrs[0], margin=0.1, use_style=False) == 0.5/1.9
 
 def test_cvr_has_contest():
     cvr_dict = [{'id': 1, 'votes': {'AvB': {}, 'CvD': {'Candy':True}}},\
