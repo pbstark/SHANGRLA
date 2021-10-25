@@ -722,6 +722,49 @@ class CVR:
         return True if v==1 else False
     
     @classmethod
+    def make_phantoms(cls, max_cards, cvr_list, contests, assertions, prefix=''):
+        '''
+        Make phantom CVRs as needed for phantom cards; set contest parameters `cards` (if not set) and `cvrs`
+
+        Parameters
+        ----------
+        max_cards : int
+            upper bound on the number of ballot cards
+        cvr_list : list of CVR objects
+            the reported CVRs
+        contests : dict of contests 
+            information about each contest under audit
+        assertions : dict of assertion objects
+        prefix : String
+            prefix for ids for phantom CVRs to be added
+
+        Returns
+        -------
+        cvr_list : list of CVR objects
+            the reported CVRs and the phantom CVRs
+        n_phantoms : int
+            number of phantom cards added
+
+        Side effects
+        ------------
+        for each contest, sets `cards` to max_cards if not specified by the user
+        for each contest, set `cvrs` to be the number of (real) CVRs that contain the contest
+        '''
+        # make empty CVRs for the phantoms
+        phantom_vrs = []
+        phantom_cards = max_cards - len(cvr_list)
+        for i in range(phantom_cards):
+            phantom_vrs.append(CVR(id=prefix+str(i+1), votes={}, phantom=True)) # matches expected RAIRE id for parsing later    
+        # add contests to the phantom CVRs as needed 
+        for c, v in contests.items():
+            v['cards'] = (max_cards if v['cards'] is None else v['cards']) # upper bound on the number of cards cast in the contest
+            v['cvrs'] = np.sum([cvr.has_contest(c) for cvr in cvr_list])
+            for i in range(v['cards']-v['cvrs']):
+                phantom_vrs[i][v['votes']][c]={}       
+        cvr_list = cvr_list + phantom_vrs    
+        return cvr_list, phantom_cards
+    
+    @classmethod
     def rcv_lfunc_wo(cls, contest, winner, loser, cvr):
         '''
         Check whether vote is a vote for the loser with respect to a 'winner only' 

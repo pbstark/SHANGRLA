@@ -10,14 +10,14 @@ import copy
 from assertion_audit_utils import CVR
 
 
-def prep_manifest(manifest, N_cards, n_cvrs):
+def prep_manifest(manifest, max_cards, n_cvrs):
     """
     Prepare a Dominion Excel ballot manifest (read as a pandas dataframe) for sampling.
     The manifest may have cards that do not contain the contest, but every listed CVR
     is assumed to have a corresponding card in the manifest.
     
     If the number of CVRs n_cvrs is less than the number of cards that might contain the contest,
-    N_cards, an additional "phantom" batch is added to the manifest to make up the difference.
+    max_cards, an additional "phantom" batch is added to the manifest to make up the difference.
     
     Parameters:
     ----------
@@ -27,24 +27,27 @@ def prep_manifest(manifest, N_cards, n_cvrs):
     
     Returns:
     --------
-    manifest with additional column for cumulative cards and, if needed, an additional 
-    batch for any phantom cards
-    
-    manifest_cards : the total number of cards in the manifest
-    phantom_cards : the number of phantom cards required
+    manifest : dataframe
+        original manifest with additional column for cumulative cards and, if needed, an additional batch for any phantom cards   
+    manifest_cards : int
+        the total number of cards in the manifest
+    phantom_cards : int
+        the number of phantom cards required
     """
     cols = ['Tray #', 'Tabulator Number', 'Batch Number', 'Total Ballots', 'VBMCart.Cart number']
     assert set(cols).issubset(manifest.columns), "missing columns"
     manifest_cards = manifest['Total Ballots'].sum()
-    if n_cvrs < N_cards:
+    assert manifest_cards <= max_cards, f"cards in manifest {manifest_cards} exceeds max possible {max_cards}"
+    assert manifest_cards >= n_cvrs, f"number of cvrs {n_cvrs} exceeds number of cards in the manifest {manifest_cards}"
+    if n_cvrs < max_cards:
         warnings.warn('The CVR list does not account for every card cast in the contest; adding a phantom batch to the manifest')
         r = {'Tray #': None, 'Tabulator Number': 'phantom', 'Batch Number': 1, \
-             'Total Ballots': N_cards-n_cvrs, 'VBMCart.Cart number': None}
+             'Total Ballots': max_cards-n_cvrs, 'VBMCart.Cart number': None}
         manifest = manifest.append(r, ignore_index = True)
     manifest['cum_cards'] = manifest['Total Ballots'].cumsum()    
     for c in ['Tray #', 'Tabulator Number', 'Batch Number', 'VBMCart.Cart number']:
         manifest[c] = manifest[c].astype(str)
-    return manifest, manifest_cards, N_cards - n_cvrs
+    return manifest, manifest_cards, max_cards - n_cvrs
 
 def read_cvrs(cvr_file):
     """
