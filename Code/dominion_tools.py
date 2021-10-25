@@ -43,6 +43,7 @@ def prep_manifest(manifest, max_cards, n_cvrs):
     manifest_cards = manifest['Total Ballots'].sum()
     assert manifest_cards <= max_cards, f"cards in manifest {manifest_cards} exceeds max possible {max_cards}"
     assert manifest_cards >= n_cvrs, f"number of cvrs {n_cvrs} exceeds number of cards in the manifest {manifest_cards}"
+    phantoms = 0
     if manifest_cards < max_cards:
         phantoms = max_cards-manifest_cards
         warnings.warn(f'manifest does not account for every card; appending batch of {phantoms} phantom cards to the manifest')
