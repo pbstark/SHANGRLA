@@ -515,7 +515,7 @@ class CVR:
         self.phantom = phantom
         
     def __str__(self):
-        return "id: " + str(self.id) + " votes: " + str(self.votes) + " phantom: " + str(self.phantom)
+        return f"id: {str(self.id)} votes: {str(self.votes)} phantom: {str(self.phantom)}"
         
     def get_votes(self):
         return self.votes
@@ -612,7 +612,7 @@ class CVR:
         for the same contest as a previous mention, the votes in that contest are updated
         per the later mention.
         
-        If any of the CVRs has phantom==False, sets phantom==False in the result.
+        If any of the CVRs has phantom==False, sets phantom=False in the result.
         
         
         Parameters:
@@ -722,7 +722,7 @@ class CVR:
         return True if v==1 else False
     
     @classmethod
-    def make_phantoms(cls, max_cards, cvr_list, contests, assertions, prefix=''):
+    def make_phantoms(cls, max_cards, cvr_list, contests, prefix=''):
         '''
         Make phantom CVRs as needed for phantom cards; set contest parameters `cards` (if not set) and `cvrs`
 
@@ -734,7 +734,6 @@ class CVR:
             the reported CVRs
         contests : dict of contests 
             information about each contest under audit
-        assertions : dict of assertion objects
         prefix : String
             prefix for ids for phantom CVRs to be added
 
@@ -747,22 +746,24 @@ class CVR:
 
         Side effects
         ------------
-        for each contest, sets `cards` to max_cards if not specified by the user
-        for each contest, set `cvrs` to be the number of (real) CVRs that contain the contest
+        for each contest in `contests`, sets `cards` to max_cards if not specified by the user
+        for each contest in `contests`, set `cvrs` to be the number of (real) CVRs that contain the contest
         '''
-        # make empty CVRs for the phantoms
         phantom_vrs = []
-        phantom_cards = max_cards - len(cvr_list)
-        for i in range(phantom_cards):
-            phantom_vrs.append(CVR(id=prefix+str(i+1), votes={}, phantom=True)) # matches expected RAIRE id for parsing later    
+        n_cvrs = len(cvr_list)
+        phantoms = max_cards - n_cvrs
+        # create empty phantom CVRs
+        for i in range(phantoms):
+            phantom_vrs.append(CVR(id=prefix+str(i+1), votes={}, phantom=True)) # matches expected RAIRE id     
         # add contests to the phantom CVRs as needed 
         for c, v in contests.items():
-            v['cards'] = (max_cards if v['cards'] is None else v['cards']) # upper bound on the number of cards cast in the contest
-            v['cvrs'] = np.sum([cvr.has_contest(c) for cvr in cvr_list])
+            v['cvrs'] = np.sum([cvr.has_contest(c) for cvr in cvr_list if not cvr.is_phantom()])
+            v['cards'] = (max_cards-n_cvrs+v['cvrs'] if v['cards'] is None else v['cards']) # upper bound on cards cast in the contest
+            v['cvrs'] = np.sum([cvr.has_contest(c) for cvr in cvr_list if not cvr.is_phantom()])
             for i in range(v['cards']-v['cvrs']):
-                phantom_vrs[i][v['votes']][c]={}       
+                phantom_vrs[i].votes[c]={}  # list contest c on the phantom CVR  
         cvr_list = cvr_list + phantom_vrs    
-        return cvr_list, phantom_cards
+        return cvr_list, phantoms
     
     @classmethod
     def rcv_lfunc_wo(cls, contest, winner, loser, cvr):
@@ -778,8 +779,7 @@ class CVR:
             identifier for winning candidate
         loser : string
             identifier for losing candidate
-
-        cvr : a CVR object
+        cvr : CVR object
 
         Returns:
         --------
@@ -1507,7 +1507,7 @@ def summarize_status(contests, assertions):
     return done
 
 def write_audit_parameters(log_file, seed, replacement, risk_function, g, \
-                           N_cards, n_cvrs, manifest_cards, phantom_cards, error_rate, contests):
+                           max_cards, n_cvrs, manifest_cards, phantom_cards, error_rate, contests):
     '''
     Write audit parameters to log_file as a json structure
     
@@ -1539,7 +1539,7 @@ def write_audit_parameters(log_file, seed, replacement, risk_function, g, \
            "replacement" : replacement,
            "risk_function" : risk_function,
            "g" : float(g),
-           "N_cards" : int(N_cards),
+           "max_cards" : int(max_cards),
            "n_cvrs" : int(n_cvrs),
            "manifest_cards" : int(manifest_cards),
            "phantom_cards" : int(phantom_cards),
@@ -1915,10 +1915,10 @@ def test_kaplan_kolmogorov():
     print("kaplan_kolmogorov: {} {}".format(p1, p2))
 
 def test_initial_sample_size():
-    N_cards = int(10**3)
-    risk_function = lambda x: TestNonnegMean.kaplan_kolmogorov(x, N=N_cards, t=1/2, g=0.1) 
-    n_det = TestNonnegMean.initial_sample_size(risk_function, N_cards, 0.1, 0.001)
-    n_rand = TestNonnegMean.initial_sample_size(risk_function, N_cards, 0.1, 0.001, reps=100)
+    max_cards = int(10**3)
+    risk_function = lambda x: TestNonnegMean.kaplan_kolmogorov(x, N=max_cards, t=1/2, g=0.1) 
+    n_det = TestNonnegMean.initial_sample_size(risk_function, max_cards, 0.1, 0.001)
+    n_rand = TestNonnegMean.initial_sample_size(risk_function, max_cards, 0.1, 0.001, reps=100)
     print(n_det, n_rand)
 
     # This tests whether, in a simple example in which null hypothesis is true, 
@@ -2008,10 +2008,53 @@ def test_cvr_from_raire():
     assert c[2].id == "99813_1_6"
     assert c[2].votes == {'339': {'18':1, '17':2, '15':3, '16':4}, '3': {'2':1}} # merges votes?
 
+    
+def test_make_phantoms():
+    contests =  {'city_council':{'risk_limit':0.05,
+                             'cards': None,
+                             'choice_function':'plurality',
+                             'n_winners':3,
+                             'candidates':['Doug','Emily','Frank','Gail','Harry'],
+                             'reported_winners' : ['Doug', 'Emily', 'Frank']
+                            },
+                 'measure_1':{'risk_limit':0.05,
+                             'cards': 5,
+                             'choice_function':'supermajority',
+                             'share_to_win':2/3,
+                             'n_winners':1,
+                             'candidates':['yes','no'],
+                             'reported_winners' : ['yes']
+                            }                  
+                }
+    cvr_list = [CVR(id="1", votes={"city_council": {"Alice": 1}, "measure_1": {"yes": 1}}, phantom=False), \
+                CVR(id="2", votes={"city_council": {"Bob": 1},   "measure_1": {"yes": 1}}, phantom=False), \
+                CVR(id="3", votes={"city_council": {"Bob": 1},   "measure_1": {"no": 1}}, phantom=False), \
+                CVR(id="4", votes={"measure_1": {"no": 1}}, phantom=False), \
+                CVR(id="5", votes={"city_council": {"Charlie": 1}}, phantom=False), \
+                CVR(id="6", votes={"city_council": {"Doug": 1}}, phantom=False)
+               ]
+    max_cards = 8
+    prefix = 'phantom-'
+    cvr_list, phantom_vrs = CVR.make_phantoms(max_cards, cvr_list, contests, prefix='')
+    assert len(cvr_list) == 8
+    assert phantom_vrs == 2
+    assert contests['city_council']['cvrs'] == 5
+    assert contests['measure_1']['cvrs'] == 4
+    assert contests['city_council']['cards'] == 7
+    assert contests['measure_1']['cards'] == 5
+    assert np.sum([c.has_contest('city_council') for c in cvr_list]) == 7, np.sum([c.has_contest('city_council') for c in cvr_list])
+    assert np.sum([c.has_contest('measure_1') for c in cvr_list]) == 5, np.sum([c.has_contest('measure_1') for c in cvr_list])
+    assert np.sum([c.has_contest('city_council') and not c.is_phantom() for c in cvr_list]) ==  5
+    assert np.sum([c.has_contest('measure_1') and not c.is_phantom() for c in cvr_list]) == 4
+    
+    
+    
 if __name__ == "__main__":
     test_cvr_from_raire()
     test_cvr_from_dict()
     test_cvr_has_contest()
+    
+    test_make_phantoms()
 
     test_make_plurality_assertions()
     test_supermajority_assorter()
