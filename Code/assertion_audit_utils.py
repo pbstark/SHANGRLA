@@ -7,7 +7,7 @@ import csv
 import warnings
 from numpy import testing
 from collections import OrderedDict
-from cryptorandom.cryptorandom import SHA256, random
+from cryptorandom.cryptorandom import SHA256, random, int_from_hash
 from cryptorandom.sample import random_permutation
 from cryptorandom.sample import sample_by_index
 
@@ -509,9 +509,10 @@ class CVR:
             {"id": "A-001-01", "votes": {"mayor": {"Alice": 1, "Bob": 2, "Candy": 3, "Dan": ''}}}
     Then int(vote_for("Candy","mayor"))=3, Candy's rank in the "mayor" contest.
     
-    CVRs can be flagged as "phantoms" to account for cards not listed in the manifest.
+    CVRs can be flagged as "phantoms" to account for cards not listed in the manifest (Boolean `phantom` attribute).
     
-    CVRs 
+    CVRs can also include sampling probabilities `p` and sample numbers `sample_num` (random numbers assigned to 
+    CVRs to facilitate consistent sampling)
      
     Methods:
     --------
@@ -524,7 +525,10 @@ class CVR:
     get_votes : returns complete votes dict for a contest
     get_id : returns ballot id
     set_id : updates the ballot id
-    get_sample
+    set_p : set sampling probability
+    get_p : get the highest sampling probability associated with the CVR for any contest. Used to estimate sample sizes
+    set_sample_num : set the sampling number for the CVR, for consistent sampling
+    get_sample_num : get the sample number assigned to the CVR (to implement consistent sampling)
         
     '''
     
@@ -532,6 +536,8 @@ class CVR:
         self.votes = votes
         self.id = id
         self.phantom = phantom
+        self.sample_num = sample_num
+        self.p = p
         
     def __str__(self):
         return f"id: {str(self.id)} votes: {str(self.votes)} phantom: {str(self.phantom)}"
@@ -556,6 +562,18 @@ class CVR:
     
     def get_votefor(self, contest, candidate):
         return CVR.get_vote_from_cvr(contest, candidate, self)
+    
+    def get_sample_num(self):
+        return self.sample_num
+    
+    def set_sample_num(self, sample_num):
+        self.sample_num = sample_num
+        
+    def get_p(self):
+        return self.p
+    
+    def set_p(self, p):
+        self.p = p
     
     def has_contest(self, contest):
         return contest in self.votes
@@ -798,6 +816,28 @@ class CVR:
         cvr_list = cvr_list + phantom_vrs    
         return cvr_list, phantoms
     
+    @classmethod
+    def assign_sample_nums(cls, cvr_list, prng):
+        '''
+        Assigns a pseudo-random sample number to each cvr in cvr_list 
+        
+        Parameters
+        ----------
+        cvr_list : list of CVR objects
+        prng : instance of cryptorandom SHA256 generator
+        
+        Returns
+        -------
+        True
+        
+        Side effects
+        ------------
+        assigns (or overwrites) sample numbers in each CVR in cvr_list
+        '''
+        for cvr in cvr_list:
+            cvr.set_sample_num(int_from_hash(prng.nextRandom()))
+        return True    
+            
     @classmethod
     def rcv_lfunc_wo(cls, contest, winner, loser, cvr):
         '''
@@ -1321,7 +1361,7 @@ def find_margins(contests, assertions, cvr_list, use_style):
             # find mean of the assertion for the CVRs
             amean = assertions[c][asrtn].assorter_mean(cvr_list, use_style=use_style)
             if amean < 1/2:
-                warn("assertion {} not satisfied by CVRs: mean value is {}".format(asrtn, amean))
+                warn(f"assertion {asrtn} not satisfied by CVRs: mean value is {amean}")
             margin = 2*amean-1
             assertions[c][asrtn].margin = margin
             contests[c]['margins'].update({asrtn: margin})
@@ -2041,7 +2081,6 @@ def test_cvr_from_raire():
     assert c[2].id == "99813_1_6"
     assert c[2].votes == {'339': {'18':1, '17':2, '15':3, '16':4}, '3': {'2':1}} # merges votes?
 
-    
 def test_make_phantoms():
     contests =  {'city_council':{'risk_limit':0.05,
                              'cards': None,
@@ -2093,7 +2132,18 @@ def test_make_phantoms():
     assert np.sum([c.has_contest('city_council') and not c.is_phantom() for c in cvr_list]) ==  5
     assert np.sum([c.has_contest('measure_1') and not c.is_phantom() for c in cvr_list]) == 4
     
-    
+def test_assign_sample_nums():
+    cvrs = [CVR(id="1", votes={"city_council": {"Alice": 1}, "measure_1": {"yes": 1}}, phantom=False), \
+                CVR(id="2", votes={"city_council": {"Bob": 1},   "measure_1": {"yes": 1}}, phantom=False), \
+                CVR(id="3", votes={"city_council": {"Bob": 1},   "measure_1": {"no": 1}}, phantom=False), \
+                CVR(id="4", votes={"city_council": {"Charlie": 1}}, phantom=False), \
+                CVR(id="5", votes={"city_council": {"Doug": 1}}, phantom=False), \
+                CVR(id="6", votes={"measure_1": {"no": 1}}, phantom=False)
+            ]
+    prng = SHA256(1234567890)
+    CVR.assign_sample_nums(cvrs,prng)
+    assert cvrs[0].get_sample_num() == 100208482908198438057700745423243738999845662853049614266130533283921761365671
+    assert cvrs[5].sample_num == 93838330019164869717966768063938259297046489853954854934402443181124696542865
     
 if __name__ == "__main__":
     test_cvr_from_raire()
@@ -2101,6 +2151,7 @@ if __name__ == "__main__":
     test_cvr_has_contest()
     
     test_make_phantoms()
+    test_assign_sample_nums()
 
     test_make_plurality_assertions()
     test_supermajority_assorter()
