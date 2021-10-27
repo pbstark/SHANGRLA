@@ -7,7 +7,7 @@ import csv
 import warnings
 from numpy import testing
 from collections import OrderedDict
-from cryptorandom.cryptorandom import SHA256, random
+from cryptorandom.cryptorandom import SHA256, random, int_from_hash
 from cryptorandom.sample import random_permutation
 from cryptorandom.sample import sample_by_index
 
@@ -22,7 +22,6 @@ class Assertion:
     '''
     
     JSON_ASSERTION_TYPES = ["WINNER_ONLY", "IRV_ELIMINATION"]  # supported json assertion types
-    MANIFEST_TYPES = ["ALL","STYLE"]  # supported manifest types
     
     def __init__(self, contest = None, assorter = None, margin = 0, p_value = 1, proved = False):
         '''
@@ -68,10 +67,10 @@ class Assertion:
     def get_proved(self):
         return self.proved
 
-    def assort(self, cvr):
+    def assort(self, cvr, use_style=True):
         return self.assorter(cvr)
     
-    def assorter_mean(self, cvr_list):
+    def assorter_mean(self, cvr_list, use_style=True):
         '''
         find the mean of the assorter applied to a list of CVRs  
         
@@ -79,15 +78,23 @@ class Assertion:
         ----------
         cvr_list : list
             a list of cast-vote records
+        use_style : Boolean
+            does the audit use card style information? If so, apply the assorter only to CVRs
+            that contain the contest in question.
         
         Returns:
         ----------
         mean : float
-            the mean value of the assorter over the list of cvrs
+            the mean value of the assorter over the list of cvrs. If use_style, ignores CVRs that
+            do not contain the contest.
         '''
-        return np.mean([self.assorter.assort(c) for c in cvr_list])      
+        if use_style:
+            filtr = lambda c: c.has_contest(self.contest)
+        else:
+            filtr = lambda c: True
+        return np.mean([self.assorter.assort(c) for c in cvr_list if filtr(c)])
         
-    def assorter_sum(self, cvr_list):
+    def assorter_sum(self, cvr_list, use_style=True):
         '''
         find the sum of the assorter applied to a list of CVRs   
         
@@ -95,15 +102,23 @@ class Assertion:
         ----------
         cvr_list : list of CVRs
             a list of cast-vote records
-        
+        use_style : Boolean
+            does the audit use card style information? If so, apply the assorter only to CVRs
+            that contain the contest in question.
+       
         Returns:
         ----------
         sum : float
-            sum of the value of the assorter over a list of CVRs
+            sum of the value of the assorter over a list of CVRs. If use_style, ignores CVRs that
+            do not contain the contest.
         '''
-        return np.sum([self.assorter.assort(c) for c in cvr_list])
+        if use_style:
+            filtr = lambda c: c.has_contest(self.contest)
+        else:
+            filtr = lambda c: True
+        return np.sum([self.assorter.assort(c) for c in cvr_list if filtr(c)])
 
-    def assorter_margin(self, cvr_list):
+    def assorter_margin(self, cvr_list, use_style=True):
         '''
         find the margin for a list of Cvrs. 
         By definition, the margin is the mean of the assorter minus 1/2, times 2
@@ -117,17 +132,17 @@ class Assertion:
         ----------
         margin : float
         '''
-        return 2*self.assorter_mean(cvr_list)-1
+        return 2*self.assorter_mean(cvr_list, use_style=use_style)-1
 
-    def overstatement(self, mvr, cvr, manifest_type="STYLE"):
+    def overstatement(self, mvr, cvr, use_style=True):
         '''
         overstatement error for a CVR compared to the human reading of the ballot
         
-        If manifest_type == "STYLE", then if the CVR contains the contest but the MVR does 
+        If use_style, then if the CVR contains the contest but the MVR does 
         not, that is considered to be an overstatement, because the ballot should have 
         contained the contest.
         
-        If manifest_type == "ALL", then if the CVR contains the contest but the MVR does not,
+        If not use_style, then if the CVR contains the contest but the MVR does not,
         the MVR is considered to be a non-vote in the contest.
         
         Phantom CVRs and MVRs are treated specially:
@@ -147,11 +162,10 @@ class Assertion:
         overstatement : float
             the overstatement error
         '''        
-        assert manifest_type in Assertion.MANIFEST_TYPES, "unrecognized manifest type"
-        if manifest_type == "ALL":
+        if not use_style:
             overstatement = self.assorter.assort(cvr)\
                             - (self.assorter.assort(mvr) if not mvr.phantom else 0)
-        elif manifest_type == "STYLE":
+        elif use_style:
             if mvr.has_contest(self.contest):
                 overstatement = self.assorter.assort(cvr)-self.assorter.assort(mvr)
             elif not mvr.has_contest(self.contest) and cvr.has_contest(self.contest):
@@ -164,15 +178,15 @@ class Assertion:
             raise NotImplementedError
         return overstatement   
     
-    def overstatement_assorter(self, mvr, cvr, margin, manifest_type="STYLE"):
+    def overstatement_assorter(self, mvr, cvr, margin, use_style=True):
         '''
         assorter that corresponds to normalized overstatement error for an assertion
         
-        If manifest_type == "STYLE", then if the CVR contains the contest but the MVR does not,
+        If use_style, then if the CVR contains the contest but the MVR does not,
         that is considered to be an overstatement, because the ballot is presumed to contain
         the contest.
         
-        If manifest_type == "ALL", then if the CVR contains the contest but the MVR does not,
+        If not use_style, then if the CVR contains the contest but the MVR does not,
         the MVR is considered to be a non-vote in the contest.
 
         Parameters:
@@ -192,7 +206,7 @@ class Assertion:
                 u is the upper bound on the value the assorter assigns to any ballot
                 v is the assorter margin
         '''        
-        return (1-self.overstatement(mvr, cvr, manifest_type)/self.assorter.upper_bound)\
+        return (1-self.overstatement(mvr, cvr, use_style)/self.assorter.upper_bound)\
                 /(2-margin/self.assorter.upper_bound)
         
       
@@ -262,7 +276,7 @@ class Assertion:
         a dict containing one Assertion
         
         '''
-        assert share_to_win < 1, "share_to_win must be less than 1"
+        assert share_to_win < 1, f"share_to_win is {share_to_win} but must be less than 1"
 
         assertions = {}
         wl_pair = winner + ' v all'
@@ -495,7 +509,10 @@ class CVR:
             {"id": "A-001-01", "votes": {"mayor": {"Alice": 1, "Bob": 2, "Candy": 3, "Dan": ''}}}
     Then int(vote_for("Candy","mayor"))=3, Candy's rank in the "mayor" contest.
     
-    CVRs can be flagged as "phantoms" to account for cards not listed in the manifest.
+    CVRs can be flagged as "phantoms" to account for cards not listed in the manifest (Boolean `phantom` attribute).
+    
+    CVRs can also include sampling probabilities `p` and sample numbers `sample_num` (random numbers assigned to 
+    CVRs to facilitate consistent sampling)
      
     Methods:
     --------
@@ -508,16 +525,22 @@ class CVR:
     get_votes : returns complete votes dict for a contest
     get_id : returns ballot id
     set_id : updates the ballot id
+    set_p : set sampling probability
+    get_p : get the highest sampling probability associated with the CVR for any contest. Used to estimate sample sizes
+    set_sample_num : set the sampling number for the CVR, for consistent sampling
+    get_sample_num : get the sample number assigned to the CVR (to implement consistent sampling)
         
     '''
     
-    def __init__(self, id = None, votes = {}, phantom = False):
+    def __init__(self, id = None, votes = {}, phantom=False, sample_num=None, p=None):
         self.votes = votes
         self.id = id
         self.phantom = phantom
+        self.sample_num = sample_num
+        self.p = p
         
     def __str__(self):
-        return "id: " + str(self.id) + " votes: " + str(self.votes) + " phantom: " + str(self.phantom)
+        return f"id: {str(self.id)} votes: {str(self.votes)} phantom: {str(self.phantom)}"
         
     def get_votes(self):
         return self.votes
@@ -539,6 +562,18 @@ class CVR:
     
     def get_votefor(self, contest, candidate):
         return CVR.get_vote_from_cvr(contest, candidate, self)
+    
+    def get_sample_num(self):
+        return self.sample_num
+    
+    def set_sample_num(self, sample_num):
+        self.sample_num = sample_num
+        
+    def get_p(self):
+        return self.p
+    
+    def set_p(self, p):
+        self.p = p
     
     def has_contest(self, contest):
         return contest in self.votes
@@ -614,7 +649,7 @@ class CVR:
         for the same contest as a previous mention, the votes in that contest are updated
         per the later mention.
         
-        If any of the CVRs has phantom==False, sets phantom==False in the result.
+        If any of the CVRs has phantom==False, sets phantom=False in the result.
         
         
         Parameters:
@@ -724,6 +759,86 @@ class CVR:
         return True if v==1 else False
     
     @classmethod
+    def make_phantoms(cls, max_cards, cvr_list, contests, use_style=True, prefix=''):
+        '''
+        Make phantom CVRs as needed for phantom cards; set contest parameters `cards` (if not set) and `cvrs`
+        
+        If use_style, phantoms are "per contest": each contest needs enough to account for the difference between
+        the number of cards that might contain the contest and the number of CVRs that contain the contest. This can
+        result in having more cards in all (manifest and phantoms) than max_cards, the maximum cast.
+        
+        If not use_style, phantoms are for the election as a whole: need enough to account for the difference
+        between the number of cards in the manifest and the number of CVRs that contain the contest. Then, the total
+        number of cards (manifest plus phantoms) equals max_cards.
+
+        Parameters
+        ----------
+        max_cards : int
+            upper bound on the number of ballot cards
+        cvr_list : list of CVR objects
+            the reported CVRs
+        contests : dict of contests 
+            information about each contest under audit
+        prefix : String
+            prefix for ids for phantom CVRs to be added
+        use_style : Boolean
+            does the sampling use style information?
+
+        Returns
+        -------
+        cvr_list : list of CVR objects
+            the reported CVRs and the phantom CVRs
+        n_phantoms : int
+            number of phantom cards added
+
+        Side effects
+        ------------
+        for each contest in `contests`, sets `cards` to max_cards if not specified by the user
+        for each contest in `contests`, set `cvrs` to be the number of (real) CVRs that contain the contest
+        '''
+        phantom_vrs = []
+        n_cvrs = len(cvr_list)
+        for c, v in contests.items():  # set contest parameters
+            v['cvrs'] = np.sum([cvr.has_contest(c) for cvr in cvr_list if not cvr.is_phantom()])
+            v['cards'] = max_cards if v['cards'] is None else v['cards'] # upper bound on cards cast in the contest        
+        if not use_style:              #  make (max_cards - len(cvr_list)) phantoms
+            phantoms = max_cards - n_cvrs
+            for i in range(phantoms):
+                phantom_vrs.append(CVR(id=prefix+str(i+1), votes={}, phantom=True))     
+        else:                          # create phantom CVRs as needed for each contest           
+            for c, v in contests.items(): 
+                phantoms_needed = v['cards']-v['cvrs']
+                while len(phantom_vrs) < phantoms_needed:
+                    phantom_vrs.append(CVR(id=prefix+str(len(phantom_vrs)+1), votes={}, phantom=True))
+                for i in range(phantoms_needed):
+                    phantom_vrs[i].votes[c]={}  # list contest c on the phantom CVR 
+            phantoms = len(phantom_vrs)
+        cvr_list = cvr_list + phantom_vrs    
+        return cvr_list, phantoms
+    
+    @classmethod
+    def assign_sample_nums(cls, cvr_list, prng):
+        '''
+        Assigns a pseudo-random sample number to each cvr in cvr_list 
+        
+        Parameters
+        ----------
+        cvr_list : list of CVR objects
+        prng : instance of cryptorandom SHA256 generator
+        
+        Returns
+        -------
+        True
+        
+        Side effects
+        ------------
+        assigns (or overwrites) sample numbers in each CVR in cvr_list
+        '''
+        for cvr in cvr_list:
+            cvr.set_sample_num(int_from_hash(prng.nextRandom()))
+        return True    
+            
+    @classmethod
     def rcv_lfunc_wo(cls, contest, winner, loser, cvr):
         '''
         Check whether vote is a vote for the loser with respect to a 'winner only' 
@@ -737,8 +852,7 @@ class CVR:
             identifier for winning candidate
         loser : string
             identifier for losing candidate
-
-        cvr : a CVR object
+        cvr : CVR object
 
         Returns:
         --------
@@ -1221,7 +1335,7 @@ def check_audit_parameters(risk_function, g, error_rate, contests):
             assert contests[c]['share_to_win'] >= 0.5, \
                 'super-majority contest requires winning at least 50% of votes in ' + c + ' contest'
 
-def find_margins(contests, assertions, cvr_list):
+def find_margins(contests, assertions, cvr_list, use_style):
     '''
     Find all the assorter margins in a set of Assertions. Updates the dict of dicts of assertions,
     and the contest dict.
@@ -1245,16 +1359,16 @@ def find_margins(contests, assertions, cvr_list):
         contests[c]['margins'] = {}
         for asrtn in assertions[c]:
             # find mean of the assertion for the CVRs
-            amean = assertions[c][asrtn].assorter_mean(cvr_list)
+            amean = assertions[c][asrtn].assorter_mean(cvr_list, use_style=use_style)
             if amean < 1/2:
-                warn("assertion {} not satisfied by CVRs: mean value is {}".format(asrtn, amean))
+                warn(f"assertion {asrtn} not satisfied by CVRs: mean value is {amean}")
             margin = 2*amean-1
             assertions[c][asrtn].margin = margin
             contests[c]['margins'].update({asrtn: margin})
             min_margin = np.min([min_margin, margin])
     return min_margin
 
-def find_p_values(contests, assertions, mvr_sample, cvr_sample, manifest_type, risk_function):
+def find_p_values(contests, assertions, mvr_sample, cvr_sample, use_style, risk_function):
     '''
     Find the p-value for every assertion in assertions; update data structure to
     include the p-values for the assertions, flag "proved" assertions, and note 
@@ -1275,8 +1389,8 @@ def find_p_values(contests, assertions, mvr_sample, cvr_sample, manifest_type, r
     cvr_sample : list of CVR objects
         the cvrs for the same sheets
         
-    manifest_type : string
-        "ALL" or "STYLE". See documentation
+    use_style : Boolean
+        See documentation
         
     risk_function : callable
         function to calculate the p-value from overstatement_assorter values
@@ -1296,7 +1410,7 @@ def find_p_values(contests, assertions, mvr_sample, cvr_sample, manifest_type, r
         for asrtn in assertions[c]:
             a = assertions[c][asrtn]
             d = [a.overstatement_assorter(mvr_sample[i], cvr_sample[i],\
-                 a.margin, manifest_type=manifest_type) for i in range(len(mvr_sample))]
+                 a.margin, use_style=use_style) for i in range(len(mvr_sample))]
             a.p_value = risk_function(d)
             a.proved = (a.p_value <= contests[c]['risk_limit']) or a.proved
             contests[c]['p_values'].update({asrtn: a.p_value})
@@ -1359,7 +1473,7 @@ def prep_sample(mvr_sample, cvr_sample):
         assert mvr_sample[i].id == cvr_sample[i].id, \
     "Mismatch between id of cvr ({}) and mvr ({})".format(cvr_sample[i].id, mvr_sample[i].id)
 
-def new_sample_size(contests, assertions, mvr_sample, cvr_sample, manifest_type,\
+def new_sample_size(contests, assertions, mvr_sample, cvr_sample, use_style,\
                     risk_function, quantile=0.5, reps=200, seed=1234567890):
     '''
     Estimate the total sample size expected to allow the audit to complete,
@@ -1380,8 +1494,9 @@ def new_sample_size(contests, assertions, mvr_sample, cvr_sample, manifest_type,
     cvr_sample : list of CVR objects
         the cvrs for the same sheets
         
-    manifest_type : string
-        "ALL" or "STYLE". See documentation
+    use_style : Boolean
+        If True, use style information inferred from CVRs to target the sample on cards that contain
+        each contest. Otherwise, sample from all cards.
         
     risk_function : callable
         function to calculate the p-value from overstatement_assorter values.
@@ -1414,7 +1529,7 @@ def new_sample_size(contests, assertions, mvr_sample, cvr_sample, manifest_type,
                     a = assertions[c][asrtn]
                     p = a.p_value
                     d = [a.overstatement_assorter(mvr_sample[i], cvr_sample[i],\
-                         a.margin, manifest_type=manifest_type) for i in range(len(mvr_sample))]
+                         a.margin, use_style=use_style) for i in range(len(mvr_sample))]
                     while p > contests[c]['risk_limit']:
                         one_more = sample_by_index(len(d), 1, prng=prng)[0]
                         d.append(d[one_more-1])
@@ -1465,7 +1580,7 @@ def summarize_status(contests, assertions):
     return done
 
 def write_audit_parameters(log_file, seed, replacement, risk_function, g, \
-                           N_cards, n_cvrs, manifest_cards, phantom_cards, error_rate, contests):
+                           max_cards, n_cvrs, manifest_cards, phantom_cards, error_rate, contests):
     '''
     Write audit parameters to log_file as a json structure
     
@@ -1497,7 +1612,7 @@ def write_audit_parameters(log_file, seed, replacement, risk_function, g, \
            "replacement" : replacement,
            "risk_function" : risk_function,
            "g" : float(g),
-           "N_cards" : int(N_cards),
+           "max_cards" : int(max_cards),
            "n_cvrs" : int(n_cvrs),
            "manifest_cards" : int(manifest_cards),
            "phantom_cards" : int(phantom_cards),
@@ -1754,38 +1869,38 @@ def test_overstatement():
                     ( CVR.as_vote(CVR.get_vote_from_cvr("AvB", winr, c)) \
                     - CVR.as_vote(CVR.get_vote_from_cvr("AvB", losr, c)) \
                     + 1)/2, upper_bound = 1))
-    assert aVb.overstatement(mvrs[0], cvrs[0], manifest_type="STYLE") == 0
-    assert aVb.overstatement(mvrs[0], cvrs[0], manifest_type="ALL") == 0
+    assert aVb.overstatement(mvrs[0], cvrs[0], use_style=True) == 0
+    assert aVb.overstatement(mvrs[0], cvrs[0], use_style=False) == 0
 
-    assert aVb.overstatement(mvrs[0], cvrs[1], manifest_type="STYLE") == -1
-    assert aVb.overstatement(mvrs[0], cvrs[1], manifest_type="ALL") == -1
+    assert aVb.overstatement(mvrs[0], cvrs[1], use_style=True) == -1
+    assert aVb.overstatement(mvrs[0], cvrs[1], use_style=False) == -1
 
-    assert aVb.overstatement(mvrs[2], cvrs[0], manifest_type="STYLE") == 1/2
-    assert aVb.overstatement(mvrs[2], cvrs[0], manifest_type="ALL") == 1/2
+    assert aVb.overstatement(mvrs[2], cvrs[0], use_style=True) == 1/2
+    assert aVb.overstatement(mvrs[2], cvrs[0], use_style=False) == 1/2
 
-    assert aVb.overstatement(mvrs[2], cvrs[1], manifest_type="STYLE") == -1/2
-    assert aVb.overstatement(mvrs[2], cvrs[1], manifest_type="ALL") == -1/2
+    assert aVb.overstatement(mvrs[2], cvrs[1], use_style=True) == -1/2
+    assert aVb.overstatement(mvrs[2], cvrs[1], use_style=False) == -1/2
 
 
-    assert aVb.overstatement(mvrs[1], cvrs[0], manifest_type="STYLE") == 1
-    assert aVb.overstatement(mvrs[1], cvrs[0], manifest_type="ALL") == 1
+    assert aVb.overstatement(mvrs[1], cvrs[0], use_style=True) == 1
+    assert aVb.overstatement(mvrs[1], cvrs[0], use_style=False) == 1
 
-    assert aVb.overstatement(mvrs[2], cvrs[0], manifest_type="STYLE") == 1/2
-    assert aVb.overstatement(mvrs[2], cvrs[0], manifest_type="ALL") == 1/2
+    assert aVb.overstatement(mvrs[2], cvrs[0], use_style=True) == 1/2
+    assert aVb.overstatement(mvrs[2], cvrs[0], use_style=False) == 1/2
 
-    assert aVb.overstatement(mvrs[3], cvrs[0], manifest_type="STYLE") == 1
-    assert aVb.overstatement(mvrs[3], cvrs[0], manifest_type="ALL") == 1/2
+    assert aVb.overstatement(mvrs[3], cvrs[0], use_style=True) == 1
+    assert aVb.overstatement(mvrs[3], cvrs[0], use_style=False) == 1/2
 
-    assert aVb.overstatement(mvrs[3], cvrs[3], manifest_type="STYLE") == 0
-    assert aVb.overstatement(mvrs[3], cvrs[3], manifest_type="ALL") == 0
+    assert aVb.overstatement(mvrs[3], cvrs[3], use_style=True) == 0
+    assert aVb.overstatement(mvrs[3], cvrs[3], use_style=False) == 0
     
-    assert aVb.overstatement(mvrs[4], cvrs[4], manifest_type="STYLE") == 1/2
-    assert aVb.overstatement(mvrs[4], cvrs[4], manifest_type="ALL") == 1/2
-    assert aVb.overstatement(mvrs[4], cvrs[4], manifest_type="ALL") == 1/2
-    assert aVb.overstatement(mvrs[4], cvrs[0], manifest_type="STYLE") == 1
-    assert aVb.overstatement(mvrs[4], cvrs[0], manifest_type="ALL") == 1
-    assert aVb.overstatement(mvrs[4], cvrs[1], manifest_type="STYLE") == 0
-    assert aVb.overstatement(mvrs[4], cvrs[1], manifest_type="ALL") == 0
+    assert aVb.overstatement(mvrs[4], cvrs[4], use_style=True) == 1/2
+    assert aVb.overstatement(mvrs[4], cvrs[4], use_style=False) == 1/2
+    assert aVb.overstatement(mvrs[4], cvrs[4], use_style=False) == 1/2
+    assert aVb.overstatement(mvrs[4], cvrs[0], use_style=True) == 1
+    assert aVb.overstatement(mvrs[4], cvrs[0], use_style=False) == 1
+    assert aVb.overstatement(mvrs[4], cvrs[1], use_style=True) == 0
+    assert aVb.overstatement(mvrs[4], cvrs[1], use_style=False) == 0
     
 
 def test_overstatement_assorter():
@@ -1809,17 +1924,17 @@ def test_overstatement_assorter():
                     ( CVR.as_vote(CVR.get_vote_from_cvr("AvB", winr, c)) \
                     - CVR.as_vote(CVR.get_vote_from_cvr("AvB", losr, c)) \
                     + 1)/2, upper_bound = 1))
-    assert aVb.overstatement_assorter(mvrs[0], cvrs[0], margin=0.2, manifest_type="STYLE") == 1/1.8
-    assert aVb.overstatement_assorter(mvrs[0], cvrs[0], margin=0.2, manifest_type="ALL") == 1/1.8
+    assert aVb.overstatement_assorter(mvrs[0], cvrs[0], margin=0.2, use_style=True) == 1/1.8
+    assert aVb.overstatement_assorter(mvrs[0], cvrs[0], margin=0.2, use_style=False) == 1/1.8
     
-    assert aVb.overstatement_assorter(mvrs[1], cvrs[0], margin=0.2, manifest_type="STYLE") == 0
-    assert aVb.overstatement_assorter(mvrs[1], cvrs[0], margin=0.2, manifest_type="ALL") == 0
+    assert aVb.overstatement_assorter(mvrs[1], cvrs[0], margin=0.2, use_style=True) == 0
+    assert aVb.overstatement_assorter(mvrs[1], cvrs[0], margin=0.2, use_style=False) == 0
 
-    assert aVb.overstatement_assorter(mvrs[0], cvrs[1], margin=0.3, manifest_type="STYLE") == 2/1.7
-    assert aVb.overstatement_assorter(mvrs[0], cvrs[1], margin=0.3, manifest_type="ALL") == 2/1.7
+    assert aVb.overstatement_assorter(mvrs[0], cvrs[1], margin=0.3, use_style=True) == 2/1.7
+    assert aVb.overstatement_assorter(mvrs[0], cvrs[1], margin=0.3, use_style=False) == 2/1.7
 
-    assert aVb.overstatement_assorter(mvrs[2], cvrs[0], margin=0.1, manifest_type="STYLE") == 0.5/1.9
-    assert aVb.overstatement_assorter(mvrs[2], cvrs[0], margin=0.1, manifest_type="ALL") == 0.5/1.9
+    assert aVb.overstatement_assorter(mvrs[2], cvrs[0], margin=0.1, use_style=True) == 0.5/1.9
+    assert aVb.overstatement_assorter(mvrs[2], cvrs[0], margin=0.1, use_style=False) == 0.5/1.9
 
 def test_cvr_has_contest():
     cvr_dict = [{'id': 1, 'votes': {'AvB': {}, 'CvD': {'Candy':True}}},\
@@ -1873,10 +1988,10 @@ def test_kaplan_kolmogorov():
     print("kaplan_kolmogorov: {} {}".format(p1, p2))
 
 def test_initial_sample_size():
-    N_cards = int(10**3)
-    risk_function = lambda x: TestNonnegMean.kaplan_kolmogorov(x, N=N_cards, t=1/2, g=0.1) 
-    n_det = TestNonnegMean.initial_sample_size(risk_function, N_cards, 0.1, 0.001)
-    n_rand = TestNonnegMean.initial_sample_size(risk_function, N_cards, 0.1, 0.001, reps=100)
+    max_cards = int(10**3)
+    risk_function = lambda x: TestNonnegMean.kaplan_kolmogorov(x, N=max_cards, t=1/2, g=0.1) 
+    n_det = TestNonnegMean.initial_sample_size(risk_function, max_cards, 0.1, 0.001)
+    n_rand = TestNonnegMean.initial_sample_size(risk_function, max_cards, 0.1, 0.001, reps=100)
     print(n_det, n_rand)
 
     # This tests whether, in a simple example in which null hypothesis is true, 
@@ -1966,10 +2081,77 @@ def test_cvr_from_raire():
     assert c[2].id == "99813_1_6"
     assert c[2].votes == {'339': {'18':1, '17':2, '15':3, '16':4}, '3': {'2':1}} # merges votes?
 
+def test_make_phantoms():
+    contests =  {'city_council':{'risk_limit':0.05,
+                             'cards': None,
+                             'choice_function':'plurality',
+                             'n_winners':3,
+                             'candidates':['Doug','Emily','Frank','Gail','Harry'],
+                             'reported_winners' : ['Doug', 'Emily', 'Frank']
+                            },
+                 'measure_1':{'risk_limit':0.05,
+                             'cards': 5,
+                             'choice_function':'supermajority',
+                             'share_to_win':2/3,
+                             'n_winners':1,
+                             'candidates':['yes','no'],
+                             'reported_winners' : ['yes']
+                            }                  
+                }
+    cvrs = [CVR(id="1", votes={"city_council": {"Alice": 1}, "measure_1": {"yes": 1}}, phantom=False), \
+                CVR(id="2", votes={"city_council": {"Bob": 1},   "measure_1": {"yes": 1}}, phantom=False), \
+                CVR(id="3", votes={"city_council": {"Bob": 1},   "measure_1": {"no": 1}}, phantom=False), \
+                CVR(id="4", votes={"city_council": {"Charlie": 1}}, phantom=False), \
+                CVR(id="5", votes={"city_council": {"Doug": 1}}, phantom=False), \
+                CVR(id="6", votes={"measure_1": {"no": 1}}, phantom=False)
+            ]
+    max_cards = 8
+    prefix = 'phantom-'
+
+    cvr_list, phantoms = CVR.make_phantoms(max_cards, cvrs, contests, use_style=True, prefix='')
+    assert len(cvr_list) == 9
+    assert phantoms == 3
+    assert contests['city_council']['cvrs'] == 5
+    assert contests['measure_1']['cvrs'] == 4
+    assert contests['city_council']['cards'] == 8
+    assert contests['measure_1']['cards'] == 5
+    assert np.sum([c.has_contest('city_council') for c in cvr_list]) == 8, np.sum([c.has_contest('city_council') for c in cvr_list])
+    assert np.sum([c.has_contest('measure_1') for c in cvr_list]) == 5, np.sum([c.has_contest('measure_1') for c in cvr_list])
+    assert np.sum([c.has_contest('city_council') and not c.is_phantom() for c in cvr_list]) ==  5
+    assert np.sum([c.has_contest('measure_1') and not c.is_phantom() for c in cvr_list]) == 4
+
+    cvr_list, phantoms = CVR.make_phantoms(max_cards, cvrs, contests, use_style=False, prefix='')
+    assert len(cvr_list) == 8
+    assert phantoms == 2
+    assert contests['city_council']['cvrs'] == 5
+    assert contests['measure_1']['cvrs'] == 4
+    assert contests['city_council']['cards'] == 8
+    assert contests['measure_1']['cards'] == 5
+    assert np.sum([c.has_contest('city_council') for c in cvr_list]) == 5, np.sum([c.has_contest('city_council') for c in cvr_list])
+    assert np.sum([c.has_contest('measure_1') for c in cvr_list]) == 4, np.sum([c.has_contest('measure_1') for c in cvr_list])
+    assert np.sum([c.has_contest('city_council') and not c.is_phantom() for c in cvr_list]) ==  5
+    assert np.sum([c.has_contest('measure_1') and not c.is_phantom() for c in cvr_list]) == 4
+    
+def test_assign_sample_nums():
+    cvrs = [CVR(id="1", votes={"city_council": {"Alice": 1}, "measure_1": {"yes": 1}}, phantom=False), \
+                CVR(id="2", votes={"city_council": {"Bob": 1},   "measure_1": {"yes": 1}}, phantom=False), \
+                CVR(id="3", votes={"city_council": {"Bob": 1},   "measure_1": {"no": 1}}, phantom=False), \
+                CVR(id="4", votes={"city_council": {"Charlie": 1}}, phantom=False), \
+                CVR(id="5", votes={"city_council": {"Doug": 1}}, phantom=False), \
+                CVR(id="6", votes={"measure_1": {"no": 1}}, phantom=False)
+            ]
+    prng = SHA256(1234567890)
+    CVR.assign_sample_nums(cvrs,prng)
+    assert cvrs[0].get_sample_num() == 100208482908198438057700745423243738999845662853049614266130533283921761365671
+    assert cvrs[5].sample_num == 93838330019164869717966768063938259297046489853954854934402443181124696542865
+    
 if __name__ == "__main__":
     test_cvr_from_raire()
     test_cvr_from_dict()
     test_cvr_has_contest()
+    
+    test_make_phantoms()
+    test_assign_sample_nums()
 
     test_make_plurality_assertions()
     test_supermajority_assorter()
