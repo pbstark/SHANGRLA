@@ -1,0 +1,17 @@
+<?xml version="1.0" ?><Cvr xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://tempuri.org/CVRDesign.xsd"><Contests><Contest><Name>PRESIDENT AND VICE PRESIDENT</Name><Id>5f6639a9-f989-45f9-810d-16611468ae7a</Id><Options><Option><Name>JOSEPH R. BIDEN
+KAMALA D. HARRIS</Name><Id>6563ae4b-9af7-413d-8c05-82a9b8537089</Id><Value>1</Value></Option></Options></Contest><Contest><Name>UNITED STATES REPRESENTATIVE
+49th District</Name><Id>df844ae6-f9b6-4f40-8de0-5a2769cd0978</Id><Options><Option><Name>MIKE LEVIN</Name><Id>a58b314c-9709-474d-bcd6-97093abf24f6</Id><Value>1</Value></Option></Options></Contest><Contest><Name>MEMBER OF THE STATE ASSEMBLY
+73rd District</Name><Id>406334e3-7dd9-4229-9f4c-b66040c3ec70</Id><Options><Option><Name>LAURIE DAVIES</Name><Id>9431d49e-5dbc-4b2c-9bcf-cebe786a7cad</Id><Value>1</Value></Option></Options></Contest><Contest><Name>SOUTH ORANGE COUNTY COMMUNITY COLLEGE DISTRICT
+Governing Board Member,
+Trustee Area 1</Name><Id>076d687a-e4a0-4c89-b49b-8f752b2e928f</Id><Options/><Undervotes>1</Undervotes></Contest><Contest><Name>SOUTH ORANGE COUNTY COMMUNITY COLLEGE DISTRICT
+Governing Board Member,
+Trustee Area 6</Name><Id>cd7582f3-3327-4b17-b6ef-40153592b30c</Id><Options/><Undervotes>1</Undervotes></Contest><Contest><Name>SOUTH ORANGE COUNTY COMMUNITY COLLEGE DISTRICT
+Governing Board Member,
+Trustee Area 7</Name><Id>4d21d301-484b-4724-921b-2c58528b0857</Id><Options/><Undervotes>1</Undervotes></Contest><Contest><Name>CAPISTRANO UNIFIED SCHOOL DISTRICT
+Governing Board Member,
+Trustee Area 3</Name><Id>19a761e6-72cc-4870-8bf2-cbaf4109b56c</Id><Options/><Undervotes>1</Undervotes></Contest><Contest><Name>CITY OF SAN CLEMENTE
+Member, City Council, Full Term</Name><Id>37e4e0b2-55be-4dde-9cdb-1ee93b75c876</Id><Options/><Undervotes>2</Undervotes></Contest><Contest><Name>CITY OF SAN CLEMENTE
+Member, City Council, Short Term</Name><Id>88b0ed91-57c5-417f-a1c4-4aa13ad4cded</Id><Options/><Undervotes>1</Undervotes></Contest><Contest><Name>CITY OF SAN CLEMENTE
+City Clerk</Name><Id>84ea2b6b-31c7-4e3b-ab7b-e180ee7d6676</Id><Options/><Undervotes>1</Undervotes></Contest><Contest><Name>CITY OF SAN CLEMENTE
+City Treasurer</Name><Id>71542595-3976-4518-beda-15412aafa26b</Id><Options/><Undervotes>1</Undervotes></Contest><Contest><Name>MUNICIPAL WATER DISTRICT OF ORANGE COUNTY
+Director, Division 7</Name><Id>c31a3e33-84ca-49f7-8df8-75297feab61f</Id><Options/><Undervotes>1</Undervotes></Contest><Contest><Name>Proposition 14</Name><Id>a2bb1c54-b8a4-4e07-a95f-6adb567f4eb8</Id><Options><Option><Name>Yes</Name><Id>3af94482-f558-4a68-ab0e-35bf860d3481</Id><Value>1</Value></Option></Options></Contest><Contest><Name>Proposition 15</Name><Id>f8316cbe-1d95-4f70-9e01-fa90ac86fa36</Id><Options><Option><Name>No</Name><Id>2bdb3a31-2a67-4ce3-930d-c308a95e8efd</Id><Value>1</Value></Option></Options></Contest><Contest><Name>Proposition 16</Name><Id>c2749cba-11ac-4454-b9ff-2dab8ff3a92c</Id><Options><Option><Name>No</Name><Id>fa74cdb7-0a2d-4d59-ac61-645d620b66fb</Id><Value>1</Value></Option></Options></Contest></Contests><BatchSequence>69</BatchSequence><SheetNumber>1</SheetNumber><PrecinctSplit><Name>48142</Name><Id>9b3c706c-ace9-471e-966c-1ec9e3ed2d3f</Id></PrecinctSplit><BatchNumber>2313</BatchNumber><CvrGuid>2wn7RwLGVymKH7w1sAo4hRXHFlA4tyz6</CvrGuid></Cvr>
