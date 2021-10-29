@@ -122,7 +122,7 @@ def sample_from_manifest(manifest, sample):
         cards.append(card)
     return cards
 
-def sample_from_cvr(cvr_list, manifest, sample):
+def sample_from_cvrs(cvr_list, manifest, sample):
     """
     Sample from a list of CVRs. 
     Return information needed to find the corresponding cards, the CVRs in the sample, 
