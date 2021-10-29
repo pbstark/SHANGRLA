@@ -53,7 +53,7 @@ def prep_manifest(manifest, N_cards, n_cvrs):
         manifest[c] = manifest[c].astype(str)
     return manifest, manifest_cards, N_cards - n_cvrs
 
-def read_hart_cvr(cvr_path):
+def read_cvr(cvr_path):
     """
     read a single Hart CVR from XML into python
 
