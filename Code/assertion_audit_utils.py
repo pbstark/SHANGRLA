@@ -997,7 +997,7 @@ class TestNonnegMean:
         p-value
         
         '''       
-        if any(x < 0):
+        if any(xx < 0 for xx in x):
             raise ValueError('Negative value in sample from a nonnegative population.')
         return np.min([1, np.min(np.cumprod((t+g)/(x+g))) if random_order else np.prod((t+g)/(x+g))])
 
@@ -1033,7 +1033,7 @@ class TestNonnegMean:
         '''       
         if g < 0:
             raise ValueError('g cannot be negative')
-        if any(x < 0):
+        if any(xx < 0 for xx in x):
             raise ValueError('Negative value in sample from a nonnegative population.')
         return np.min([1, 1/np.max(np.cumprod((1-g)*x/t + g)) if random_order \
                        else 1/np.prod((1-g)*x/t + g)])
@@ -1400,6 +1400,10 @@ def find_p_values(contests, assertions, mvr_sample, cvr_sample, use_style, risk_
     p_max : float
         largest p-value for any assertion in any contest
         
+    Side-effects
+    ------------
+    Sets contest max_p to be the largest P-value of any assertion for that contest
+    
     '''
     assert len(mvr_sample) == len(cvr_sample), "unequal numbers of cvrs and mvrs"
     p_max = 0
@@ -1422,7 +1426,7 @@ def find_p_values(contests, assertions, mvr_sample, cvr_sample, use_style, risk_
 
 def find_sample_size(contests, assertions, sample_size_function):
     '''
-    Find initial sample size
+    Find initial sample size: maximum across assertions for all contests.
     
     Parameters:
     -----------
