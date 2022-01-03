@@ -922,15 +922,20 @@ class TestNonnegMean:
     TESTS = ['kaplan_markov','kaplan_wald','kaplan_kolmogorov','wald_sprt','kaplan_martingale']
     
     @classmethod
-    def wald_sprt(cls, x, N, t = 1/2, p1=1, random_order = True):
+    def wald_sprt(cls, x : np.array, N : int, mu : float=1/2, eta: float=1-np.finfo(float).eps, \
+              u: float=1, random_order = True):
         '''
         Finds the p value for the hypothesis that the population 
-        mean is less than or equal to t against the alternative that it is p1,
-        for a binary population of size N.
-       
+        mean is less than or equal to mu against the alternative that it is eta,
+        for a population of size N of values in the interval [0, u].
+    
+        Generalizes Wald's SPRT for the Bernoulli to sampling without replacement and to 
+        nonnegative bounded values rather than binary values. 
+        See Stark, 2022. ALPHA: Audit that Learns from Previous Hand-Audited Ballots
+
         If N is finite, assumes the sample is drawn without replacement
         If N is infinite, assumes the sample is with replacement
-       
+    
         Parameters:
         -----------
         x : binary list, one element per draw. A list element is 1 if the 
@@ -938,33 +943,24 @@ class TestNonnegMean:
         N : int
             population size for sampling without replacement, or np.infinity for 
             sampling with replacement
-        t : float in (0,1)
-            hypothesized fraction of ones in the population
-        p1 : float in (0,1) greater than t
-            alternative hypothesized fraction of ones in the population
+        mu : float in (0,u)
+            hypothesized population mean
+        eta : float in (0,u) 
+            alternative hypothesized population mean
         random_order : Boolean
             if the data are in random order, setting this to True can improve the power.
             If the data are not in random order, set to False
         '''
-        if any(xx not in [0,1] for xx in x):
-            raise ValueError("Data must be binary")
-        terms = np.ones(len(x))
+        if any((xx < 0 or xx > u) for xx in x):
+            raise ValueError(f'Data out of range [0,{u}]')
         if np.isfinite(N):
-            A = np.cumsum(np.insert(x, 0, 0)) # so that cumsum does the right thing
-            for k in range(len(x)):
-                if x[k] == 1.0:
-                    if (N*t - A[k]) > 0:
-                        terms[k] = np.max([N*p1 - A[k], 0])/(N*t - A[k])
-                    else:
-                        terms[k] = np.inf
-                else:
-                    if (N*(1-t) - k + 1 + A[k]) > 0:
-                        terms[k] = np.max([(N*(1-p1) - k + 1 + A[k]), 0])/(N*(1-t) - k + 1 + A[k])
-                    else:
-                        terms[k] = np.inf
+            m = mu
         else:
-            terms[x==0] = (1-p1)/(1-t)
-            terms[x==1] = p1/t
+            S = np.insert(np.cumsum(x),0,0)[0:-1]  # 0, x_1, x_1+x_2, ...,  
+            j = np.arange(1,len(x)+1)              # 1, 2, 3, ..., len(x)
+            m = (N*mu-S)/(N-j+1)                   # mean of population after (j-1)st draw, if null is true
+        terms = np.cumprod((x*eta/m + (1-x)*(u-eta)/(u-m))/u) # generalization of Bernoulli SPRT
+        terms[m<0] = np.inf                        # the null is surely false
         return 1/np.max(np.cumprod(terms)) if random_order else 1/np.prod(terms)
 
     @classmethod
