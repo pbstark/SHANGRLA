@@ -954,12 +954,12 @@ class TestNonnegMean:
         if any((xx < 0 or xx > u) for xx in x):
             raise ValueError(f'Data out of range [0,{u}]')
         if np.isfinite(N):
-            m = mu
-        else:
             S = np.insert(np.cumsum(x),0,0)[0:-1]  # 0, x_1, x_1+x_2, ...,  
             j = np.arange(1,len(x)+1)              # 1, 2, 3, ..., len(x)
             m = (N*mu-S)/(N-j+1)                   # mean of population after (j-1)st draw, if null is true
-        terms = np.cumprod((x*eta/m + (1-x)*(u-eta)/(u-m))/u) # generalization of Bernoulli SPRT
+        else:
+            m = mu
+        terms = np.cumprod((x*eta/m + (u-x)*(u-eta)/(u-m))/u) # generalization of Bernoulli SPRT
         terms[m<0] = np.inf                        # the null is surely false
         return 1/np.max(np.cumprod(terms)) if random_order else 1/np.prod(terms)
 
