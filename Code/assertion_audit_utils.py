@@ -1007,7 +1007,7 @@ class TestNonnegMean:
                    estim: callable=shrink_trunc) -> float :
         '''
         Finds the ALPHA martingale for the hypothesis that the population 
-        mean is less than or equal to t using a martingale method,
+        mean is less than or equal to mu using a martingale method,
         for a population of size N, based on a series of draws x.
 
         The draws must be in random order, or the sequence is not a martingale under the null
@@ -1020,17 +1020,17 @@ class TestNonnegMean:
         x : list corresponding to the data
         N : int
             population size for sampling without replacement, or np.infinity for sampling with replacement
-        mu : float in (0,1)
+        mu : float in [0,u)
             hypothesized fraction of ones in the population
-        eta : float in (t,1) 
+        eta : float in (mu,u] 
             alternative hypothesized population mean
         estim : callable
             estim(x, N, mu, eta, u) -> np.array of length len(x), the sequence of values of eta_j for ALPHA
 
         Returns
         -------   
-        terms : array
-            sequence of terms that would be a nonnegative martingale under the null
+        P : float
+            sequentially valid p-value of the hypothesis that the population mean is less than or equal to mu
         '''
         S = np.insert(np.cumsum(x),0,0)[0:-1]  # 0, x_1, x_1+x_2, ...,  
         j = np.arange(1,len(x)+1)              # 1, 2, 3, ..., len(x)
