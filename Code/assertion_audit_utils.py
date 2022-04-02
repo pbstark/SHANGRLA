@@ -6,6 +6,7 @@ import pandas as pd
 import json
 import csv
 import warnings
+import typing
 from numpy import testing
 from collections import OrderedDict
 from cryptorandom.cryptorandom import SHA256, random, int_from_hash
@@ -24,19 +25,39 @@ class Assertion:
     
     JSON_ASSERTION_TYPES = ["WINNER_ONLY", "IRV_ELIMINATION"]  # supported json assertion types
     
-    def __init__(self, contest = None, assorter = None, margin = 0, p_value = 1, proved = False):
+    def __init__(self, contest = None, assorter = None, margin = 0, p_value = 1, p_history=None, proved = False):
         '''
         The assorter is callable; should produce a non-negative real.
+        
+        Parameters
+        ----------
+        
+        contest : object
+            identifier of the contest to which the assorter is relevant
+        assorter : callable
+            the assorter for the assertion
+        margin : float
+            the assorter margin 
+        p_value : float
+            the current p-value for the complementary null hypothesis that the assertion is false
+        p_history : list 
+            the history of p-values, sample by sample. Generally, it is valid only for sequential risk-measuring
+            functions.
+        proved : boolean
+            has the complementary null hypothesis been rejected?
+        
         '''
         self.assorter = assorter
         self.contest = contest
         self.margin = margin
         self.p_value = p_value
+        self.p_history = p_history
         self.proved = proved
         
     def __str__(self):
-        return "contest: " + str(self.contest) + " margin: " + self.margin \
-               + " p-value: " + str(self.p_value) + " proved: " + str(self.proved) 
+        return (f'contest: {self.contest} margin: {self.margin} p-value: {self.p_value}'
+                f'p-history length: {len(p_history)} proved: {self.proved}'
+               )
 
     def set_assorter(self, assorter):
         self.assorter = assorter
@@ -55,7 +76,13 @@ class Assertion:
         
     def get_p_value(self):
         return self.p_value
+    
+    def set_p_history(self, p_history):
+        self.p_history = p_history
 
+    def get_p_history(self):
+        return self.p_history
+    
     def set_margin(self, margin):
         self.margin = margin
         
@@ -70,6 +97,9 @@ class Assertion:
 
     def assort(self, cvr, use_style=True):
         return self.assorter(cvr)
+    
+    def min_p(self):
+        return min(self.p_history)
     
     def assorter_mean(self, cvr_list, use_style=True):
         '''
@@ -122,7 +152,7 @@ class Assertion:
     def assorter_margin(self, cvr_list, use_style=True):
         '''
         find the margin for a list of Cvrs. 
-        By definition, the margin is the mean of the assorter minus 1/2, times 2
+        By definition, the margin is twice the mean of the assorter, minus 1.
         
         Parameters:
         ----------
@@ -512,8 +542,10 @@ class CVR:
     
     CVRs can be flagged as "phantoms" to account for cards not listed in the manifest (Boolean `phantom` attribute).
     
-    CVRs can also include sampling probabilities `p` and sample numbers `sample_num` (random numbers assigned to 
-    CVRs to facilitate consistent sampling)
+    CVRs can include sampling probabilities `p` and sample numbers `sample_num` (random numbers to facilitate 
+        consistent sampling)
+    
+    CVRs can include a sequence number to facilitate ordering and reordering
      
     Methods:
     --------
@@ -911,20 +943,21 @@ class CVR:
 class TestNonnegMean:
     '''
     Tests of the hypothesis that the mean of a non-negative population is less than t.
-        Several tests are implemented, all ultimately based on martingales:
+        Several tests are implemented, all ultimately based on martingales or supermartingales:
             Kaplan-Markov
             Kaplan-Wald
             Kaplan-Kolmogorov
             Wald SPRT with replacement (only for binary-valued populations)
             Wald SPRT without replacement (only for binary-valued populations)
-            Kaplan's martingale (KMart)        
+            Kaplan's martingale (KMart)  
+            ALPHA supermartingale test
     '''
     
-    TESTS = ['kaplan_markov','kaplan_wald','kaplan_kolmogorov','wald_sprt','kaplan_martingale']
+    TESTS = ['kaplan_markov','kaplan_wald','kaplan_kolmogorov','wald_sprt','kaplan_mart','alpha_mart']
     
     @classmethod
     def wald_sprt(cls, x : np.array, N : int, mu : float=1/2, eta: float=1-np.finfo(float).eps, \
-              u: float=1, random_order = True):
+              u: float=1, random_order = True) -> typing.Tuple[float, np.array]:
         '''
         Finds the p value for the hypothesis that the population 
         mean is less than or equal to mu against the alternative that it is eta,
@@ -939,8 +972,8 @@ class TestNonnegMean:
         
         If the sample is drawn without replacement, the data must be in random order
     
-        Parameters:
-        -----------
+        Parameters
+        ----------
         x : binary list, one element per draw. A list element is 1 if the 
             the corresponding trial was a success
         N : int
@@ -953,6 +986,13 @@ class TestNonnegMean:
         random_order : Boolean
             if the data are in random order, setting this to True can improve the power.
             If the data are not in random order, set to False
+            
+        Returns
+        -------
+        p : float
+            p-value
+        p_history : numpy array
+            sample by sample history of p-values. Not meaningful unless the sample is in random order.
         '''
         if any((xx < 0 or xx > u) for xx in x):
             raise ValueError(f'Data out of range [0,{u}]')
@@ -967,7 +1007,7 @@ class TestNonnegMean:
         with np.errstate(divide='ignore',invalid='ignore'):
             terms = np.cumprod((x*eta/m + (u-x)*(u-eta)/(u-m))/u) # generalization of Bernoulli SPRT
         terms[m<0] = np.inf                        # the null is surely false
-        return 1/np.max(np.cumprod(terms)) if random_order else 1/np.prod(terms)
+        return 1/np.max(np.cumprod(terms)) if random_order else 1/np.prod(terms), np.minimum(1,1/np.cumprod(terms))
 
     @classmethod
     def shrink_trunc(cls, x: np.array, N: int, mu: float=1/2, nu: float=1-np.finfo(float).eps, u: float=1, c: float=1/2, 
@@ -1003,14 +1043,14 @@ class TestNonnegMean:
         return np.minimum(u*(1-np.finfo(float).eps), np.maximum((d*nu+S)/(d+j-1),m+c/np.sqrt(d+j-1)))
     
     @classmethod
-    def alpha_mart(cls, x: np.array, N: int, mu: float=1/2, eta: float=1-np.finfo(float).eps, u: float=1, \
-                   estim: callable=shrink_trunc) -> float :
+    def alpha_mart(cls, x: np.array, N: int, t: float=1/2, eta: float=1-np.finfo(float).eps, u: float=1, \
+                   estim: callable=None) -> typing.Tuple[float, np.array] :
         '''
         Finds the ALPHA martingale for the hypothesis that the population 
         mean is less than or equal to mu using a martingale method,
         for a population of size N, based on a series of draws x.
 
-        The draws must be in random order, or the sequence is not a martingale under the null
+        **The draws must be in random order**, or the sequence is not a supermartingale under the null
 
         If N is finite, assumes the sample is drawn without replacement
         If N is infinite, assumes the sample is with replacement
@@ -1020,30 +1060,38 @@ class TestNonnegMean:
         x : list corresponding to the data
         N : int
             population size for sampling without replacement, or np.infinity for sampling with replacement
-        mu : float in [0,u)
+        t : float in [0,u)
             hypothesized fraction of ones in the population
         eta : float in (mu,u] 
             alternative hypothesized population mean
-        estim : callable
+        estim : function (note: class methods are not of type Callable)
             estim(x, N, mu, eta, u) -> np.array of length len(x), the sequence of values of eta_j for ALPHA
 
         Returns
         -------   
-        P : float
+        p : float
             sequentially valid p-value of the hypothesis that the population mean is less than or equal to mu
+        p_history : numpy array
+            sample by sample history of p-values. Not meaningful unless the sample is in random order.
         '''
+        if not estim:
+            estim = TestNonnegMean.shrink_trunc
         S = np.insert(np.cumsum(x),0,0)[0:-1]  # 0, x_1, x_1+x_2, ...,  
         j = np.arange(1,len(x)+1)              # 1, 2, 3, ..., len(x)
-        m = (N*mu-S)/(N-j+1) if np.isfinite(N) else mu   # mean of population after (j-1)st draw, if null is true 
-        etaj = estim(x, N, mu, eta, u) 
+        m = (N*t-S)/(N-j+1) if np.isfinite(N) else t   # mean of population after (j-1)st draw, if null is true 
+        etaj = estim(x, N, t, eta, u) 
+        x = np.array(x)
         with np.errstate(divide='ignore',invalid='ignore'):
-            terms = np.cumprod((x*etaj/m + (1-x)*(u-etaj)/(u-m))/u)
+            terms = np.cumprod((x*etaj/m + (u-x)*(u-etaj)/(u-m))/u)
         terms[m<0] = np.inf
-        return np.min([1, 1/np.max(terms)])
+        terms[m==0] = 1
+        terms[m==u] = 1
+        return min(1, 1/np.max(terms)), np.minimum(1,1/terms)
 
 
     @classmethod
-    def kaplan_markov(cls, x, t=1/2, g=0, random_order=True):
+    def kaplan_markov(cls, x : np.array, t : float=1/2, g : float=0, random_order : bool=True) \
+                      -> typing.Tuple[float, np.array]:
         '''
         Kaplan-Markov p-value for the hypothesis that the sample x is drawn IID from a population
         with mean t against the alternative that the mean is less than t.
@@ -1069,15 +1117,20 @@ class TestNonnegMean:
         
         Returns:
         --------
-        p-value
-        
+        p : float
+           the p-value
+        p_history : numpy array
+            sample by sample history of p-values. Not meaningful unless the sample is in random order.      
         '''       
         if any(xx < 0 for xx in x):
             raise ValueError('Negative value in sample from a nonnegative population.')
-        return np.min([1, np.min(np.cumprod((t+g)/(x+g))) if random_order else np.prod((t+g)/(x+g))])
+        p_history = np.cumprod((t+g)/(x+g))
+        return np.min([1, np.min(p_history) if random_order else np.prod((t+g)/(x+g))]), \
+               np.minimum(p_history,1)
 
     @classmethod
-    def kaplan_wald(cls, x, t=1/2, g=0, random_order=True):
+    def kaplan_wald(cls, x : np.array, t : float=1/2, g : float=0, random_order: bool=True) \
+                    -> typing.Tuple[float, np.array]:
         '''
         Kaplan-Wald p-value for the hypothesis that the sample x is drawn IID from a population
         with mean t against the alternative that the mean is less than t.
@@ -1103,18 +1156,23 @@ class TestNonnegMean:
 
         Returns:
         --------
-        p-value
+        p : float
+            p-value
+        p_history : numpy array
+            sample by sample history of p-values. Not meaningful unless the sample is in random order.      
        
         '''       
         if g < 0:
             raise ValueError('g cannot be negative')
         if any(xx < 0 for xx in x):
             raise ValueError('Negative value in sample from a nonnegative population.')
-        return np.min([1, 1/np.max(np.cumprod((1-g)*x/t + g)) if random_order \
-                       else 1/np.prod((1-g)*x/t + g)])
+        p_history = np.cumprod((1-g)*x/t + g)
+        return np.min([1, 1/np.max(p_history) if random_order \
+                       else 1/p_history[-1]]), np.minimum(1/p_history, 1)
     
     @classmethod
-    def kaplan_kolmogorov(cls, x, N, t=1/2, g=0, random_order = True):
+    def kaplan_kolmogorov(cls, x : np.array, N : int, t : float=1/2, g : float=0, \
+                          random_order : bool=True) -> typing.Tuple[float, np.array]:
         '''
         p-value for the hypothesis that the mean of a nonnegative population with N
         elements is t. The alternative is that the mean is less than t.
@@ -1125,8 +1183,8 @@ class TestNonnegMean:
         g is a tuning parameter to protect against data values equal to zero.
         g should be in [0, 1)
         
-        Parameters:
-        -----------
+        Parameters
+        ----------
         x : list
             observations
         N : int
@@ -1135,6 +1193,13 @@ class TestNonnegMean:
             null value of the population mean
         g : float in [0, 1)
             "padding" to protect against zeros
+        
+        Returns
+        -------
+        p : float
+           the p-value
+        p_history : numpy array
+            sample by sample history of p-values. Not meaningful unless the sample is in random order.              
         '''
         x = np.array(x)
         assert all(x >=0),  'Negative value in a nonnegative population!'
@@ -1142,19 +1207,14 @@ class TestNonnegMean:
         assert N > 0,       'Population size not positive!'
         assert N == int(N), 'Non-integer population size!'
         
-        sample_total = 0.0
-        mart = (x[0]+g)/(t+g) if t > 0 else 1
-        mart_max = mart
-        for j in range(1, len(x)):
-            mart *= (x[j]+g)*(1-j/N)/(t+g - (1/N)*sample_total)
-            if mart < 0:
-                mart = np.inf
-                break
-            else:
-                sample_total += x[j]+g
-            mart_max = max(mart, mart_max)
-        p = min((1/mart_max if random_order else 1/mart),1)
-        return p 
+        S = np.insert(np.cumsum(x+g),0,0)[0:-1]  # 0, x_1, x_1+x_2, ...,  
+        j = np.arange(1,len(x)+1)              # 1, 2, 3, ..., len(x)
+        m = (N*(t+g)-S)/(N-j+1) if np.isfinite(N) else t+g   # mean of population after (j-1)st draw, if null is true 
+        with np.errstate(divide='ignore',invalid='ignore'):
+            terms = np.cumprod((x+g)/m)
+        terms[m<0] = np.inf
+        p = min((1/np.max(terms) if random_order else 1/terms[-1]),1)
+        return p, np.minimum(1/terms, 1)
 
     @classmethod
     def integral_from_roots(cls, c, maximal=True):
@@ -1191,7 +1251,7 @@ class TestNonnegMean:
         return integral, integrals
 
     @classmethod
-    def kaplan_martingale(cls, x, N, t=1/2, random_order = True):
+    def kaplan_mart(cls, x : np.array, N : int, t : float=1/2, random_order : bool = True) -> typing.Tuple[float, np.array]:
         '''
         p-value for the hypothesis that the mean of a nonnegative population with 
         N elements is t, based on a result of Kaplan, computed with a recursive 
@@ -1220,8 +1280,8 @@ class TestNonnegMean:
         -------  
         p : float 
             p-value of the null
-        mart_vec : array
-            martingale as elements are added to the sample
+        p_history : numpy array
+            history of p-values. Not meaningful unless the sample is in random order.
           
         '''
         x = np.array(x)
@@ -1230,7 +1290,6 @@ class TestNonnegMean:
         assert N > 0,       'Population size not positive!'
         if np.isfinite(N):
             assert N == int(N), 'Non-integer population size!'
-
         Stilde = (np.insert(np.cumsum(x),0,0)/N)[0:len(x)] # \tilde{S}_{j-1}
         t_minus_Stilde = t - Stilde
         mart_max = 1
@@ -1268,7 +1327,7 @@ class TestNonnegMean:
         # get p-value as inverse of martingale
         p = min(1/mart_max,1)
 
-        return p, mart_vec                  
+        return p, np.minimum(1/mart_vec, 1)                 
         
     @classmethod
     def initial_sample_size(cls, risk_function, N, margin, error_rate, alpha=0.05, t=1/2, u=1, reps=None,\
@@ -1295,7 +1354,7 @@ class TestNonnegMean:
         Parameters:
         -----------
         risk_function : callable
-            risk function to use. risk_function should take one argument, x. 
+            risk function to use. risk_function should take one argument, x, and return a p-value
         N : int
             population size, or N = np.infty for sampling with replacement
         margin : float
@@ -1410,18 +1469,24 @@ def check_audit_parameters(risk_function, g, error_rate, contests):
             assert contests[c]['share_to_win'] >= 0.5, \
                 'super-majority contest requires winning at least 50% of votes in ' + c + ' contest'
 
-def find_margins(contests, assertions, cvr_list, use_style):
+def find_margins(contests : dict, assertions : dict, cvr_list : list, use_style : bool):
     '''
     Find all the assorter margins in a set of Assertions. Updates the dict of dicts of assertions,
     and the contest dict.
     
-    This function is primarily about side-effects
+    Appropriate only if cvrs are available. Otherwise, base margins on the reported results.
+    
+    This function is primarily about side-effects.
     
     Parameters:
     -----------
     contests : dict of contest data
     assertions : dict of dicts of Assertions
         Keys in the main dict are contests; keys in the contained dicts are Assertions
+    cvr_list : list
+        list of cvr objects
+    use_style : bool
+        flag to sample using style information
     
     Returns:
     --------
@@ -1443,11 +1508,12 @@ def find_margins(contests, assertions, cvr_list, use_style):
             min_margin = np.min([min_margin, margin])
     return min_margin
 
-def find_p_values(contests, assertions, mvr_sample, cvr_sample, use_style, risk_function):
+def find_p_values(contests : dict, assertions : dict, mvr_sample : list, cvr_sample : list=None, \
+                  use_style : bool=False, risk_function : object=TestNonnegMean.kaplan_wald) -> float :
     '''
-    Find the p-value for every assertion in assertions; update data structure to
-    include the p-values for the assertions, flag "proved" assertions, and note 
-    the maximum p-value for each contest.
+    Find the p-value for every assertion in assertions and update assertions & contests accordingly
+    
+    update p_value, p_history, proved flag, the maximum p-value for each contest.
     
     Primarily about side-effects.
     
@@ -1462,12 +1528,13 @@ def find_p_values(contests, assertions, mvr_sample, cvr_sample, use_style, risk_
         the manually ascertained voter intent from sheets, including entries for phantoms
     
     cvr_sample : list of CVR objects
-        the cvrs for the same sheets
+        the cvrs for the same sheets, for ballot-level comparison audits
+        not needed for polling audits
         
     use_style : Boolean
         See documentation
         
-    risk_function : callable
+    risk_function : function (class methods are not of type Callable)
         function to calculate the p-value from overstatement_assorter values
         
     Returns:
@@ -1478,9 +1545,11 @@ def find_p_values(contests, assertions, mvr_sample, cvr_sample, use_style, risk_
     Side-effects
     ------------
     Sets contest max_p to be the largest P-value of any assertion for that contest
+    Updates p_value, p_history, and proved for every assertion
     
     '''
-    assert len(mvr_sample) == len(cvr_sample), "unequal numbers of cvrs and mvrs"
+    if cvr_sample is not None:
+        assert len(mvr_sample) == len(cvr_sample), "unequal numbers of cvrs and mvrs"
     p_max = 0
     for c in contests.keys():
         contests[c]['p_values'] = {}
@@ -1488,9 +1557,12 @@ def find_p_values(contests, assertions, mvr_sample, cvr_sample, use_style, risk_
         contest_max_p = 0
         for asrtn in assertions[c]:
             a = assertions[c][asrtn]
-            d = [a.overstatement_assorter(mvr_sample[i], cvr_sample[i],\
-                 a.margin, use_style=use_style) for i in range(len(mvr_sample))]
-            a.p_value = risk_function(d)
+            if cvr_sample: # comparison audit
+                d = [a.overstatement_assorter(mvr_sample[i], cvr_sample[i],\
+                    a.margin, use_style=use_style) for i in range(len(mvr_sample))]
+            else:         # polling audit
+                d = [a.assort(mvr_sample[i], use_style=use_style) for i in range(len(mvr_sample))]
+            a.p_value, a.p_history = risk_function(d)
             a.proved = (a.p_value <= contests[c]['risk_limit']) or a.proved
             contests[c]['p_values'].update({asrtn: a.p_value})
             contests[c]['proved'].update({asrtn: int(a.proved)})
@@ -1524,7 +1596,7 @@ def find_sample_size(contests, assertions, sample_size_function):
             sample_size = np.max([sample_size, n] )
     return sample_size
 
-def prep_sample(mvr_sample, cvr_sample):
+def prep_comparison_sample(mvr_sample, cvr_sample):
     '''
     prepare the MVRs and CVRs for comparison by putting the MVRs into the same (random) order
     in which the CVRs were selected
@@ -1533,15 +1605,15 @@ def prep_sample(mvr_sample, cvr_sample):
     
     Side-effects: sorts the mvr sample into the same order as the cvr sample
     
-    Parameters:
-    -----------
+    Parameters
+    ----------
     mvr_sample: list of CVR objects 
         the manually determined votes for the audited cards
     cvr_sample: list of CVR objects
         the electronic vote record for the audited cards 
     
-    Returns:
-    --------
+    Returns
+    -------
     '''
     id_lookup = [c.id for c in cvr_sample]
     mvr_sample.sort(key= lambda x: id_lookup.index(x.id))
@@ -1550,10 +1622,36 @@ def prep_sample(mvr_sample, cvr_sample):
         "Number of cvrs ({}) and mvrs ({}) doesn't match".format(len(cvr_sample), len(mvr_sample))
     for i in range(len(cvr_sample)):
         assert mvr_sample[i].id == cvr_sample[i].id, \
-    "Mismatch between id of cvr ({}) and mvr ({})".format(cvr_sample[i].id, mvr_sample[i].id)
+            "Mismatch between id of cvr ({}) and mvr ({})".format(cvr_sample[i].id, mvr_sample[i].id)
+        
+def prep_polling_sample(mvr_sample : list, sample_lookup : list, sample : list):
+    '''
+    Put the mvr sample back into the random selection order.
+    
+    Only about the side effects.
+    
+    Parameters
+    ----------
+    mvr_sample : list
+        list of CVR objects
+    sample_lookup : list of lists
+        identifiers and original order numbers for cards in the sample. 
+        The last entry in each element is assumed to be the original row number of the item, 
+        the index used to draw the sample.
+        The next-to-last entry of each element is assumed to be the ID of the mvr
+    sample : list
+        1-indexed list of indices, in selection order
+    
+    Returns
+    -------
+    only side effects: mvr_sample is reordered
+    '''
+    sls = sorted(sample_lookup, key = lambda x: sample.tolist().index(x[-1]))
+    id_list = [s[-2] for s in sls]
+    mvr_sample.sort(key = lambda x: id_list.index(x.id))
 
-def new_sample_size(contests, assertions, mvr_sample, cvr_sample, use_style,\
-                    risk_function, quantile=0.5, reps=200, seed=1234567890):
+def new_sample_size(contests, assertions, mvr_sample, cvr_sample=None, use_style=True,\
+                    risk_function=TestNonnegMean.alpha_mart, quantile=0.5, reps=200, seed=1234567890):
     '''
     Estimate the total sample size expected to allow the audit to complete,
     if discrepancies continue at the same rate already observed.
@@ -1571,7 +1669,7 @@ def new_sample_size(contests, assertions, mvr_sample, cvr_sample, use_style,\
         the manually ascertained voter intent from sheets, including entries for phantoms
     
     cvr_sample : list of CVR objects
-        the cvrs for the same sheets
+        the cvrs for the same sheets. For 
         
     use_style : Boolean
         If True, use style information inferred from CVRs to target the sample on cards that contain
@@ -1579,7 +1677,7 @@ def new_sample_size(contests, assertions, mvr_sample, cvr_sample, use_style,\
         
     risk_function : callable
         function to calculate the p-value from overstatement_assorter values.
-        Should take one argument, the sample x
+        Should take one argument, the sample x. 
         
     quantile : float
         estimated quantile of the sample size to return
@@ -1607,12 +1705,15 @@ def new_sample_size(contests, assertions, mvr_sample, cvr_sample, use_style,\
                 if not assertions[c][asrtn].proved:    
                     a = assertions[c][asrtn]
                     p = a.p_value
-                    d = [a.overstatement_assorter(mvr_sample[i], cvr_sample[i],\
-                         a.margin, use_style=use_style) for i in range(len(mvr_sample))]
+                    if cvr_sample:
+                        d = [a.overstatement_assorter(mvr_sample[i], cvr_sample[i],\
+                            a.margin, use_style=use_style) for i in range(len(mvr_sample))]
+                    else:
+                        d = [a.assort(mvr_sample[i], use_style=use_style) for i in range(len(mvr_sample))]
                     while p > contests[c]['risk_limit']:
                         one_more = sample_by_index(len(d), 1, prng=prng)[0]
                         d.append(d[one_more-1])
-                        p = risk_function(d)
+                        p = risk_function(d)[0]
                     new_size = np.max([new_size, len(d)])
         sams[r] = new_size 
     new_size = np.quantile(sams, quantile)
@@ -1658,6 +1759,16 @@ def summarize_status(contests, assertions):
                     print("{}: current risk {}".format(a, assertions[c][a].p_value))
     return done
 
+class NpEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, np.integer):
+            return int(obj)
+        if isinstance(obj, np.floating):
+            return float(obj)
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        return super(NpEncoder, self).default(obj)
+
 def write_audit_parameters(log_file, seed, replacement, risk_function, g, \
                            max_cards, n_cvrs, manifest_cards, phantom_cards, error_rate, contests):
     '''
@@ -1699,7 +1810,7 @@ def write_audit_parameters(log_file, seed, replacement, risk_function, g, \
            "contests" : contests
           }
     with open(log_file, 'w') as f:
-        f.write(json.dumps(out))
+        f.write(json.dumps(out, cls=NpEncoder))
 
 def trim_ints(x):
     '''
@@ -2030,10 +2141,10 @@ def test_cvr_has_contest():
     
 def test_kaplan_markov():
     s = np.ones(5)
-    np.testing.assert_almost_equal(TestNonnegMean.kaplan_markov(s), 2**-5)
+    np.testing.assert_almost_equal(TestNonnegMean.kaplan_markov(s)[0], 2**-5)
     s = np.array([1, 1, 1, 1, 1, 0])
-    np.testing.assert_almost_equal(TestNonnegMean.kaplan_markov(s, g=0.1),(1.1/.6)**-5)
-    np.testing.assert_almost_equal(TestNonnegMean.kaplan_markov(s, g=0.1, random_order = False),(1.1/.6)**-5 * .6/.1)
+    np.testing.assert_almost_equal(TestNonnegMean.kaplan_markov(s, g=0.1)[0],(1.1/.6)**-5)
+    np.testing.assert_almost_equal(TestNonnegMean.kaplan_markov(s, g=0.1, random_order = False)[0],(1.1/.6)**-5 * .6/.1)
     s = np.array([1, -1])
     try:
         TestNonnegMean.kaplan_markov(s)
@@ -2044,10 +2155,10 @@ def test_kaplan_markov():
 
 def test_kaplan_wald():
     s = np.ones(5)
-    np.testing.assert_almost_equal(TestNonnegMean.kaplan_wald(s), 2**-5)
+    np.testing.assert_almost_equal(TestNonnegMean.kaplan_wald(s)[0], 2**-5)
     s = np.array([1, 1, 1, 1, 1, 0])
-    np.testing.assert_almost_equal(TestNonnegMean.kaplan_wald(s, g=0.1), (1.9)**-5)
-    np.testing.assert_almost_equal(TestNonnegMean.kaplan_wald(s, g=0.1, random_order = False),\
+    np.testing.assert_almost_equal(TestNonnegMean.kaplan_wald(s, g=0.1)[0], (1.9)**-5)
+    np.testing.assert_almost_equal(TestNonnegMean.kaplan_wald(s, g=0.1, random_order = False)[0],\
                                    (1.9)**-5 * 10)
     s = np.array([1, -1])
     try:
@@ -2068,7 +2179,7 @@ def test_kaplan_kolmogorov():
 
 def test_initial_sample_size():
     max_cards = int(10**3)
-    risk_function = lambda x: TestNonnegMean.kaplan_kolmogorov(x, N=max_cards, t=1/2, g=0.1) 
+    risk_function = lambda x: TestNonnegMean.kaplan_kolmogorov(x, N=max_cards, t=1/2, g=0.1)[0]
     n_det = TestNonnegMean.initial_sample_size(risk_function, max_cards, 0.1, 0.001)
     n_rand = TestNonnegMean.initial_sample_size(risk_function, max_cards, 0.1, 0.001, reps=100)
     print(n_det, n_rand)
@@ -2090,7 +2201,7 @@ def test_initial_sample_size_KW():
     one_over = 1/3.8 # 0.5/(2-margin)
     clean = 1/1.9    # 1/(2-margin)
 
-    risk_function = lambda x: TestNonnegMean.kaplan_wald(x, t=1/2, g=g, random_order=False)
+    risk_function = lambda x: TestNonnegMean.kaplan_wald(x, t=1/2, g=g, random_order=False)[0]
     # first test
     bias_up = False
     sam_size = TestNonnegMean.initial_sample_size(risk_function, N, margin, error_rate, alpha=alpha, t=1/2, reps=None,\
@@ -2109,33 +2220,61 @@ def test_initial_sample_size_KW():
     np.testing.assert_array_less(sam_size_0, sam_size+1) # crude test, but ballpark
     np.testing.assert_array_less(sam_size, sam_size_1+1) # crude test, but ballpark
     
-def test_kaplan_martingale():
+def test_kaplan_mart():
     eps = 0.0001  # Generic small value for use when not sure exactly how small it should be.
     
     # When all the items are ones, estimated p for a mean of 1 should be 1.
     s = np.ones(5)
-    np.testing.assert_almost_equal(TestNonnegMean.kaplan_martingale(s, N=100000, t=1, random_order = True)[0],1.0)
+    np.testing.assert_almost_equal(TestNonnegMean.kaplan_mart(s, N=100000, t=1, random_order = True)[0],1.0)
 
     # When t is much smaller than all the sample data, p should be very small.
     # VT: Note I am not sure exactly how small.
-    np.testing.assert_array_less(TestNonnegMean.kaplan_martingale(s, N=100000, t=0, random_order = True)[:1],[eps])
+    np.testing.assert_array_less(TestNonnegMean.kaplan_mart(s, N=100000, t=0, random_order = True)[:1],[eps])
 
     s = [0.6,0.8,1.0,1.2,1.4]
-    np.testing.assert_array_less(TestNonnegMean.kaplan_martingale(s, N=100000, t=0, random_order = True)[:1],[eps])
+    np.testing.assert_array_less(TestNonnegMean.kaplan_mart(s, N=100000, t=0, random_order = True)[:1],[eps])
 
     s1 = [1, 0, 1, 1, 0, 0, 1]
-    kmart1 = TestNonnegMean.kaplan_martingale(s1,
-                                              N=7,
-                                              t=3/7,
-                                              random_order=True)[1]
+    kmart1 = TestNonnegMean.kaplan_mart(s1,
+                                        N=7,
+                                        t=3/7,
+                                        random_order=True)[1]
     # No nans introduced
     assert(not any(np.isnan(kmart1)))
 
     s2 = [1, 0, 1, 1, 0, 0, 0]
-    kmart2 = TestNonnegMean.kaplan_martingale(s2,
-                                              N=7,
-                                              t=3/7,
-                                              random_order=True)[1]
+    kmart2 = TestNonnegMean.kaplan_mart(s2,
+                                        N=7,
+                                        t=3/7,
+                                        random_order=True)[1]
+    # Since s1 and s2 only differ in the last observation,
+    # the resulting martingales should be identical up to the second
+    # last entry.
+    assert(all(np.equal(kmart2[0:(len(kmart2)-1)],
+                        kmart1[0:(len(kmart1)-1)])))
+
+def test_alpha_mart():
+    eps = 0.0001  # Generic small value for use when not sure exactly how small it should be.
+    
+    # When all the items are 1/2, estimated p for a mean of 1/2 should be 1.
+    s = np.ones(5)/2
+    np.testing.assert_almost_equal(TestNonnegMean.alpha_mart(s, N=100000, t=1/2)[0],1.0)
+
+    # When t is much smaller than all the sample data, p should be very small.
+    # VT: Note I am not sure exactly how small.
+    np.testing.assert_array_less(TestNonnegMean.alpha_mart(s, N=100000, t=eps)[:1],[eps])
+
+    s = [0.6,0.8,1.0,1.2,1.4]
+    np.testing.assert_array_less(TestNonnegMean.alpha_mart(s, N=100000, t=eps)[:1],[eps])
+
+    s1 = [1, 0, 1, 1, 0, 0, 1]
+    kmart1 = TestNonnegMean.alpha_mart(s1, N=7, t=3/7)[1]
+    # No nans introduced
+    print(f'{kmart1=}')
+    assert(not any(np.isnan(kmart1)))
+
+    s2 = [1, 0, 1, 1, 0, 0, 0]
+    kmart2 = TestNonnegMean.alpha_mart(s2, N=7, t=3/7)[1]
     # Since s1 and s2 only differ in the last observation,
     # the resulting martingales should be identical up to the second
     # last entry.
@@ -2194,8 +2333,10 @@ def test_make_phantoms():
     assert contests['measure_1']['cvrs'] == 4
     assert contests['city_council']['cards'] == 8
     assert contests['measure_1']['cards'] == 5
-    assert np.sum([c.has_contest('city_council') for c in cvr_list]) == 8, np.sum([c.has_contest('city_council') for c in cvr_list])
-    assert np.sum([c.has_contest('measure_1') for c in cvr_list]) == 5, np.sum([c.has_contest('measure_1') for c in cvr_list])
+    assert np.sum([c.has_contest('city_council') for c in cvr_list]) == 8, \
+                   np.sum([c.has_contest('city_council') for c in cvr_list])
+    assert np.sum([c.has_contest('measure_1') for c in cvr_list]) == 5, \
+                  np.sum([c.has_contest('measure_1') for c in cvr_list])
     assert np.sum([c.has_contest('city_council') and not c.is_phantom() for c in cvr_list]) ==  5
     assert np.sum([c.has_contest('measure_1') and not c.is_phantom() for c in cvr_list]) == 4
 
@@ -2206,8 +2347,10 @@ def test_make_phantoms():
     assert contests['measure_1']['cvrs'] == 4
     assert contests['city_council']['cards'] == 8
     assert contests['measure_1']['cards'] == 5
-    assert np.sum([c.has_contest('city_council') for c in cvr_list]) == 5, np.sum([c.has_contest('city_council') for c in cvr_list])
-    assert np.sum([c.has_contest('measure_1') for c in cvr_list]) == 4, np.sum([c.has_contest('measure_1') for c in cvr_list])
+    assert np.sum([c.has_contest('city_council') for c in cvr_list]) == 5, \
+                   np.sum([c.has_contest('city_council') for c in cvr_list])
+    assert np.sum([c.has_contest('measure_1') for c in cvr_list]) == 4, \
+                   np.sum([c.has_contest('measure_1') for c in cvr_list])
     assert np.sum([c.has_contest('city_council') and not c.is_phantom() for c in cvr_list]) ==  5
     assert np.sum([c.has_contest('measure_1') and not c.is_phantom() for c in cvr_list]) == 4
     
@@ -2275,6 +2418,7 @@ if __name__ == "__main__":
     test_kaplan_markov()
     test_kaplan_wald()
     test_kaplan_kolmogorov()
+    test_alpha_mart()
     test_initial_sample_size()
     test_initial_sample_size_KW()
     

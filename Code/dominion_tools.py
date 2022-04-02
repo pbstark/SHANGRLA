@@ -96,20 +96,26 @@ def read_cvrs(cvr_file):
 
 def sample_from_manifest(manifest, sample):
     """
-    Sample from the ballot manifest
+    Sample from the ballot manifest. Assumes manifest has been augmented to include phantoms.
+    Create mvrs for sampled phantoms.
     
-    Parameters:
-    -----------
+    Parameters
+    ----------
     manifest : dataframe
-        the processed Dominion manifest
+        the processed Dominion manifest, including phantom batches if max_cards exceeds the 
+        number of cards in the original manifest
     sample : list of ints
         the cards to sample    
         
-    Returns:
+    Returns
     -------
-    sorted list of card identifiers corresponding to the sample. Card identifiers are 1-indexed
+    cards : list
+        sorted list of card identifiers corresponding to the sample. Card identifiers are 1-indexed
+    mvr_phantoms : list
+        list of mvrs for sampled phantoms. The id for the mvr is 'phantom-' concatenated with the row.
     """
     cards = []
+    mvr_phantoms = []
     lookup = np.array([0] + list(manifest['cum_cards']))
     for s in sample:
         batch_num = int(np.searchsorted(lookup, s, side='left'))
@@ -117,26 +123,26 @@ def sample_from_manifest(manifest, sample):
         tab = manifest.iloc[batch_num-1]['Tabulator Number']
         batch = manifest.iloc[batch_num-1]['Batch Number']
         card = list(manifest.iloc[batch_num-1][['VBMCart.Cart number','Tray #']]) \
-                + [tab, batch, card_in_batch, str(tab)+'-'+str(batch)\
-                + '-'+str(card_in_batch), s]
+                + [tab, batch, card_in_batch, f'{tab}-{batch}-{card_in_batch}', s]
         cards.append(card)
-    return cards
+        if tab == 'phantom':
+            mvr_phantoms.append(CVR(id=f'{tab}-{batch}-{card_in_batch}', votes = {}, phantom=True))
+    cards.sort()
+    return cards, mvr_phantoms
 
-def sample_from_cvrs(cvr_list, manifest, sample):
+def sample_from_cvrs(cvr_list : list, manifest : list, sample : np.array):
     """
-    Sample from a list of CVRs. 
-    Return information needed to find the corresponding cards, the CVRs in the sample, 
-    and a list of mvrs for phantom cards in the sample
+    Sample from a list of CVRs: return info to find the cards, CVRs, & mvrs for sampled phantom cards
     
-    Parameters:
-    -----------
+    Parameters
+    ----------
     cvr_list : list of CVR objects. This function assumes that the id for the cvr is composed
         of a scanner number, batch number, and ballot number, joined with underscores
     manifest : a ballot manifest as a pandas dataframe
-    sample : list of ints
+    sample : numpy array of ints
         the CVRs to sample    
         
-    Returns:
+    Returns
     -------
     cards: sorted list of card identifiers corresponding to the sample.
     cvr_sample: the CVRs in the sample
@@ -154,10 +160,9 @@ def sample_from_cvrs(cvr_list, manifest, sample):
                                     & (manifest['Batch Number'] == str(batch))].iloc[0]
             card = [manifest_row['VBMCart.Cart number'],\
                     manifest_row['Tray #']] \
-                    + [tab, batch, card_num, str(tab)+'-'+str(batch)\
-                    + '-'+str(card_num), s]
+                    + [tab, batch, card_num, f'{tab}-{batch}-{card_num}', s]
         else:
-            card = ["","", tab, batch, card_num, str(tab)+'-'+str(batch) + '-'+str(card_num), s]
+            card = ["","", tab, batch, card_num, f'{tab}-{batch}-{card_num}', s]
             mvr_phantoms.append(CVR(id=cvr_id, votes = {}, phantom=True))
         cards.append(card)
     # sort by id
@@ -165,13 +170,12 @@ def sample_from_cvrs(cvr_list, manifest, sample):
     return cards, cvr_sample, mvr_phantoms
 
 
-def write_cards_sampled(sample_file, cards, print_phantoms=True):
+def write_cards_sampled(sample_file : str, cards : list, print_phantoms : bool=True):
     """
     Write the identifiers of the sampled CVRs to a file.
     
-    Parameters:
-    ----------
-    
+    Parameters
+    ----------  
     sample_file : string
         filename for output
         
@@ -184,8 +188,8 @@ def write_cards_sampled(sample_file, cards, print_phantoms=True):
         the original manifest.
         if not print_phantoms, suppresses "phantom" cards
     
-    Returns:
-    --------
+    Returns
+    -------
     
     """    
     with open(sample_file, 'a') as f:
@@ -210,7 +214,7 @@ def test_sample_from_manifest():
         {'Tray #': 3, 'Tabulator Number': 19, 'Batch Number': 3, 'Total Ballots': 100, 'VBMCart.Cart number': 3}]
     manifest = pd.DataFrame.from_dict(d)
     manifest['cum_cards'] = manifest['Total Ballots'].cumsum()
-    cards = sample_from_manifest(manifest, sample)
+    cards, mvr_phantoms = sample_from_manifest(manifest, sample)
     # cart, tray, tabulator, batch, card in batch, imprint, absolute index
     assert cards[0] == [1, 1, 17, 1, 1, "17-1-1",1]
     assert cards[1] == [1, 1, 17, 1, 99, "17-1-99",99]
