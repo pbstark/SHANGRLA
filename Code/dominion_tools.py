@@ -88,7 +88,7 @@ def read_cvrs(cvr_file):
             for mark in con["Marks"]:
                 contest_votes[str(mark["CandidateId"])] = mark["Rank"]
             votes[str(con["Id"])] = contest_votes
-        cvr_list.append(CVR(ID = str(c["TabulatorId"])\
+        cvr_list.append(CVR(id = str(c["TabulatorId"])\
                                  + '_' + str(c["BatchId"]) \
                                  + '_' + str(c["RecordId"]),\
                                  votes = votes))
@@ -97,6 +97,7 @@ def read_cvrs(cvr_file):
 def sample_from_manifest(manifest, sample):
     """
     Sample from the ballot manifest. Assumes manifest has been augmented to include phantoms.
+    Create list of sampled cards, with identifiers.
     Create mvrs for sampled phantoms.
     
     Parameters
@@ -110,25 +111,35 @@ def sample_from_manifest(manifest, sample):
     Returns
     -------
     cards : list
-        sorted list of card identifiers corresponding to the sample. Card identifiers are 1-indexed
+        sorted list of card identifiers corresponding to the sample. Card identifiers are 1-indexed.
+        Each sampled card is listed as
+            cart number, tray number, tabulator number, batch, card in batch, tabulator+batch+card_in_batch
+    sample_order : dict
+        keys are card identifiers, values are dicts containing keys for "selection_order" and "serial_number"
+        Example: {'999
     mvr_phantoms : list
         list of mvrs for sampled phantoms. The id for the mvr is 'phantom-' concatenated with the row.
     """
     cards = []
+    sample_order = {}
     mvr_phantoms = []
     lookup = np.array([0] + list(manifest['cum_cards']))
-    for s in sample:
+    for i,s in enumerate(sample-1):
         batch_num = int(np.searchsorted(lookup, s, side='left'))
         card_in_batch = int(s-lookup[batch_num-1])
         tab = manifest.iloc[batch_num-1]['Tabulator Number']
         batch = manifest.iloc[batch_num-1]['Batch Number']
+        card_id = f'{tab}-{batch}-{card_in_batch}'
         card = list(manifest.iloc[batch_num-1][['VBMCart.Cart number','Tray #']]) \
-                + [tab, batch, card_in_batch, f'{tab}-{batch}-{card_in_batch}', s]
+                + [tab, batch, card_in_batch, card_id]
         cards.append(card)
         if tab == 'phantom':
-            mvr_phantoms.append(CVR(id=f'{tab}-{batch}-{card_in_batch}', votes = {}, phantom=True))
-    cards.sort()
-    return cards, mvr_phantoms
+            mvr_phantoms.append(CVR(id=card_id, votes={}, phantom=True))
+        sample_order[card_id] = {}
+        sample_order[card_id]["selection_order"] = i
+        sample_order[card_id]["serial"] = s+1
+    cards.sort(key=lambda x: x[-2])
+    return cards, sample_order, mvr_phantoms
 
 def sample_from_cvrs(cvr_list : list, manifest : list, sample : np.array):
     """
@@ -136,38 +147,51 @@ def sample_from_cvrs(cvr_list : list, manifest : list, sample : np.array):
     
     Parameters
     ----------
-    cvr_list : list of CVR objects. This function assumes that the id for the cvr is composed
-        of a scanner number, batch number, and ballot number, joined with underscores
-    manifest : a ballot manifest as a pandas dataframe
+    cvr_list : list of CVR objects. 
+        The id for the cvr is assumed to be composed of a scanner number, batch number, and 
+        ballot number, joined with underscores, Dominion's format
+        
+    manifest : pandas dataframe
+        a ballot manifest as a pandas dataframe
     sample : numpy array of ints
         the CVRs to sample    
         
     Returns
     -------
-    cards: sorted list of card identifiers corresponding to the sample.
-    cvr_sample: the CVRs in the sample
-    mvr_phantoms : list of CVR objects, the mvrs for phantom sheets in the sample
+    cards: list
+        card identifiers corresponding to the sample, sorted by identifier
+    sample_order : dict
+        keys are card identifiers, values are dicts containing keys for "selection_order" and "serial"
+    cvr_sample: list of CVR objects
+        the CVRs in the sample
+    mvr_phantoms : list of CVR objects
+        the mvrs for phantom sheets in the sample
     """
     cards = []
+    sample_order = {}
     cvr_sample = []
     mvr_phantoms = []
-    for s in sample-1:
+    for i,s in enumerate(sample-1):
         cvr_sample.append(cvr_list[s])
         cvr_id = cvr_list[s].id
         tab, batch, card_num = cvr_id.split("-")
+        card_id = f'{tab}-{batch}-{card_num}'
         if not cvr_list[s].phantom:
             manifest_row = manifest[(manifest['Tabulator Number'] == str(tab)) \
                                     & (manifest['Batch Number'] == str(batch))].iloc[0]
             card = [manifest_row['VBMCart.Cart number'],\
                     manifest_row['Tray #']] \
-                    + [tab, batch, card_num, f'{tab}-{batch}-{card_num}', s]
+                    + [tab, batch, card_num, card_id ]
         else:
-            card = ["","", tab, batch, card_num, f'{tab}-{batch}-{card_num}', s]
+            card = ["","", tab, batch, card_num, card_id]
             mvr_phantoms.append(CVR(id=cvr_id, votes = {}, phantom=True))
         cards.append(card)
+        sample_order[card_id] = {}
+        sample_order[card_id]["selection_order"] = i
+        sample_order[card_id]["serial"] = s+1
     # sort by id
     cards.sort(key = lambda x: x[5])
-    return cards, cvr_sample, mvr_phantoms
+    return cards, sample_order, cvr_sample, mvr_phantoms
 
 
 def write_cards_sampled(sample_file : str, cards : list, print_phantoms : bool=True):

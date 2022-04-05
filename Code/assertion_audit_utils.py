@@ -96,7 +96,7 @@ class Assertion:
         return self.proved
 
     def assort(self, cvr, use_style=True):
-        return self.assorter(cvr)
+        return self.assorter.assort(cvr)
     
     def min_p(self):
         return min(self.p_history)
@@ -1010,8 +1010,8 @@ class TestNonnegMean:
         return 1/np.max(np.cumprod(terms)) if random_order else 1/np.prod(terms), np.minimum(1,1/np.cumprod(terms))
 
     @classmethod
-    def shrink_trunc(cls, x: np.array, N: int, mu: float=1/2, nu: float=1-np.finfo(float).eps, u: float=1, c: float=1/2, 
-                 d: float=100) -> np.array: 
+    def shrink_trunc(cls, x: np.array, N: int, mu: float=1/2, nu: float=1-np.finfo(float).eps, u: float=1, \
+                     c: float=1/2, d: float=100) -> np.array: 
         '''
         apply the shrinkage and truncation estimator to an array
 
@@ -1251,7 +1251,8 @@ class TestNonnegMean:
         return integral, integrals
 
     @classmethod
-    def kaplan_mart(cls, x : np.array, N : int, t : float=1/2, random_order : bool = True) -> typing.Tuple[float, np.array]:
+    def kaplan_mart(cls, x : np.array, N : int, t : float=1/2, random_order : bool = True) \
+                     -> typing.Tuple[float, np.array]:
         '''
         p-value for the hypothesis that the mean of a nonnegative population with 
         N elements is t, based on a result of Kaplan, computed with a recursive 
@@ -1330,17 +1331,22 @@ class TestNonnegMean:
         return p, np.minimum(1/mart_vec, 1)                 
         
     @classmethod
-    def initial_sample_size(cls, risk_function, N, margin, error_rate, alpha=0.05, t=1/2, u=1, reps=None,\
-                            bias_up = True, quantile=0.5, seed=1234567890):
+    def initial_sample_size(cls, risk_function : callable, N : int, margin : float, \
+                            polling : bool=True, error_rate : float=0, alpha : float=0.05, \
+                            t : float=1/2, u : float=1, reps : int=None,\
+                            bias_up : bool=True, quantile : float=0.5, seed : int=1234567890):
         '''
         Estimate the sample size needed to reject the null hypothesis that the population 
-        mean is <=t at significance level alpha, for the specified risk function, on the 
-        assumption that the rate of one-vote overstatements is error_rate.  This function is
-        for a single contest.
+        mean is <=t at significance level alpha, for the specified risk function.
         
-        This function is [currently] only for comparison audits, not ballot-polling audits.
+        If `polling == True`, bases estimates on the margin alone, for a ballot-polling audit.
+        Uses sampling without replacement for ballot polling.
         
-        Implements two strategies:
+        If `polling == False`, uses `error_rate` as an assumed rate of one-vote overstatements 
+        
+        This function is for a single contest.
+                
+        Implements two strategies when `polling == False`:
 
             1. If reps is not None, the function uses simulations to estimate the <quantile> quantile
             of sample size required. The simulations use the numpy Mersenne Twister PRNG.
@@ -1359,8 +1365,11 @@ class TestNonnegMean:
             population size, or N = np.infty for sampling with replacement
         margin : float
             assorter margin 
+        polling : bool
+            polling audit or ballot-level comparison audit?
         error_rate : float 
-            assumed rate of 1-vote overstatements 
+            assumed rate of 1-vote overstatements for ballot-level comparison audit.
+            Ignored if `polling==True`
         alpha : float
             significance level in (0, 0.5)
         t : float
@@ -1377,7 +1386,7 @@ class TestNonnegMean:
             quantile of the distribution of sample sizes to report, if reps is not None.
             If reps is None, quantile is not used
         seed : int
-            if reps is not none, use this value as the seed for simulations.
+            if reps is not none, use this value as the seed in numpy.random for simulations
             
         Returns:
         --------
@@ -1387,38 +1396,57 @@ class TestNonnegMean:
             
         '''                            
         assert alpha > 0 and alpha < 1/2
-        assert margin > 0
-        clean = 1/(2-margin/u)
-        one_vote_over = (1-0.5)/(2-margin/u)  # (1-(u/2)/u)/(2-margin/u)
-        if reps is None:
-            offset = 0 if bias_up else 1                
-            p = 1
-            j = 0
-            while (p > alpha) and (j <= N):
-                j += 1
-                x = clean*np.ones(j)
-                if error_rate > 0:
-                    for k in range(j):
-                        x[k] = (one_vote_over if (k+offset) % int(1/error_rate) == 0 
-                                else x[k]
-                               )
-                p = risk_function(x)
-            sam_size = j
-        else:
-            prng = np.random.RandomState(1234567890)  # use the Mersenne Twister for speed
-            sams = np.zeros(int(reps))
-            for r in range(reps):
-                new_size = 0
-                pop = clean*np.ones(N)
-                inx = (prng.random(size=N) <= error_rate)  # randomly allocate errors
-                pop[inx] = one_vote_over
-                j = 0
+        assert margin > 0, 'Margin is nonpositive'
+        
+        if not polling:        # ballot-level comparison audit
+            clean = 1/(2-margin/u)
+            one_vote_over = (1-0.5)/(2-margin/u)  # (1-(u/2)/u)/(2-margin/u)
+            if reps is None:
+                offset = 0 if bias_up else 1                
                 p = 1
+                j = 0
                 while (p > alpha) and (j <= N):
                     j += 1
-                    p = risk_function(pop[:j])
-                sams[r] = j
-            sam_size = np.quantile(sams, quantile)
+                    x = clean*np.ones(j)
+                    if error_rate > 0:
+                        for k in range(j):
+                            x[k] = (one_vote_over if (k+offset) % int(1/error_rate) == 0 
+                                    else x[k]
+                                   )
+                    p = risk_function(x)
+                sam_size = j
+            else:
+                prng = np.random.RandomState(seed)  # use the Mersenne Twister for speed
+                sams = np.zeros(int(reps))
+                for r in range(reps):
+                    pop = clean*np.ones(N)
+                    inx = (prng.random(size=N) <= error_rate)  # randomly allocate errors
+                    pop[inx] = one_vote_over
+                    j = 0
+                    p = 1
+                    while (p > alpha) and (j <= N):
+                        j += 1
+                        p = risk_function(pop[:j])
+                    sams[r] = j
+                sam_size = np.quantile(sams, quantile)
+        else:                   # ballot-polling audit
+            if reps is None:
+                raise ValueError('estimating ballot-polling sample size requires setting `reps`')
+            else: # m = 2(p-1/2), so p = (m+1)/2
+                pop = np.zeros(N)
+                nonzero = math.floor((margin+1)/2)
+                pop[0:nonzero] = np.ones(nonzero)
+                prng = np.random.RandomState(seed)  # use the Mersenne Twister for speed
+                sams = np.zeros(int(reps))
+                for r in range(reps):
+                    pop = prng.permutation(pop)
+                    j = 0
+                    p = 1
+                    while (p > alpha) and (j <= N):
+                        j += 1
+                        p = risk_function(pop[:j])
+                    sams[r] = j
+                sam_size = np.quantile(sams, quantile)
         return sam_size
           
 # utilities
@@ -1486,7 +1514,7 @@ def find_margins(contests : dict, assertions : dict, cvr_list : list, use_style 
     cvr_list : list
         list of cvr objects
     use_style : bool
-        flag to sample using style information
+        flag indicating the sample will use style information to target the contest
     
     Returns:
     --------
@@ -1596,7 +1624,7 @@ def find_sample_size(contests, assertions, sample_size_function):
             sample_size = np.max([sample_size, n] )
     return sample_size
 
-def prep_comparison_sample(mvr_sample, cvr_sample):
+def prep_comparison_sample(mvr_sample, cvr_sample, sample_order):
     '''
     prepare the MVRs and CVRs for comparison by putting the MVRs into the same (random) order
     in which the CVRs were selected
@@ -1611,20 +1639,22 @@ def prep_comparison_sample(mvr_sample, cvr_sample):
         the manually determined votes for the audited cards
     cvr_sample: list of CVR objects
         the electronic vote record for the audited cards 
+    sample_order : dict
+        dict to look up selection order of the cards. Keys are card identifiers. Values are dicts
+        containing "selection_order" (which draw yielded the card) and "serial" (the card's original position)
     
     Returns
     -------
     '''
-    id_lookup = [c.id for c in cvr_sample]
-    mvr_sample.sort(key= lambda x: id_lookup.index(x.id))
-
+    mvr_sample.sort(key= lambda x: sample_order[x.id]["selection_order"])
+    cvr_sample.sort(key= lambda x: sample_order[x.id]["selection_order"])
     assert len(cvr_sample) == len(mvr_sample),\
         "Number of cvrs ({}) and mvrs ({}) doesn't match".format(len(cvr_sample), len(mvr_sample))
     for i in range(len(cvr_sample)):
         assert mvr_sample[i].id == cvr_sample[i].id, \
             "Mismatch between id of cvr ({}) and mvr ({})".format(cvr_sample[i].id, mvr_sample[i].id)
         
-def prep_polling_sample(mvr_sample : list, sample_lookup : list, sample : list):
+def prep_polling_sample(mvr_sample : list, sample_order : dict):
     '''
     Put the mvr sample back into the random selection order.
     
@@ -1634,21 +1664,15 @@ def prep_polling_sample(mvr_sample : list, sample_lookup : list, sample : list):
     ----------
     mvr_sample : list
         list of CVR objects
-    sample_lookup : list of lists
-        identifiers and original order numbers for cards in the sample. 
-        The last entry in each element is assumed to be the original row number of the item, 
-        the index used to draw the sample.
-        The next-to-last entry of each element is assumed to be the ID of the mvr
-    sample : list
-        1-indexed list of indices, in selection order
+    sample_order : dict of dicts
+        dict to look up selection order of the cards. Keys are card identifiers. Values are dicts
+        containing "selection_order" (which draw yielded the card) and "serial" (the card's original position)
     
     Returns
     -------
     only side effects: mvr_sample is reordered
     '''
-    sls = sorted(sample_lookup, key = lambda x: sample.tolist().index(x[-1]))
-    id_list = [s[-2] for s in sls]
-    mvr_sample.sort(key = lambda x: id_list.index(x.id))
+    mvr_sample.sort(key= lambda x: sample_order[x.id]["selection_order"])
 
 def new_sample_size(contests, assertions, mvr_sample, cvr_sample=None, use_style=True,\
                     risk_function=TestNonnegMean.alpha_mart, quantile=0.5, reps=200, seed=1234567890):
@@ -1695,7 +1719,6 @@ def new_sample_size(contests, assertions, mvr_sample, cvr_sample=None, use_style
     sams : array of ints
         array of all sizes found in the simulation
     '''
-    new_size = 0
     prng = np.random.RandomState(seed=seed)
     sams = np.zeros(reps)
     for r in range(reps):
