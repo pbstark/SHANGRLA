@@ -1007,7 +1007,8 @@ class TestNonnegMean:
         with np.errstate(divide='ignore',invalid='ignore'):
             terms = np.cumprod((x*eta/m + (u-x)*(u-eta)/(u-m))/u) # generalization of Bernoulli SPRT
         terms[m<0] = np.inf                        # the null is surely false
-        return 1/np.max(np.cumprod(terms)) if random_order else 1/np.prod(terms), np.minimum(1,1/np.cumprod(terms))
+        terms = np.cumprod(terms)
+        return 1/np.max(terms) if random_order else 1/terms[-1], np.minimum(1,1/terms)
 
     @classmethod
     def shrink_trunc(cls, x: np.array, N: int, mu: float=1/2, nu: float=1-np.finfo(float).eps, u: float=1, \
@@ -1125,7 +1126,7 @@ class TestNonnegMean:
         if any(xx < 0 for xx in x):
             raise ValueError('Negative value in sample from a nonnegative population.')
         p_history = np.cumprod((t+g)/(x+g))
-        return np.min([1, np.min(p_history) if random_order else np.prod((t+g)/(x+g))]), \
+        return np.min([1, np.min(p_history) if random_order else p_history[-1]]), \
                np.minimum(p_history,1)
 
     @classmethod
@@ -1403,18 +1404,13 @@ class TestNonnegMean:
             one_vote_over = (1-0.5)/(2-margin/u)  # (1-(u/2)/u)/(2-margin/u)
             if reps is None:
                 offset = 0 if bias_up else 1                
-                p = 1
-                j = 0
-                while (p > alpha) and (j <= N):
-                    j += 1
-                    x = clean*np.ones(j)
-                    if error_rate > 0:
-                        for k in range(j):
-                            x[k] = (one_vote_over if (k+offset) % int(1/error_rate) == 0 
-                                    else x[k]
-                                   )
-                    p = risk_function(x)
-                sam_size = j
+                x = clean*np.ones(N)
+                if error_rate > 0:
+                    for k in range(N):
+                        x[k] = (one_vote_over if (k+offset) % int(1/error_rate) == 0 
+                                else x[k])
+                p = risk_function(x)
+                sam_size = np.argmax(p <= alpha)+1
             else:
                 prng = np.random.RandomState(seed)  # use the Mersenne Twister for speed
                 sams = np.zeros(int(reps))
@@ -1422,12 +1418,8 @@ class TestNonnegMean:
                     pop = clean*np.ones(N)
                     inx = (prng.random(size=N) <= error_rate)  # randomly allocate errors
                     pop[inx] = one_vote_over
-                    j = 0
-                    p = 1
-                    while (p > alpha) and (j <= N):
-                        j += 1
-                        p = risk_function(pop[:j])
-                    sams[r] = j
+                    p = risk_function(pop)
+                    sams[r] = np.argmax(p <= alpha)+1
                 sam_size = np.quantile(sams, quantile)
         else:                   # ballot-polling audit
             if reps is None:
@@ -1440,12 +1432,8 @@ class TestNonnegMean:
                 sams = np.zeros(int(reps))
                 for r in range(reps):
                     pop = prng.permutation(pop)
-                    j = 0
-                    p = 1
-                    while (p > alpha) and (j <= N):
-                        j += 1
-                        p = risk_function(pop[:j])
-                    sams[r] = j
+                    p_history = risk_function(pop)
+                    sams[r] = np.argmax(p_history <= alpha)+1
                 sam_size = np.quantile(sams, quantile)
         return sam_size
           
@@ -2202,9 +2190,9 @@ def test_kaplan_kolmogorov():
 
 def test_initial_sample_size():
     max_cards = int(10**3)
-    risk_function = lambda x: TestNonnegMean.kaplan_kolmogorov(x, N=max_cards, t=1/2, g=0.1)[0]
-    n_det = TestNonnegMean.initial_sample_size(risk_function, max_cards, 0.1, 0.001)
-    n_rand = TestNonnegMean.initial_sample_size(risk_function, max_cards, 0.1, 0.001, reps=100)
+    risk_function = lambda x: TestNonnegMean.kaplan_kolmogorov(x, N=max_cards, t=1/2, g=0.1)[1]
+    n_det = TestNonnegMean.initial_sample_size(risk_function, max_cards,0.1, False, 0.001)
+    n_rand = TestNonnegMean.initial_sample_size(risk_function, max_cards, 0.1, False, 0.001, reps=100)
     print(n_det, n_rand)
 
     # This tests whether, in a simple example in which null hypothesis is true, 
@@ -2224,22 +2212,22 @@ def test_initial_sample_size_KW():
     one_over = 1/3.8 # 0.5/(2-margin)
     clean = 1/1.9    # 1/(2-margin)
 
-    risk_function = lambda x: TestNonnegMean.kaplan_wald(x, t=1/2, g=g, random_order=False)[0]
+    risk_function = lambda x: TestNonnegMean.kaplan_wald(x, t=1/2, g=g, random_order=False)[1]
     # first test
     bias_up = False
-    sam_size = TestNonnegMean.initial_sample_size(risk_function, N, margin, error_rate, alpha=alpha, t=1/2, reps=None,\
-                            bias_up=bias_up, quantile=0.5, seed=1234567890)
+    sam_size = TestNonnegMean.initial_sample_size(risk_function, N, margin, False, error_rate, alpha=alpha, \
+                                                  t=1/2, reps=None, bias_up=bias_up, quantile=0.5, seed=1234567890)
     sam_size_0 = 59 # math.ceil(math.log(20)/math.log(2/1.9)), since this is < 1/error_rate
     np.testing.assert_almost_equal(sam_size, sam_size_0)
     # second test
     bias_up = True
-    sam_size = TestNonnegMean.initial_sample_size(risk_function, N, margin, error_rate, alpha=alpha, t=1/2, reps=None,\
-                            bias_up=bias_up, quantile=0.5, seed=1234567890)
+    sam_size = TestNonnegMean.initial_sample_size(risk_function, N, margin, False, error_rate, alpha=alpha, \
+                                                  t=1/2, reps=None, bias_up=bias_up, quantile=0.5, seed=1234567890)
     sam_size_1 = 72 # (1/1.9)*(2/1.9)**71 = 20.08
     np.testing.assert_almost_equal(sam_size, sam_size_1)
     # third test
-    sam_size = TestNonnegMean.initial_sample_size(risk_function, N, margin, error_rate, alpha=alpha, t=1/2, reps=1000,\
-                            bias_up=bias_up, quantile=0.5, seed=1234567890)
+    sam_size = TestNonnegMean.initial_sample_size(risk_function, N, margin, False, error_rate, alpha=alpha, \
+                                                  t=1/2, reps=1000, bias_up=bias_up, quantile=0.5, seed=1234567890)
     np.testing.assert_array_less(sam_size_0, sam_size+1) # crude test, but ballpark
     np.testing.assert_array_less(sam_size, sam_size_1+1) # crude test, but ballpark
     
