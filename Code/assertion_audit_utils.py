@@ -56,7 +56,7 @@ class Assertion:
         
     def __str__(self):
         return (f'contest: {self.contest} margin: {self.margin} p-value: {self.p_value}'
-                f'p-history length: {len(p_history)} proved: {self.proved}'
+                f'p-history length: {len(self.p_history)} proved: {self.proved}'
                )
 
     def set_assorter(self, assorter):
