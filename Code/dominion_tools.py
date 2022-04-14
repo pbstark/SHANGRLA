@@ -115,8 +115,7 @@ def sample_from_manifest(manifest, sample):
         Each sampled card is listed as
             cart number, tray number, tabulator number, batch, card in batch, tabulator+batch+card_in_batch
     sample_order : dict
-        keys are card identifiers, values are dicts containing keys for "selection_order" and "serial_number"
-        Example: {'999
+        keys are card identifiers, values are dicts containing keys for "selection_order" and "serial"
     mvr_phantoms : list
         list of mvrs for sampled phantoms. The id for the mvr is 'phantom-' concatenated with the row.
     """
