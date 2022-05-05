@@ -1663,6 +1663,65 @@ def prep_polling_sample(mvr_sample : list, sample_order : dict):
     '''
     mvr_sample.sort(key= lambda x: sample_order[x.id]["selection_order"])
 
+def sort_cvr_sample_num(cvr_list : list):
+    '''
+    Sort cvr_list by sample_num
+    
+    Only about the side effects.
+    
+    Parameters
+    ----------
+    cvr_list : list
+        list of CVR objects
+    
+    Returns
+    -------
+    only side effects: cvr_list is ordered by sample_num
+    '''
+    cvr_list.sort(key = lambda x: x.sample_num)
+    return True
+    
+def consistent_sampling(cvr_list, sample_size_dict, sampled_cvrs = []):
+    '''
+    Sample CVRs for contests according to sample size in sample_size_dict
+    
+    Parameters
+    ----------
+    cvr_list : list
+        list of CVR objects
+    sample_size_dict : dict
+        dict of sample size for each contest to sample
+    sampled_cvrs : list
+        list of CVR objects already sampled
+    
+    Returns
+    -------
+    sampled_cvrs : list
+        CVRs to sample
+    '''
+    
+    # sort CVRs
+    sort_cvr_sample_num(cvr_list)
+    # get list of contests to consider from sample_size dict
+    contest_list = list(sample_size_dict.keys())
+    # get list of ticket numbers for the cvr list
+    ticket_number_list = [item.sample_num for item in cvr_list]
+    # loop through each contest
+    for contest in contest_list:
+        # return true if contest on ballot
+        contest_on_ballot = [contest in item.votes for item in cvr_list]
+        # get ballot indices where contest on ballot
+        contest_indices = np.where(contest_on_ballot)[0]
+        # initialize number of sampled ballots
+        sampled_ballots = 0
+        # get ballots where contest on ballot and still need to sample more ballots and append to sampled_CVRs if not already included
+        for i in contest_indices:
+            if cvr_list[i] not in sampled_cvrs and sampled_ballots < sample_size_dict[contest]:
+                sampled_cvrs.append(cvr_list[i])
+            sampled_ballots += 1
+    # return CVRs to sample
+    return sampled_cvrs
+
 def new_sample_size(contests, assertions, mvr_sample, cvr_sample=None, use_style=True,\
                     risk_function=TestNonnegMean.alpha_mart, quantile=0.5, reps=200, seed=1234567890):
     '''
