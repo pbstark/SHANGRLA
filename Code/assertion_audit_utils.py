@@ -95,7 +95,7 @@ class Assertion:
     def get_proved(self):
         return self.proved
 
-    def assort(self, cvr, use_style=True):
+    def assort(self, cvr):
         return self.assorter.assort(cvr)
     
     def min_p(self):
@@ -170,15 +170,14 @@ class Assertion:
         overstatement error for a CVR compared to the human reading of the ballot
         
         If use_style, then if the CVR contains the contest but the MVR does 
-        not, that is considered to be an overstatement, because the ballot should have 
-        contained the contest.
+        not, treat the MVR as having a vote for the loser (assort()=0)
         
         If not use_style, then if the CVR contains the contest but the MVR does not,
-        the MVR is considered to be a non-vote in the contest.
+        the MVR is considered to be a non-vote in the contest (assort()=1/2).
         
         Phantom CVRs and MVRs are treated specially:
-            A phantom CVR is considered a non-vote in every contest (assort() = 1/2).
-            A phantom MVR is considered a vote for the loser (i.e., assort() = 0) in every 
+            A phantom CVR is considered a non-vote in every contest (assort()=1/2).
+            A phantom MVR is considered a vote for the loser (i.e., assort()=0) in every 
             contest.
 
         Parameters:
@@ -197,16 +196,18 @@ class Assertion:
             overstatement = self.assorter.assort(cvr)\
                             - (self.assorter.assort(mvr) if not mvr.phantom else 0)
         elif use_style:
-            if mvr.has_contest(self.contest):
-                overstatement = self.assorter.assort(cvr)-self.assorter.assort(mvr)
-            elif not mvr.has_contest(self.contest) and cvr.has_contest(self.contest):
-                overstatement = self.assorter.assort(cvr)
-            elif mvr.phantom and cvr.phantom:
-                overstatement = 1/2
+            if cvr.has_contest(self.contest):    # make_phantoms() assigns contests but not votes to phantom CVRs
+                if cvr.phantom:
+                    cvr_assort = 1/2
+                else:
+                    cvr_assort = self.assorter.assort(cvr)
+                if mvr.phantom or not mvr.has_contest(self.contest):
+                    mvr_assort = 0
+                else:
+                    mvr_assort = self.assorter.assort(mvr)
+                overstatement = cvr_assort - mvr_assort
             else:
-                overstatement = 0
-        else:
-            raise NotImplementedError
+                raise ValueError("Assertion.overstatement: use_style==True but CVR does not contain the contest")
         return overstatement   
     
     def overstatement_assorter(self, mvr, cvr, margin, use_style=True):
@@ -765,7 +766,7 @@ class CVR:
         
         Returns:
         --------
-        vote
+        vote : bool or int
         '''
         return False if (contest not in cvr.votes or candidate not in cvr.votes[contest])\
                else cvr.votes[contest][candidate]
@@ -2052,14 +2053,14 @@ def test_overstatement():
                 {'id': 2, 'votes': {'AvB': {'Bob':True}}},
                 {'id': 3, 'votes': {'AvB': {}}},\
                 {'id': 4, 'votes': {'CvD': {'Elvis':True, 'Candy':False}}},\
-                {'id': 'phantom_1', 'votes': {}, 'phantom': True}]
+                {'id': 'phantom_1', 'votes': {'AvB': {}}, 'phantom': True}]
     mvrs = CVR.from_dict(mvr_dict)
 
     cvr_dict = [{'id': 1, 'votes': {'AvB': {'Alice':True}}},\
                 {'id': 2, 'votes': {'AvB': {'Bob':True}}},\
                 {'id': 3, 'votes': {'AvB': {}}},\
                 {'id': 4, 'votes': {'CvD': {'Elvis':True}}},\
-                {'id': 'phantom_1', 'votes': {}, 'phantom': True}]
+                {'id': 'phantom_1', 'votes': {'AvB': {}}, 'phantom': True}]
     cvrs = CVR.from_dict(cvr_dict)
 
     winners = ["Alice"]
@@ -2092,7 +2093,11 @@ def test_overstatement():
     assert aVb.overstatement(mvrs[3], cvrs[0], use_style=True) == 1
     assert aVb.overstatement(mvrs[3], cvrs[0], use_style=False) == 1/2
 
-    assert aVb.overstatement(mvrs[3], cvrs[3], use_style=True) == 0
+    try:
+        tst = aVb.overstatement(mvrs[3], cvrs[3], use_style=True)
+        raise AssertionError('aVb is not contained in the mvr or cvr')
+    except ValueError:
+        pass
     assert aVb.overstatement(mvrs[3], cvrs[3], use_style=False) == 0
     
     assert aVb.overstatement(mvrs[4], cvrs[4], use_style=True) == 1/2
