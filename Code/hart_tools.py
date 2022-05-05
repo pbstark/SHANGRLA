@@ -2,6 +2,7 @@
 Tools to read and parse Hart Intercivic CVRs
 """
 import os
+import re
 import numpy as np
 import math
 import random
@@ -13,47 +14,57 @@ import xml.etree.ElementTree as ET
 import xml.dom.minidom
 from assertion_audit_utils import \
     Assertion, Assorter, CVR, TestNonnegMean, check_audit_parameters, find_margins,\
-    find_p_values, find_sample_size, new_sample_size, prep_sample, summarize_status,\
+    find_p_values, find_sample_size, new_sample_size, summarize_status,\
     write_audit_parameters
 
 
-def prep_manifest(manifest, N_cards, n_cvrs):
+def prep_manifest(manifest, max_cards, n_cvrs):
     """
-    Prepare a hart ballot manifest (read as a pandas dataframe) for sampling.
+    Prepare a HART Excel ballot manifest (read as a pandas dataframe) for sampling.
     The manifest may have cards that do not contain the contest, but every listed CVR
     is assumed to have a corresponding card in the manifest.
 
-    If the number of CVRs n_cvrs is less than the number of cards that might contain the contest,
-    N_cards, an additional "phantom" batch is added to the manifest to make up the difference.
+    If the number of cards in the manifest is less than the number of cards that might have been cast,
+    max_cards, an additional batch of "phantom" cards is appended to the manifest to make up the difference.
 
     Parameters:
     ----------
     manifest : dataframe
         should contain the columns
            'Container', 'Tabulator', 'Batch Name', 'Number of Ballots'
+    max_cards : int
+        upper bound on the number of cards cast
+    n_cvrs : int
+        number of CVRs
 
     Returns:
     --------
-    manifest with additional column for cumulative cards and, if needed, an additional
-    batch for any phantom cards
-
-    manifest_cards : the total number of cards in the manifest
-    phantom_cards : the number of phantom cards required
+    manifest : dataframe
+        original manifest with additional column for cumulative cards and, if needed, an additional batch for any phantom cards
+    manifest_cards : int
+        the total number of cards in the manifest
+    phantoms : int
+        the number of phantom cards required
     """
     cols = ['Container', 'Tabulator', 'Batch Name', 'Number of Ballots']
     assert set(cols).issubset(manifest.columns), "missing columns"
     manifest_cards = manifest['Number of Ballots'].sum()
-    if n_cvrs < N_cards:
-        warnings.warn('The CVR list does not account for every card cast in the contest; adding a phantom batch to the manifest')
+    assert manifest_cards <= max_cards, f"cards in manifest {manifest_cards} exceeds max possible {max_cards}"
+    assert manifest_cards >= n_cvrs, f"number of cvrs {n_cvrs} exceeds number of cards in the manifest {manifest_cards}"
+    phantoms = 0
+    if manifest_cards < max_cards:
+        phantoms = max_cards-manifest_cards
+        warnings.warn(f'manifest does not account for every card; appending batch of {phantoms} phantom cards to the manifest')
         r = {'Container': None, 'Tabulator': 'phantom', 'Batch Name': 1, \
-             'Number of Ballots': N_cards-n_cvrs}
+             'Number of Ballots': phantoms}
         manifest = manifest.append(r, ignore_index = True)
     manifest['cum_cards'] = manifest['Number of Ballots'].cumsum()
-    for c in ['Container', 'Tabulator', 'Batch Name']:
+    for c in ['Container', 'Tabulator', 'Batch Name', 'Number of Ballots']:
         manifest[c] = manifest[c].astype(str)
-    return manifest, manifest_cards, N_cards - n_cvrs
+    return manifest, manifest_cards, phantoms
 
-def read_cvr(cvr_path):
+
+def read_hart_cvr(cvr_path):
     """
     read a single Hart CVR from XML into python
 
@@ -76,8 +87,12 @@ def read_cvr(cvr_path):
     namespaces = {'xsi': "http://www.w3.org/2001/XMLSchema-instance",
               "xsd": "http://www.w3.org/2001/XMLSchema",
               "xmlns": "http://tempuri.org/CVRDesign.xsd"}
-
-    cvr_root = ET.parse(cvr_path).getroot()
+    #pat = re.compile('[^\w\-\<\>\[\]"\\\']+') # match "word" characters and hyphens
+    pat = re.compile('\n/ +/')
+    with open(cvr_path, 'r', encoding='latin-1') as xml_file:
+        raw_string = xml_file.read()
+    cleaned_string = re.sub(pat, " ", raw_string)
+    cvr_root = ET.fromstring(cleaned_string)
     batch_sequence = cvr_root.findall("xmlns:BatchSequence", namespaces)[0].text
     sheet_number = cvr_root.findall("xmlns:SheetNumber", namespaces)[0].text
     precinct_name = cvr_root.findall("xmlns:PrecinctSplit", namespaces)[0][0].text
@@ -138,6 +153,54 @@ def read_cvrs(cvr_folder):
     return cvr_list
 
 
+def sample_from_manifest(manifest, sample):
+    """
+    Sample from the ballot manifest. Assumes manifest has been augmented to include phantoms.
+    Create list of sampled cards, with identifiers.
+    Create mvrs for sampled phantoms.
+
+    Parameters
+    ----------
+    manifest : dataframe
+        the processed HART manifest, including phantom batches if max_cards exceeds the
+        number of cards in the original manifest
+    sample : list of ints
+        the cards to sample
+
+    Returns
+    -------
+    cards : list
+        sorted list of card identifiers corresponding to the sample. Card identifiers are 1-indexed.
+        Each sampled card is listed as
+            cart number, tray number, tabulator number, batch, card in batch, tabulator+batch+card_in_batch
+    sample_order : dict
+        keys are card identifiers, values are dicts containing keys for "selection_order" and "serial_number"
+        Example: {'999
+    mvr_phantoms : list
+        list of mvrs for sampled phantoms. The id for the mvr is 'phantom-' concatenated with the row.
+    """
+    cards = []
+    sample_order = {}
+    mvr_phantoms = []
+    lookup = np.array([0] + list(manifest['cum_cards']))
+    for i,s in enumerate(sample-1):
+        batch_num = int(np.searchsorted(lookup, s, side='left'))
+        card_in_batch = int(s-lookup[batch_num-1])
+        tab = manifest.iloc[batch_num-1]['Tabulator']
+        batch = manifest.iloc[batch_num-1]['Batch Name']
+        card_id = f'{tab}-{batch}-{card_in_batch}'
+        card = list(manifest.iloc[batch_num-1][['Container']]) \
+                + [tab, batch, card_in_batch, card_id]
+        cards.append(card)
+        if tab == 'phantom':
+            mvr_phantoms.append(CVR(id=card_id, votes={}, phantom=True))
+        sample_order[card_id] = {}
+        sample_order[card_id]["selection_order"] = i
+        sample_order[card_id]["serial"] = s+1
+    cards.sort(key=lambda x: x[-2])
+    return cards, sample_order, mvr_phantoms
+
+
 def check_for_contest(cvr, contest_name):
     """
     check if a single cvr contains a given contest
@@ -192,16 +255,42 @@ def tabulate_styles(cvr_list):
     --------
     a list with two elements: a list of dict keys (styles), being the unique CVR styles in cvr_list, and a corresponding list of counts for each unique style (style_counter)
     """
-    #iterate through and find all the unique styles
+    # iterate through and find all the unique styles
     styles = []
     for cvr in cvr_list:
         style = cvr.votes.keys()
         if style not in styles:
             styles.append(style)
-    #then count the number of times each style appears
+    # then count the number of times each style appears
     style_counter = [0] * len(styles)
     for cvr in cvr_list:
         style = cvr.votes.keys()
         style_counter[styles.index(style)] += 1
     return [styles, style_counter]
+
+
+def get_votes(cvr_list):
+    """
+    tabulate total votes for each candidate in each contest in cvr_list
+
+    Parameters:
+    -----------
+    cvr_list: a list of CVRs with dict for contests and votes and list for undervotes, as returned by read_hart_CVRs()
+
+    Returns:
+    --------
+    a dataframe with three columns: the contest, the vote in that contest and the number of votes for that vote in that contest
+    """
+    styles = tabulate_styles(cvr_list)
+    all_votes = pd.DataFrame()
+    for i in range(len(cvr_list)):
+        vote_df = pd.DataFrame()
+        #TODO: BE SURE THIS PROPERLY ACCOUNTS FOR CONTESTS THAT ARE VOTE-FOR-MULTIPLE
+        vote_df["contest"] = list(cvr_list[i].votes.keys())
+        vote_df["vote"] = [list(item.keys())[0] for item in cvr_list[i].votes.values()]
+        vote_df["style"] = styles[0].index(cvr_list[i].votes.keys()) + 1
+        all_votes = all_votes.append(vote_df,
+                                    ignore_index = True)
+    vote_count_df = all_votes.groupby(["contest", "vote", "style"]).size().reset_index().rename(columns = {0 : "num_votes"})
+    return vote_count_df
 
