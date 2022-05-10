@@ -1085,9 +1085,10 @@ class TestNonnegMean:
         x = np.array(x)
         with np.errstate(divide='ignore',invalid='ignore'):
             terms = np.cumprod((x*etaj/m + (u-x)*(u-etaj)/(u-m))/u)
-        terms[m<0] = np.inf
-        terms[m==0] = 1
-        terms[m==u] = 1
+        terms[m<0] = np.inf                                          # impossible under the null
+        terms[np.isclose(0, m, atol=2*np.finfo(float).eps)] = 1      # ignore
+        terms[np.isclose(u, m, atol=10**-8, rtol=10**-6)] = 1        # ignore
+        terms[np.isclose(0, terms, atol=2*np.finfo(float).eps)] = 1  # martingale effectively vanishes; p-value 1
         return min(1, 1/np.max(terms)), np.minimum(1,1/terms)
 
 
