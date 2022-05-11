@@ -1358,13 +1358,13 @@ class TestNonnegMean:
             2. If reps is None, puts discrepancies into the sample in a deterministic way, starting 
             with a discrepancy in the first item if bias_up is true, then including an additional discrepancy after 
             every int(1/error_rate) items in the sample. "Frontloading" the errors (bias_up == True) should make this
-            _slightly_ conservative on average
+            slightly conservative on average
         
         
         Parameters:
         -----------
         risk_function : callable
-            risk function to use. risk_function should take one argument, x, and return a p-value
+            risk function to use. risk_function should take two arguments, x and m, and return a p-value
         N : int
             population size, or N = np.infty for sampling with replacement
         margin : float
@@ -1412,7 +1412,7 @@ class TestNonnegMean:
                     for k in range(N):
                         x[k] = (one_vote_over if (k+offset) % int(1/error_rate) == 0 
                                 else x[k])
-                p = risk_function(x)
+                p = risk_function(x, margin)
                 sam_size = np.argmax(p <= alpha)+1
             else:
                 prng = np.random.RandomState(seed)  # use the Mersenne Twister for speed
@@ -1421,7 +1421,7 @@ class TestNonnegMean:
                     pop = clean*np.ones(N)
                     inx = (prng.random(size=N) <= error_rate)  # randomly allocate errors
                     pop[inx] = one_vote_over
-                    p = risk_function(pop)
+                    p = risk_function(pop, margin)
                     sams[r] = np.argmax(p <= alpha)+1
                 sam_size = np.quantile(sams, quantile)
         else:                   # ballot-polling audit
@@ -1435,7 +1435,7 @@ class TestNonnegMean:
                 sams = np.zeros(int(reps))
                 for r in range(reps):
                     pop = prng.permutation(pop)
-                    p_history = risk_function(pop)
+                    p_history = risk_function(pop, margin)
                     sams[r] = np.argmax(p_history <= alpha)+1
                 sam_size = np.quantile(sams, quantile)
         return sam_size
@@ -1449,7 +1449,7 @@ def check_audit_parameters(risk_function, g, error_rate, contests):
     Parameters:
     ---------
     risk_function : string
-        the risk-measuring function for the audit
+        the name of the risk-measuring function for the audit
     g : float in [0, 1)
         padding for Kaplan-Markov or Kaplan-Wald 
         
@@ -1528,7 +1528,8 @@ def find_margins(contests : dict, assertions : dict, cvr_list : list, use_style 
     return min_margin
 
 def find_p_values(contests : dict, assertions : dict, mvr_sample : list, cvr_sample : list=None, \
-                  use_style : bool=False, risk_function : object=TestNonnegMean.kaplan_wald) -> float :
+                  use_style : bool=False, \
+                  risk_function : callable=(lambda x, m: TestNonnegMean.kaplan_wald(x))) -> float :
     '''
     Find the p-value for every assertion in assertions and update assertions & contests accordingly
     
@@ -1554,7 +1555,7 @@ def find_p_values(contests : dict, assertions : dict, mvr_sample : list, cvr_sam
         See documentation
         
     risk_function : function (class methods are not of type Callable)
-        function to calculate the p-value from overstatement_assorter values
+        function to calculate the p-value from assorter values
         
     Returns:
     --------
@@ -1579,9 +1580,9 @@ def find_p_values(contests : dict, assertions : dict, mvr_sample : list, cvr_sam
             if cvr_sample: # comparison audit
                 d = [a.overstatement_assorter(mvr_sample[i], cvr_sample[i],\
                     a.margin, use_style=use_style) for i in range(len(mvr_sample))]
-            else:         # polling audit
-                d = [a.assort(mvr_sample[i], use_style=use_style) for i in range(len(mvr_sample))]
-            a.p_value, a.p_history = risk_function(d)
+            else:         # polling audit. Assume style information is irrelevant
+                d = [a.assort(mvr_sample[i]) for i in range(len(mvr_sample))]
+            a.p_value, a.p_history = risk_function(d, a.margin)
             a.proved = (a.p_value <= contests[c]['risk_limit']) or a.proved
             contests[c]['p_values'].update({asrtn: a.p_value})
             contests[c]['proved'].update({asrtn: int(a.proved)})
@@ -1725,7 +1726,8 @@ def consistent_sampling(cvr_list, sample_size_dict, sampled_cvrs = []):
     return sampled_cvrs
 
 def new_sample_size(contests, assertions, mvr_sample, cvr_sample=None, use_style=True,\
-                    risk_function=TestNonnegMean.alpha_mart, quantile=0.5, reps=200, seed=1234567890):
+                    risk_function=(lambda x, m:TestNonnegMean.alpha_mart(x)), \
+                    quantile=0.5, reps=200, seed=1234567890):
     '''
     Estimate the total sample size expected to allow the audit to complete,
     if discrepancies continue at the same rate already observed.
@@ -1751,7 +1753,7 @@ def new_sample_size(contests, assertions, mvr_sample, cvr_sample=None, use_style
         
     risk_function : callable
         function to calculate the p-value from overstatement_assorter values.
-        Should take one argument, the sample x. 
+        Should take two arguments, the sample x and the margin. 
         
     quantile : float
         estimated quantile of the sample size to return
@@ -1786,7 +1788,7 @@ def new_sample_size(contests, assertions, mvr_sample, cvr_sample=None, use_style
                     while p > contests[c]['risk_limit']:
                         one_more = sample_by_index(len(d), 1, prng=prng)[0]
                         d.append(d[one_more-1])
-                        p = risk_function(d)[0]
+                        p = risk_function(d, a.margin)[0]
                     new_size = np.max([new_size, len(d)])
         sams[r] = new_size 
     new_size = np.quantile(sams, quantile)
@@ -1856,7 +1858,7 @@ def write_audit_parameters(log_file, seed, replacement, risk_function, g, \
         seed for the PRNG for sampling ballots
     
     risk_function : string
-        risk-measuring function used in the audit
+        name of the risk-measuring function used in the audit
         
     g : float
         padding for Kaplan-Wald and Kaplan-Markov
@@ -2256,7 +2258,7 @@ def test_kaplan_kolmogorov():
 
 def test_initial_sample_size():
     max_cards = int(10**3)
-    risk_function = lambda x: TestNonnegMean.kaplan_kolmogorov(x, N=max_cards, t=1/2, g=0.1)[1]
+    risk_function = lambda x, m: TestNonnegMean.kaplan_kolmogorov(x, N=max_cards, t=1/2, g=0.1)[1]
     n_det = TestNonnegMean.initial_sample_size(risk_function, max_cards,0.1, False, 0.001)
     n_rand = TestNonnegMean.initial_sample_size(risk_function, max_cards, 0.1, False, 0.001, reps=100)
     print(n_det, n_rand)
@@ -2278,7 +2280,7 @@ def test_initial_sample_size_KW():
     one_over = 1/3.8 # 0.5/(2-margin)
     clean = 1/1.9    # 1/(2-margin)
 
-    risk_function = lambda x: TestNonnegMean.kaplan_wald(x, t=1/2, g=g, random_order=False)[1]
+    risk_function = lambda x, margin: TestNonnegMean.kaplan_wald(x, t=1/2, g=g, random_order=False)[1]
     # first test
     bias_up = False
     sam_size = TestNonnegMean.initial_sample_size(risk_function, N, margin, False, error_rate, alpha=alpha, \
