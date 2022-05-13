@@ -201,6 +201,56 @@ def sample_from_manifest(manifest, sample):
     return cards, sample_order, mvr_phantoms
 
 
+def sample_from_cvrs(cvr_list : list, manifest : list, sample : np.array):
+    """
+    Sample from a list of CVRs: return info to find the cards, CVRs, & mvrs for sampled phantom cards
+    
+    Parameters
+    ----------
+    cvr_list : list of CVR objects. 
+        The id for the cvr is assumed to be composed of a batch name, and 
+        ballot number, joined with underscores, Hart's format
+    manifest : pandas dataframe
+        a ballot manifest as a pandas dataframe
+    sample : numpy array of ints
+        the CVRs to sample    
+        
+    Returns
+    -------
+    cards: list
+        card identifiers corresponding to the sample, sorted by identifier
+    sample_order : dict
+        keys are card identifiers, values are dicts containing keys for "selection_order" and "serial"
+    cvr_sample: list of CVR objects
+        the CVRs in the sample
+    mvr_phantoms : list of CVR objects
+        the mvrs for phantom sheets in the sample
+    """
+    cards = []
+    sample_order = {}
+    cvr_sample = []
+    mvr_phantoms = []
+    for i,s in enumerate(sample-1):
+        cvr_sample.append(cvr_list[s])
+        cvr_id = cvr_list[s].id
+        batch, card_num = cvr_id.split("_")
+        card_id = f'{batch}_{card_num}'
+        if not cvr_list[s].phantom:
+            manifest_row = manifest[(manifest['Batch Name'] == str(batch))].iloc[0]
+            card = [manifest_row['Tabulator']]\
+                    + [batch, card_num, card_id]
+        else:
+            card = ["","", batch, card_num, card_id]
+            mvr_phantoms.append(CVR(id=cvr_id, votes = {}, phantom=True))
+        cards.append(card)
+        sample_order[card_id] = {}
+        sample_order[card_id]["selection_order"] = i
+        sample_order[card_id]["serial"] = s+1
+    # sort by id
+    cards.sort(key = lambda x: x[3])
+    return cards, sample_order, cvr_sample, mvr_phantoms
+
+
 def check_for_contest(cvr, contest_name):
     """
     check if a single cvr contains a given contest

@@ -1684,9 +1684,10 @@ def sort_cvr_sample_num(cvr_list : list):
     cvr_list.sort(key = lambda x: x.sample_num)
     return True
     
-def consistent_sampling(cvr_list, sample_size_dict, sampled_cvrs = []):
+def consistent_sampling(cvr_list, sample_size_dict, sampled_cvr_ids = None):
     '''
-    Sample CVRs for contests according to sample size in sample_size_dict
+    Sample CVR ids for contests according to sample size in sample_size_dict
+    Prior to calling consistent_sampling you should: 1) generate phantoms and 2) assign sample_num to the CVRs
     
     Parameters
     ----------
@@ -1694,15 +1695,18 @@ def consistent_sampling(cvr_list, sample_size_dict, sampled_cvrs = []):
         list of CVR objects
     sample_size_dict : dict
         dict of sample size for each contest to sample
-    sampled_cvrs : list
-        list of CVR objects already sampled
+    sampled_cvr_ids : list
+        list of CVR ids already sampled
     
     Returns
     -------
-    sampled_cvrs : list
-        CVRs to sample
+    sampled_cvr_ids : list 
+        CVR ids to sample
+        side effects: sorts CVRs by sample number
     '''
-    
+    # if sampled_cvrs is None then create empty list
+    if sampled_cvr_ids == None:
+        sampled_cvr_ids = []
     # sort CVRs
     sort_cvr_sample_num(cvr_list)
     # get list of contests to consider from sample_size dict
@@ -1712,18 +1716,18 @@ def consistent_sampling(cvr_list, sample_size_dict, sampled_cvrs = []):
     # loop through each contest
     for contest in contest_list:
         # return true if contest on ballot
-        contest_on_ballot = [contest in item.votes for item in cvr_list]
+        contest_on_ballot = [item.has_contest(contest) for item in cvr_list]
         # get ballot indices where contest on ballot
         contest_indices = np.where(contest_on_ballot)[0]
         # initialize number of sampled ballots
         sampled_ballots = 0
         # get ballots where contest on ballot and still need to sample more ballots and append to sampled_CVRs if not already included
         for i in contest_indices:
-            if cvr_list[i] not in sampled_cvrs and sampled_ballots < sample_size_dict[contest]:
-                sampled_cvrs.append(cvr_list[i])
+            if cvr_list[i].id not in sampled_cvr_ids and sampled_ballots < sample_size_dict[contest]:
+                sampled_cvr_ids.append(cvr_list[i].id)
             sampled_ballots += 1
     # return CVRs to sample
-    return sampled_cvrs
+    return sampled_cvr_ids
 
 def new_sample_size(contests, assertions, mvr_sample, cvr_sample=None, use_style=True,\
                     risk_function=(lambda x, m:TestNonnegMean.alpha_mart(x)), \
@@ -2445,6 +2449,19 @@ def test_assign_sample_nums():
     CVR.assign_sample_nums(cvrs,prng)
     assert cvrs[0].get_sample_num() == 100208482908198438057700745423243738999845662853049614266130533283921761365671
     assert cvrs[5].sample_num == 93838330019164869717966768063938259297046489853954854934402443181124696542865
+    
+def test_consistent_sampling():
+    cvrs = [CVR(id="1", votes={"city_council": {"Alice": 1}, "measure_1": {"yes": 1}}, phantom=False), \
+                CVR(id="2", votes={"city_council": {"Bob": 1},   "measure_1": {"yes": 1}}, phantom=False), \
+                CVR(id="3", votes={"city_council": {"Bob": 1},   "measure_1": {"no": 1}}, phantom=False), \
+                CVR(id="4", votes={"city_council": {"Charlie": 1}}, phantom=False), \
+                CVR(id="5", votes={"city_council": {"Doug": 1}}, phantom=False), \
+                CVR(id="6", votes={"measure_1": {"no": 1}}, phantom=False)
+            ]
+    prng = SHA256(1234567890)
+    CVR.assign_sample_nums(cvrs,prng)
+    sample_cvr_ids = consistent_sampling(cvrs, {'city_council' : 3, 'measure_1' : 3})
+    assert sample_cvr_ids == ['5', '4', '1', '6', '2']
     
 def test_shrink_trunc():
     epsj = lambda c, d, j: c/math.sqrt(d+j-1)
