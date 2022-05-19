@@ -25,7 +25,7 @@ class Assertion:
     
     JSON_ASSERTION_TYPES = ["WINNER_ONLY", "IRV_ELIMINATION"]  # supported json assertion types
     
-    def __init__(self, contest = None, assorter = None, margin = 0, p_value = 1, p_history=None, proved = False):
+    def __init__(self, contest = None, assorter = None, margin = 0, p_value = 1, p_history=[], proved = False):
         '''
         The assorter is callable; should produce a non-negative real.
         
@@ -387,36 +387,40 @@ class Assertion:
         return assertions
     
     @classmethod
-    def make_all_assertions(cls, contests):
+    def make_all_assertions(cls, contests : dict):
         '''
-        Construct all the assertions to audit the contests.
+        Construct all the assertions to audit the contests and add the assertions to the contest dict
         
-        Parameters:
-        -----------
+        Parameters
+        ----------
         contests : dict
             the contest-level data
         
-        Returns:
-        --------
-        A dict of dicts of Assertion objects
+        Returns
+        -------
+        True
+        
+        Side Effects
+        ------------
+        adds the list of assertions relevant to each contest to the contest dict under the key 'assertions'
+        
         '''
-        all_assertions = {}
         for c in contests:
             scf = contests[c]['choice_function']
             winrs = contests[c]['reported_winners']
             losrs = [cand for cand in contests[c]['candidates'] if cand not in winrs]
             if scf == 'plurality':
-                all_assertions[c] = Assertion.make_plurality_assertions(c, winrs, losrs)
+                contests[c]['assertions'] = Assertion.make_plurality_assertions(c, winrs, losrs)
             elif scf == 'supermajority':
-                all_assertions[c] = Assertion.make_supermajority_assertion(c, winrs[0], losrs, \
+                contests[c]['assertions'] = Assertion.make_supermajority_assertion(c, winrs[0], losrs, \
                                   contests[c]['share_to_win'])
             elif scf == 'IRV':
                 # Assumption: contests[c]['assertion_json'] yields list assertions in JSON format.
-                all_assertions[c] = Assertion.make_assertions_from_json(c, contests[c]['candidates'], \
+                contests[c]['assertions'] = Assertion.make_assertions_from_json(c, contests[c]['candidates'], \
                     contests[c]['assertion_json'])
             else:
                 raise NotImplementedError("Social choice function " + scf + " is not supported")
-        return all_assertions
+        return True
 
 class Assorter:
     '''
@@ -1511,7 +1515,7 @@ def check_audit_parameters(risk_function, g, error_rate, contests):
             assert contests[c]['share_to_win'] >= 0.5, \
                 'super-majority contest requires winning at least 50% of votes in ' + c + ' contest'
 
-def find_margins(contests : dict, assertions : dict, cvr_list : list, use_style : bool):
+def find_margins(contests : dict, cvr_list : list, use_style : bool):
     '''
     Find all the assorter margins in a set of Assertions. Updates the dict of dicts of assertions,
     and the contest dict.
@@ -1522,9 +1526,7 @@ def find_margins(contests : dict, assertions : dict, cvr_list : list, use_style 
     
     Parameters:
     -----------
-    contests : dict of contest data
-    assertions : dict of dicts of Assertions
-        Keys in the main dict are contests; keys in the contained dicts are Assertions
+    contests : dict of contest data, including assertions
     cvr_list : list
         list of cvr objects
     use_style : bool
@@ -1535,26 +1537,25 @@ def find_margins(contests : dict, assertions : dict, cvr_list : list, use_style 
     min_margin : float
         smallest margin in the audit        
     '''
-    assorter_means = {}
     min_margin = np.infty
     for c in contests:
         contests[c]['margins'] = {}
-        for asrtn in assertions[c]:
+        for a in contests[c]['assertions']:
             # find mean of the assertion for the CVRs
-            amean = assertions[c][asrtn].assorter_mean(cvr_list, use_style=use_style)
+            amean = contests[c]['assertions'][a].assorter_mean(cvr_list, use_style=use_style)
             if amean < 1/2:
-                warn(f"assertion {asrtn} not satisfied by CVRs: mean value is {amean}")
+                warn(f"assertion {a} not satisfied by CVRs: mean value is {amean}")
             margin = 2*amean-1
-            assertions[c][asrtn].margin = margin
-            contests[c]['margins'].update({asrtn: margin})
+            contests[c]['assertions'][a].margin = margin
+            contests[c]['margins'].update({a: margin})
             min_margin = np.min([min_margin, margin])
     return min_margin
 
-def find_p_values(contests : dict, assertions : dict, mvr_sample : list, cvr_sample : list=None, \
+def find_p_values(contests : dict, mvr_sample : list, cvr_sample : list=None, \
                   use_style : bool=False, \
                   risk_function : callable=(lambda x, m: TestNonnegMean.kaplan_wald(x))) -> float :
     '''
-    Find the p-value for every assertion in assertions and update assertions & contests accordingly
+    Find the p-value for every assertion and update assertions & contests accordingly
     
     update p_value, p_history, proved flag, the maximum p-value for each contest.
     
@@ -1564,9 +1565,7 @@ def find_p_values(contests : dict, assertions : dict, mvr_sample : list, cvr_sam
     -----------
     contests : dict of dicts
         the contest data structure. outer keys are contest identifiers; inner keys are assertions
-        
-    assertions : dict of dicts of assertions
-    
+            
     mvr_sample : list of CVR objects
         the manually ascertained voter intent from sheets, including entries for phantoms
     
@@ -1598,23 +1597,24 @@ def find_p_values(contests : dict, assertions : dict, mvr_sample : list, cvr_sam
         contests[c]['p_values'] = {}
         contests[c]['proved'] = {}
         contest_max_p = 0
-        for asrtn in assertions[c]:
-            a = assertions[c][asrtn]
+        for a in contests[c]['assertions']:
             if cvr_sample: # comparison audit
-                d = [a.overstatement_assorter(mvr_sample[i], cvr_sample[i],\
-                    a.margin, use_style=use_style) for i in range(len(mvr_sample))]
+                d = [contests[c]['assertions'][a].overstatement_assorter(mvr_sample[i], cvr_sample[i],\
+                    contests[c]['assertions'][a].margin, use_style=use_style) for i in range(len(mvr_sample))]
             else:         # polling audit. Assume style information is irrelevant
-                d = [a.assort(mvr_sample[i]) for i in range(len(mvr_sample))]
-            a.p_value, a.p_history = risk_function(d, a.margin)
-            a.proved = (a.p_value <= contests[c]['risk_limit']) or a.proved
-            contests[c]['p_values'].update({asrtn: a.p_value})
-            contests[c]['proved'].update({asrtn: int(a.proved)})
-            contest_max_p = np.max([contest_max_p, a.p_value])
+                d = [contests[c]['assertions'][a].assort(mvr_sample[i]) for i in range(len(mvr_sample))]
+            contests[c]['assertions'][a].p_value, contests[c]['assertions'][a].p_history = \
+                     risk_function(d, contests[c]['assertions'][a].margin)
+            contests[c]['assertions'][a].proved = \
+                     (contests[c]['assertions'][a].p_value <= contests[c]['risk_limit']) or contests[c]['assertions'][a].proved
+            contests[c]['p_values'].update({a: contests[c]['assertions'][a].p_value})
+            contests[c]['proved'].update({a: int(contests[c]['assertions'][a].proved)})
+            contest_max_p = np.max([contest_max_p, contests[c]['assertions'][a].p_value])
         contests[c].update({'max_p': contest_max_p})
         p_max = np.max([p_max, contests[c]['max_p']])
     return p_max
 
-def find_sample_size(contests, assertions, sample_size_function):
+def find_sample_size(contests, sample_size_function):
     '''
     Find initial sample size: maximum across assertions for all contests.
     
@@ -1633,8 +1633,8 @@ def find_sample_size(contests, assertions, sample_size_function):
     sample_size = 0
     for c in contests:
         risk = contests[c]['risk_limit']
-        for a in assertions[c]:
-            margin = assertions[c][a].margin
+        for a in contests[c]['assertions']:
+            margin = contests[c]['assertions'][a].margin
             n = sample_size_function(margin, risk)
             sample_size = np.max([sample_size, n] )
     return sample_size
@@ -1752,7 +1752,7 @@ def consistent_sampling(cvr_list, sample_size_dict, sampled_cvr_ids = None):
     # return CVRs to sample
     return sampled_cvr_ids
 
-def new_sample_size(contests, assertions, mvr_sample, cvr_sample=None, use_style=True,\
+def new_sample_size(contests, mvr_sample, cvr_sample=None, use_style=True,\
                     risk_function=(lambda x, m:TestNonnegMean.alpha_mart(x)), \
                     quantile=0.5, reps=200, seed=1234567890):
     '''
@@ -1765,9 +1765,7 @@ def new_sample_size(contests, assertions, mvr_sample, cvr_sample=None, use_style
     -----------
     contests : dict of dicts
         the contest data structure. outer keys are contest identifiers; inner keys are assertions
-        
-    assertions : dict of dicts of assertions
-    
+            
     mvr_sample : list of CVR objects
         the manually ascertained voter intent from sheets, including entries for phantoms
     
@@ -1803,25 +1801,24 @@ def new_sample_size(contests, assertions, mvr_sample, cvr_sample=None, use_style
     for r in range(reps):
         new_size = 0
         for c in contests:
-            for asrtn in assertions[c]:
-                if not assertions[c][asrtn].proved:    
-                    a = assertions[c][asrtn]
-                    p = a.p_value
+            for a in contests[c]['assertions']:
+                if not contests[c]['assertions'][a].proved:    
+                    p = contests[c]['assertions'][a].p_value
                     if cvr_sample:
-                        d = [a.overstatement_assorter(mvr_sample[i], cvr_sample[i],\
-                            a.margin, use_style=use_style) for i in range(len(mvr_sample))]
+                        d = [contests[c]['assertions'][a].overstatement_assorter(mvr_sample[i], cvr_sample[i],\
+                            contests[c]['assertions'][a].margin, use_style=use_style) for i in range(len(mvr_sample))]
                     else:
-                        d = [a.assort(mvr_sample[i], use_style=use_style) for i in range(len(mvr_sample))]
+                        d = [contests[c]['assertions'][a].assort(mvr_sample[i], use_style=use_style) for i in range(len(mvr_sample))]
                     while p > contests[c]['risk_limit']:
                         one_more = sample_by_index(len(d), 1, prng=prng)[0]
                         d.append(d[one_more-1])
-                        p = risk_function(d, a.margin)[0]
+                        p = risk_function(d, contests[c]['assertions'][a].margin)[0]
                     new_size = np.max([new_size, len(d)])
         sams[r] = new_size 
     new_size = np.quantile(sams, quantile)
     return new_size, sams
 
-def summarize_status(contests, assertions):
+def summarize_status(contests):
     '''
     Determine whether the audit of individual assertions, contests, and the election
     are finished.
@@ -1831,10 +1828,7 @@ def summarize_status(contests, assertions):
     Parameters:
     -----------
     contests : dict of dicts
-        dict of contest information
-    assertions : dict of dicts
-        the assertions
-    
+        dict of contest information    
     
     Returns:
     --------
@@ -1844,10 +1838,9 @@ def summarize_status(contests, assertions):
     for c in contests:
         print("p-values for assertions in contest {}".format(c))
         cpmax = 0
-        for a in assertions[c]:
-            p = assertions[c][a].p_value
-            cpmax = np.max([cpmax,p])
-            print(a, p)
+        for a in contests[c]['assertions']:
+            cpmax = np.max([cpmax,contests[c]['assertions'][a].p_value])
+            print(a, contests[c]['assertions'][a].p_value)
         if cpmax <= contests[c]['risk_limit']:
             print("\ncontest {} AUDIT COMPLETE at risk limit {}. Attained risk {}".format(\
                 c, contests[c]['risk_limit'], cpmax))
@@ -1856,9 +1849,9 @@ def summarize_status(contests, assertions):
             print("\ncontest {} audit INCOMPLETE at risk limit {}. Attained risk {}".format(\
                 c, contests[c]['risk_limit'], cpmax))
             print("assertions remaining to be proved:")
-            for a in assertions[c]:
-                if assertions[c][a].p_value > contests[c]['risk_limit']:
-                    print("{}: current risk {}".format(a, assertions[c][a].p_value))
+            for a in contests[c]['assertions']:
+                if contests[c]['assertions'][a].p_value > contests[c]['risk_limit']:
+                    print("{}: current risk {}".format(a, contests[c]['assertions'][a].p_value))
     return done
 
 class NpEncoder(json.JSONEncoder):
@@ -1869,6 +1862,8 @@ class NpEncoder(json.JSONEncoder):
             return float(obj)
         if isinstance(obj, np.ndarray):
             return obj.tolist()
+        if isinstance(obj, Assertion):
+            return obj.__str__()
         return super(NpEncoder, self).default(obj)
 
 def write_audit_parameters(log_file, seed, replacement, risk_function, g, \
