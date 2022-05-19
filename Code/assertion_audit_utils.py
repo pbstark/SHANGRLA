@@ -1013,19 +1013,28 @@ class TestNonnegMean:
 
     @classmethod
     def shrink_trunc(cls, x: np.array, N: int, mu: float=1/2, nu: float=1-np.finfo(float).eps, u: float=1, \
-                     c: float=1/2, d: float=100) -> np.array: 
+                     c: float=1/2, d: float=100, f: float=0, minsd: float=10**-6) -> np.array: 
         '''
-        apply the shrinkage and truncation estimator to an array
+        apply shrinkage/truncation estimator to an array to construct a sequence of "alternative" values
 
-        sample mean is shrunk towards nu, with relative weight d compared to a single observation.
-        estimate is truncated above at u-u*eps and below at mu_j+e_j(c,j)
+        sample mean is shrunk towards nu, with relative weight d compared to a single observation,
+        then that combination is shrunk towards u, with relative weight f/(stdev(x)).
+        
+        The result is truncated above at u-u*eps and below at mu_j+e_j(c,j)
+        
+        Shrinking towards nu stabilizes the sample mean as an estimate of the population mean.
+        Shrinking towards u takes advantage of low-variance samples to grow the test statistic more rapidly.
+
+        The running standard deviation is calculated using Welford's method.        
 
         S_1 = 0
         S_j = \sum_{i=1}^{j-1} x_i, j > 1
         m_j = (N*mu-S_j)/(N-j+1) if np.isfinite(N) else mu
         e_j = c/sqrt(d+j-1)
-        eta_j =  ( (d*nu + S_j)/(d+j-1) \vee (m_j+e_j) ) \wedge u*(1-eps)
-
+        sd_1 = sd_2 = 1
+        sd_j = sqrt[(\sum_{i=1}^{j-1} (x_i-S_j/(j-1))^2)/(j-2)] \wedge minsd, j>2
+        eta_j =  ( [(d*nu + S_j)/(d+j-1) + f*u/sd_j]/(1+f/sd_j) \vee (m_j+e_j) ) \wedge u*(1-eps)
+        
         Parameters
         ----------
         x : np.array
@@ -1038,11 +1047,25 @@ class TestNonnegMean:
             scale factor for allowing the estimated mean to approach t from above
         d : positive float
             relative weight of nu compared to an observation, in updating the alternative for each term
+        f : positive float
+            relative weight of the upper bound u (normalized by the sample standard deviation)
+        minsd : positive float
+            lower threshold for the standard deviation of the sample, to avoid divide-by-zero errors and
+            to limit the weight of u
         '''
         S = np.insert(np.cumsum(x),0,0)[0:-1]  # 0, x_1, x_1+x_2, ...,  
         j = np.arange(1,len(x)+1)              # 1, 2, 3, ..., len(x)
         m = (N*mu-S)/(N-j+1) if np.isfinite(N) else mu   # mean of population after (j-1)st draw, if null is true 
-        return np.minimum(u*(1-np.finfo(float).eps), np.maximum((d*nu+S)/(d+j-1),m+c/np.sqrt(d+j-1)))
+        mj = [x[0]]                            # Welford's algorithm for running mean and running sd
+        sdj = [0]
+        for i, xj in enumerate(x[1:]):
+            mj.append(mj[-1]+(xj-mj[-1])/(i+1))
+            sdj.append(sdj[-1]+(xj-mj[-2])*(xj-mj[-1]))
+        sdj = np.sqrt(sdj/j)
+        sdj = np.insert(np.maximum(sdj,minsd),0,1)[0:-1] # threshold the sd, set first two sds to 1
+        sdj[1]=1
+        weighted = ((d*nu+S)/(d+j-1) + f*u/sdj)/(1+f/sdj)
+        return np.minimum(u*(1-np.finfo(float).eps), np.maximum(weighted,m+c/np.sqrt(d+j-1)))
     
     @classmethod
     def alpha_mart(cls, x: np.array, N: int, t: float=1/2, eta: float=1-np.finfo(float).eps, u: float=1, \
