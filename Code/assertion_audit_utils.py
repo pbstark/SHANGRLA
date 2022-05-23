@@ -8,7 +8,7 @@ import csv
 import warnings
 import typing
 from numpy import testing
-from collections import OrderedDict
+from collections import OrderedDict, defaultdict
 from cryptorandom.cryptorandom import SHA256, random, int_from_hash
 from cryptorandom.sample import random_permutation
 from cryptorandom.sample import sample_by_index
@@ -1707,10 +1707,12 @@ def sort_cvr_sample_num(cvr_list : list):
     cvr_list.sort(key = lambda x: x.sample_num)
     return True
     
-def consistent_sampling(cvr_list, sample_size_dict, sampled_cvr_ids = None):
+def consistent_sampling(cvr_list, contests, sample_size_dict, sampled_cvr_ids = None):
     '''
-    Sample CVR ids for contests according to sample size in sample_size_dict
-    Prior to calling consistent_sampling you should: 1) generate phantoms and 2) assign sample_num to the CVRs
+    Sample CVR ids for contests to attain sample sizes in sample_size_dict
+    
+    Assumes that phantoms have already been generated and sample_num has been assigned 
+    to every CVR, including phantoms
     
     Parameters
     ----------
@@ -1725,31 +1727,23 @@ def consistent_sampling(cvr_list, sample_size_dict, sampled_cvr_ids = None):
     -------
     sampled_cvr_ids : list 
         CVR ids to sample
-        side effects: sorts CVRs by sample number
     '''
-    # if sampled_cvrs is None then create empty list
-    if sampled_cvr_ids == None:
+    contest_in_progress = lambda c: current_sizes[c] < sample_size_dict[c] 
+    current_sizes = defaultdict(int)
+    if sampled_cvr_ids == None:     # no sample yet
         sampled_cvr_ids = []
-    # sort CVRs
-    sort_cvr_sample_num(cvr_list)
-    # get list of contests to consider from sample_size dict
-    contest_list = list(sample_size_dict.keys())
-    # get list of ticket numbers for the cvr list
-    ticket_number_list = [item.sample_num for item in cvr_list]
-    # loop through each contest
-    for contest in contest_list:
-        # return true if contest on ballot
-        contest_on_ballot = [item.has_contest(contest) for item in cvr_list]
-        # get ballot indices where contest on ballot
-        contest_indices = np.where(contest_on_ballot)[0]
-        # initialize number of sampled ballots
-        sampled_ballots = 0
-        # get ballots where contest on ballot and still need to sample more ballots and append to sampled_CVRs if not already included
-        for i in contest_indices:
-            if cvr_list[i].id not in sampled_cvr_ids and sampled_ballots < sample_size_dict[contest]:
-                sampled_cvr_ids.append(cvr_list[i].id)
-            sampled_ballots += 1
-    # return CVRs to sample
+    else:                           # start where we are
+        for sam in sampled_cvr_ids:
+            for c in contests:
+                current_sizes[c] = current_sizes[c] + (1 if cvr_list[sam].has_contest(c) else 0)
+    sorted_cvrs = cvr_list.sorted(key= lambda x: x.sample_num)
+    inx = len(sampled_cvr_ids)
+    while any([contest_in_progress(c) for c in contests]):
+        if any([(contest_in_progress(c) and sorted_cvrs[inx].has_contest(c)) for c in contests]):
+            sampled_cvr_ids.append(inx)
+            for c in contests:
+                current_sizes[c] += (1 if sorted_cvrs[inx].has_contest(c) else 0)
+        inx += 1
     return sampled_cvr_ids
 
 def new_sample_size(contests, mvr_sample, cvr_sample=None, use_style=True,\
