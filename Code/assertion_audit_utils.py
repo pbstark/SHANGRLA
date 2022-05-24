@@ -1707,7 +1707,7 @@ def sort_cvr_sample_num(cvr_list : list):
     cvr_list.sort(key = lambda x: x.sample_num)
     return True
     
-def consistent_sampling(cvr_list, contests, sample_size_dict, sampled_cvr_ids = None):
+def consistent_sampling(cvr_list, contests, sample_size_dict, sampled_cvr_indices = None):
     '''
     Sample CVR ids for contests to attain sample sizes in sample_size_dict
     
@@ -1720,31 +1720,31 @@ def consistent_sampling(cvr_list, contests, sample_size_dict, sampled_cvr_ids = 
         list of CVR objects
     sample_size_dict : dict
         dict of sample size for each contest to sample
-    sampled_cvr_ids : list
-        list of CVR ids already sampled
+    sampled_cvr_indices : list
+        list of indices of cvrs already in the sample
     
     Returns
     -------
-    sampled_cvr_ids : list 
+    sampled_cvr_indices : list 
         CVR ids to sample
     '''
     contest_in_progress = lambda c: current_sizes[c] < sample_size_dict[c] 
     current_sizes = defaultdict(int)
-    if sampled_cvr_ids == None:     # no sample yet
-        sampled_cvr_ids = []
+    if sampled_cvr_indices == None:     # no sample yet
+        sampled_cvr_indices = []
     else:                           # start where we are
-        for sam in sampled_cvr_ids:
+        for sam in sampled_cvr_indices:
             for c in contests:
                 current_sizes[c] = current_sizes[c] + (1 if cvr_list[sam].has_contest(c) else 0)
-    sorted_cvrs = cvr_list.sorted(key= lambda x: x.sample_num)
-    inx = len(sampled_cvr_ids)
+    sorted_cvr_indices = [i+1 for i, cv in sorted(enumerate(cvr_list), key = lambda x: x[1].sample_num)]
+    inx = len(sampled_cvr_indices)
     while any([contest_in_progress(c) for c in contests]):
-        if any([(contest_in_progress(c) and sorted_cvrs[inx].has_contest(c)) for c in contests]):
-            sampled_cvr_ids.append(inx)
+        if any([(contest_in_progress(c) and cvr_list[sorted_cvr_indices[inx]-1].has_contest(c)) for c in contests]):
+            sampled_cvr_indices.append(sorted_cvr_indices[inx])
             for c in contests:
-                current_sizes[c] += (1 if sorted_cvrs[inx].has_contest(c) else 0)
+                current_sizes[c] += (1 if cvr_list[sorted_cvr_indices[inx]-1].has_contest(c) else 0)
         inx += 1
-    return sampled_cvr_ids
+    return sampled_cvr_indices
 
 def new_sample_size(contests, mvr_sample, cvr_sample=None, use_style=True,\
                     risk_function=(lambda x, m:TestNonnegMean.alpha_mart(x)), \
@@ -2464,16 +2464,17 @@ def test_assign_sample_nums():
     
 def test_consistent_sampling():
     cvrs = [CVR(id="1", votes={"city_council": {"Alice": 1}, "measure_1": {"yes": 1}}, phantom=False), \
-                CVR(id="2", votes={"city_council": {"Bob": 1},   "measure_1": {"yes": 1}}, phantom=False), \
-                CVR(id="3", votes={"city_council": {"Bob": 1},   "measure_1": {"no": 1}}, phantom=False), \
-                CVR(id="4", votes={"city_council": {"Charlie": 1}}, phantom=False), \
-                CVR(id="5", votes={"city_council": {"Doug": 1}}, phantom=False), \
-                CVR(id="6", votes={"measure_1": {"no": 1}}, phantom=False)
+            CVR(id="2", votes={"city_council": {"Bob": 1},   "measure_1": {"yes": 1}}, phantom=False), \
+            CVR(id="3", votes={"city_council": {"Bob": 1},   "measure_1": {"no": 1}}, phantom=False), \
+            CVR(id="4", votes={"city_council": {"Charlie": 1}}, phantom=False), \
+            CVR(id="5", votes={"city_council": {"Doug": 1}}, phantom=False), \
+            CVR(id="6", votes={"measure_1": {"no": 1}}, phantom=False)
             ]
     prng = SHA256(1234567890)
-    CVR.assign_sample_nums(cvrs,prng)
-    sample_cvr_ids = consistent_sampling(cvrs, {'city_council' : 3, 'measure_1' : 3})
-    assert sample_cvr_ids == ['5', '4', '1', '6', '2']
+    CVR.assign_sample_nums(cvrs, prng)
+    contests = {'city_council': ' ', 'measure_1': ' '}
+    sample_cvr_indices = consistent_sampling(cvrs, contests, {'city_council' : 3, 'measure_1' : 3})
+    assert sample_cvr_indices == [5, 4, 6, 1, 2]
     
 def test_shrink_trunc():
     epsj = lambda c, d, j: c/math.sqrt(d+j-1)
@@ -2531,3 +2532,5 @@ if __name__ == "__main__":
     test_initial_sample_size_KW()
     
     test_shrink_trunc()
+    
+    test_consistent_sampling()
