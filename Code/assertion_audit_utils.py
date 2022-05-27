@@ -1113,7 +1113,7 @@ class TestNonnegMean:
         with np.errstate(divide='ignore',invalid='ignore'):
             terms = np.cumprod((x*etaj/m + (u-x)*(u-etaj)/(u-m))/u)
         terms[m<0] = np.inf                                         # true mean certainly greater than hypothesized
-        terms[m>u] = 1                                              # true mean certainly less than hypothesized
+        terms[m>u] = 0                                              # true mean certainly less than hypothesized
         terms[np.isclose(0, m, atol=2*np.finfo(float).eps)] = 1     # ignore
         terms[np.isclose(u, m, atol=10**-8, rtol=10**-6)] = 1       # ignore
         terms[np.isclose(0, terms, atol=2*np.finfo(float).eps)] = 1 # martingale effectively vanishes; p-value 1
