@@ -1369,7 +1369,7 @@ class TestNonnegMean:
                             t : float=1/2, u : float=1, reps : int=None,\
                             bias_up : bool=True, quantile : float=0.5, seed : int=1234567890):
         '''
-        Estimate the sample size needed to reject the null hypothesis that the population 
+        Estimate sample size needed to reject the null hypothesis that the population 
         mean is <=t at significance level alpha, for the specified risk function.
         
         If `polling == True`, bases estimates on the margin alone, for a ballot-polling audit.
@@ -1393,13 +1393,14 @@ class TestNonnegMean:
         Parameters:
         -----------
         risk_function : callable
-            risk function to use. risk_function should take two arguments, x and m, and return a p-value
+            risk function to use. risk_function should take three arguments (x, m, N) and return 
+            an array of p-values corresponding to the sample sequence x.
         N : int
             cards potentially containing the contest, or N = np.infty for sampling with replacement
         margin : float
             assorter margin 
         polling : bool
-            polling audit or ballot-level comparison audit?
+            True for polling audit, False for ballot-level comparison audit
         error_rate : float 
             assumed rate of 1-vote overstatements for ballot-level comparison audit.
             Ignored if `polling==True`
@@ -1442,7 +1443,8 @@ class TestNonnegMean:
                         x[k] = (one_vote_over if (k+offset) % int(1/error_rate) == 0 
                                 else x[k])
                 p = risk_function(x, margin, N)
-                sam_size = np.argmax(p <= alpha)+1
+                crossed = (p<=alpha)
+                sam_size = int(N if np.sum(crossed)==0 else (np.argmax(crossed)+1))
             else:
                 prng = np.random.RandomState(seed)  # use the Mersenne Twister for speed
                 sams = np.zeros(int(reps))
@@ -1451,8 +1453,9 @@ class TestNonnegMean:
                     inx = (prng.random(size=N) <= error_rate)  # randomly allocate errors
                     pop[inx] = one_vote_over
                     p = risk_function(pop, margin, N)
-                    sams[r] = np.argmax(p <= alpha)+1
-                sam_size = np.quantile(sams, quantile)
+                    crossed = (p<=alpha)
+                    sams[r] = N if np.sum(crossed)==0 else (np.argmax(crossed)+1)
+                sam_size = int(np.quantile(sams, quantile))
         else:                   # ballot-polling audit
             if reps is None:
                 raise ValueError('estimating ballot-polling sample size requires setting `reps`')
@@ -1464,9 +1467,10 @@ class TestNonnegMean:
                 sams = np.zeros(int(reps))
                 for r in range(reps):
                     pop = prng.permutation(pop)
-                    p_history = risk_function(pop, margin, N)
-                    sams[r] = np.argmax(p_history <= alpha)+1
-                sam_size = np.quantile(sams, quantile)
+                    p = risk_function(pop, margin, N)
+                    crossed = (p <= alpha)
+                    sams[r] = N if np.sum(crossed)==0 else (np.argmax(crossed)+1)
+                sam_size = int(np.quantile(sams, quantile))
         return sam_size
           
 # utilities
@@ -1775,7 +1779,7 @@ def new_sample_size(contests, mvr_sample, cvr_sample=None, use_style=True,\
         
     risk_function : callable
         function to calculate the p-value from overstatement_assorter values.
-        Should take two arguments, the sample x and the margin. 
+        Should take three arguments, the sample x, the margin m, and the number of cards N. 
         
     quantile : float
         estimated quantile of the sample size to return
@@ -1798,6 +1802,7 @@ def new_sample_size(contests, mvr_sample, cvr_sample=None, use_style=True,\
     for r in range(reps):
         new_size = 0
         for c in contests:
+            cards = contests[c]['cards']
             for a in contests[c]['assertions']:
                 if not contests[c]['assertions'][a].proved:    
                     p = contests[c]['assertions'][a].p_value
@@ -1809,10 +1814,10 @@ def new_sample_size(contests, mvr_sample, cvr_sample=None, use_style=True,\
                     while p > contests[c]['risk_limit']:
                         one_more = sample_by_index(len(d), 1, prng=prng)[0]
                         d.append(d[one_more-1])
-                        p = risk_function(d, contests[c]['assertions'][a].margin)[0]
+                        p = risk_function(d, contests[c]['assertions'][a].margin, cards)[0]
                     new_size = np.max([new_size, len(d)])
         sams[r] = new_size 
-    new_size = np.quantile(sams, quantile)
+    new_size = int(np.quantile(sams, quantile))
     return new_size, sams
 
 def summarize_status(contests):
