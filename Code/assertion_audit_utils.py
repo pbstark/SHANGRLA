@@ -106,7 +106,7 @@ class Assertion:
         find the mean of the assorter applied to a list of CVRs  
         
         Parameters:
-        ----------
+        -----------
         cvr_list : list
             a list of cast-vote records
         use_style : Boolean
@@ -114,7 +114,7 @@ class Assertion:
             that contain the contest in question.
         
         Returns:
-        ----------
+        --------N
         mean : float
             the mean value of the assorter over the list of cvrs. If use_style, ignores CVRs that
             do not contain the contest.
@@ -1559,7 +1559,7 @@ def find_margins(contests : dict, cvr_list : list, use_style : bool):
 
 def find_p_values(contests : dict, mvr_sample : list, cvr_sample : list=None, \
                   use_style : bool=False, \
-                  risk_function : callable=(lambda x, m: TestNonnegMean.kaplan_wald(x))) -> float :
+                  risk_function : callable=(lambda x, m, N: TestNonnegMean.kaplan_wald(x))) -> float :
     '''
     Find the p-value for every assertion and update assertions & contests accordingly
     
@@ -1606,11 +1606,12 @@ def find_p_values(contests : dict, mvr_sample : list, cvr_sample : list=None, \
         for a in contests[c]['assertions']:
             if cvr_sample: # comparison audit
                 d = [contests[c]['assertions'][a].overstatement_assorter(mvr_sample[i], cvr_sample[i],\
-                    contests[c]['assertions'][a].margin, use_style=use_style) for i in range(len(mvr_sample))]
+                    contests[c]['assertions'][a].margin, contests[c]['cards'], \
+                    use_style=use_style) for i in range(len(mvr_sample))]
             else:         # polling audit. Assume style information is irrelevant
                 d = [contests[c]['assertions'][a].assort(mvr_sample[i]) for i in range(len(mvr_sample))]
             contests[c]['assertions'][a].p_value, contests[c]['assertions'][a].p_history = \
-                     risk_function(d, contests[c]['assertions'][a].margin)
+                     risk_function(d, contests[c]['assertions'][a].margin,  contests[c]['cards'])
             contests[c]['assertions'][a].proved = \
                      (contests[c]['assertions'][a].p_value <= contests[c]['risk_limit']) or contests[c]['assertions'][a].proved
             contests[c]['p_values'].update({a: contests[c]['assertions'][a].p_value})
