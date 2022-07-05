@@ -1559,7 +1559,7 @@ def find_margins(contests : dict, cvr_list : list, use_style : bool):
 
 def find_p_values(contests : dict, mvr_sample : list, cvr_sample : list=None, \
                   use_style : bool=False, \
-                  risk_function : callable=(lambda x, m: TestNonnegMean.kaplan_wald(x))) -> float :
+                  risk_function : callable=(lambda x, m, N: TestNonnegMean.kaplan_wald(x))) -> float :
     '''
     Find the p-value for every assertion and update assertions & contests accordingly
 
@@ -1610,7 +1610,7 @@ def find_p_values(contests : dict, mvr_sample : list, cvr_sample : list=None, \
             else:         # polling audit. Assume style information is irrelevant
                 d = [contests[c]['assertions'][a].assort(mvr_sample[i]) for i in range(len(mvr_sample))]
             contests[c]['assertions'][a].p_value, contests[c]['assertions'][a].p_history = \
-                     risk_function(d, contests[c]['assertions'][a].margin)
+                     risk_function(d, contests[c]['assertions'][a].margin, contests[c]['cards'])
             contests[c]['assertions'][a].proved = \
                      (contests[c]['assertions'][a].p_value <= contests[c]['risk_limit']) or contests[c]['assertions'][a].proved
             contests[c]['p_values'].update({a: contests[c]['assertions'][a].p_value})
@@ -1754,7 +1754,7 @@ def consistent_sampling(cvr_list, contests, sample_size_dict, sampled_cvr_indice
     return sampled_cvr_indices
 
 def new_sample_size(contests, mvr_sample, cvr_sample=None, use_style=True,\
-                    risk_function=(lambda x, m:TestNonnegMean.alpha_mart(x)), \
+                    risk_function=(lambda x, m, N : TestNonnegMean.alpha_mart(x)), \
                     quantile=0.5, reps=200, seed=1234567890):
     '''
     Estimate the total sample size expected to allow the audit to complete,
