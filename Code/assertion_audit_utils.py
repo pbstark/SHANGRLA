@@ -1767,25 +1767,28 @@ def consistent_sampling(cvr_list, contests, sample_size_dict, sampled_cvr_indice
     current_sizes = defaultdict(int)
     if sampled_cvr_indices == None:     # no sample yet
         sampled_cvr_indices = []
-    else:                           # start where we are
+    else:                               # there is already a sample; initialize counts from current sizes
         for sam in sampled_cvr_indices:
             for c in contests:
                 current_sizes[c] = current_sizes[c] + (1 if cvr_list[sam].has_contest(c) else 0)
     sorted_cvr_indices = [i+1 for i, cv in sorted(enumerate(cvr_list), key = lambda x: x[1].sample_num)]
     inx = len(sampled_cvr_indices)
-    while any([contest_in_progress(c) for c in contests]):
+    # the following is O(contests^3); could re-write to improve efficiency.
+    while any([contest_in_progress(c) for c in contests] and (inx < len(cvr_list))):
         if any([(contest_in_progress(c) and cvr_list[sorted_cvr_indices[inx]-1].has_contest(c)) for c in contests]):
             sampled_cvr_indices.append(sorted_cvr_indices[inx])
             for c in contests:
                 current_sizes[c] += (1 if cvr_list[sorted_cvr_indices[inx]-1].has_contest(c) else 0)
         inx += 1
+    for c in contests:
+        if contest_in_progress(c):
+            raise ValueError(f'contest {c} sample size desired {sample_size_dict[c]}, attained {current_sizes[c]}')
     return sampled_cvr_indices
 
 def new_sample_size(contests, mvr_sample, cvr_sample=None, cvr_list = None, use_style=True,\
                     risk_function=(lambda x, m:TestNonnegMean.alpha_mart(x)), \
                     quantile=0.5, reps=200, seed=1234567890):
     '''
-    Estimate the total sample size expected to allow the audit to complete,
     if discrepancies continue at the same rate already observed.
 
     Uses simulations. For speed, uses the numpy.random Mersenne Twister instead of cryptorandom.
