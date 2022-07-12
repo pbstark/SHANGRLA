@@ -1620,7 +1620,7 @@ def find_p_values(contests : dict, mvr_sample : list, cvr_sample : list=None, \
         p_max = np.max([p_max, contests[c]['max_p']])
     return p_max
 
-def find_sample_size(contests, sample_size_function, use_style):
+def find_sample_size(contests, sample_size_function, use_style = True, cvr_list = None, max_cards = max_cards):
     '''
     Find initial sample size: maximum across assertions for all contests.
 
@@ -1634,17 +1634,44 @@ def find_sample_size(contests, sample_size_function, use_style):
 
     Returns:
     --------
-    size : int
-        sample size expected to be adequate to confirm all assertions
+    total_sample_size : int
+        sample size expected to be adequate to confirm all assertions for all contests
+    contest_sample_size : dict of ints
+        sample sizes expected to be adequate to confirm each contest (keys are contests)
     '''
-    sample_size = 0
-    for c in contests:
-        risk = contests[c]['risk_limit']
-        cards = contests[c]['cards']
-        for a in contests[c]['assertions']:
-            margin = contests[c]['assertions'][a].margin
-            sample_size = np.max([sample_size, sample_size_function(margin, risk, cards)])
-    return sample_size
+    sample_sizes = {c:0 for c in contests.keys()}
+    if use_style and cvr_list is None:
+        raise ValueError("use_style is True but cvr_list was not provided.")
+    if use_style:
+        for cvr in cvr_list:
+            cvr.set_p(0)
+        for c in contests:
+            risk = contests[c]['risk_limit']
+            cards = contests[c]['cards']
+            contest_sample_size = 0
+            for a in contests[c]['assertions']:
+                margin = contests[c]['assertions'][a].margin
+                contest_sample_size = np.max([contest_sample_size, sample_size_function(margin, risk, cards)])
+            sample_sizes[c] = contest_sample_size
+            # update p for that contest if have CVR data
+            for cvr in cvr_list:
+                if cvr.has_contest(c):
+                    cvr.set_p(np.maximum(contest_sample_size / contests[c]['cards'], cvr.p))
+
+        total_sample_size = np.sum(np.array([x.get_p() for x in cvr_list]))
+    else:
+        if max_cards is None:
+            raise ValueError("use_style is False but max_cards was not provided.")
+        cards = max_cards
+        for c in contests:
+            contest_sample_size = 0
+            risk = contests[c]['risk_limit']
+            for a in contests[c]['assertions']:
+                margin = contests[c]['assertions'][a].margin
+                contest_sample_size = np.max([contest_sample_size, sample_size_function(margin, risk, cards)])
+            sample_sizes[c] = contest_sample_size
+        total_sample_size = np.max(np.array(sample_sizes.values))
+    return total_sample_size, sample_sizes
 
 def prep_comparison_sample(mvr_sample, cvr_sample, sample_order):
     '''
@@ -1753,8 +1780,8 @@ def consistent_sampling(cvr_list, contests, sample_size_dict, sampled_cvr_indice
         inx += 1
     return sampled_cvr_indices
 
-def new_sample_size(contests, mvr_sample, cvr_sample=None, use_style=True,\
-                    risk_function=(lambda x, m, N : TestNonnegMean.alpha_mart(x)), \
+def new_sample_size(contests, mvr_sample, cvr_sample=None, cvr_list = None, use_style=True,\
+                    risk_function=(lambda x, m:TestNonnegMean.alpha_mart(x)), \
                     quantile=0.5, reps=200, seed=1234567890):
     '''
     Estimate the total sample size expected to allow the audit to complete,
@@ -1797,12 +1824,18 @@ def new_sample_size(contests, mvr_sample, cvr_sample=None, use_style=True,\
     sams : array of ints
         array of all sizes found in the simulation
     '''
+    if use_style and cvr_list is None:
+        raise ValueError("use_style is True but cvr_list was not provided.")
+    if use_style:
+        for cvr in cvr_list:
+            cvr.set_p(0)
     prng = np.random.RandomState(seed=seed)
-    sams = np.zeros(reps)
+    sample_sizes = {c:np.zeros(reps) for c in contests.keys()}
     for r in range(reps):
-        new_size = 0
         for c in contests:
+            new_size = 0
             cards = contests[c]['cards']
+            #raise an error or warning if the error rate implies the reported outcome is wrong
             for a in contests[c]['assertions']:
                 if not contests[c]['assertions'][a].proved:
                     p = contests[c]['assertions'][a].p_value
@@ -1811,17 +1844,23 @@ def new_sample_size(contests, mvr_sample, cvr_sample=None, use_style=True,\
                             contests[c]['assertions'][a].margin, use_style=use_style) for i in range(len(mvr_sample))]
                     else:
                         d = [contests[c]['assertions'][a].assort(mvr_sample[i], use_style=use_style) for i in range(len(mvr_sample))]
-                    while p > contests[c]['risk_limit']:
-                        #stop if more cards are sampled than size of population?
-                        #accomodate sampling w/o replacement
-                        #but also need to be able to stop if the risk-limit cannot be met
+                    while p > contests[c]['risk_limit'] and new_size < cards:
                         one_more = sample_by_index(len(d), 1, prng=prng)[0]
                         d.append(d[one_more-1])
                         p = risk_function(d, contests[c]['assertions'][a].margin, cards)[0]
                     new_size = np.max([new_size, len(d)])
-        sams[r] = new_size
-    new_size = int(np.quantile(sams, quantile))
-    return new_size, sams
+            sample_sizes[c][r] = new_size
+    sample_size_quantiles = {c:int(np.quantile(sample_sizes[c], quantile)) for c in sample_sizes.keys()}
+    #need to figure out how to measure total sample size without CVRs/style information
+    if cvr_list:
+        for cvr in cvr_list:
+            for c in contests:
+                if cvr.has_contest(c): # & cvr not in cvr_sample: <- is this accounting for sampled cards twice?
+                    cvr.set_p(np.max(sample_size_quantiles[c] / contests[c]['cards'], cvr.p))
+        total_sample_size = np.round(np.sum(np.array([x.get_p() for x in cvr_list])))
+    else:
+        total_sample_size = np.max(np.array(sample_size_quantiles.values))
+    return total_sample_size, sample_size_quantiles
 
 def summarize_status(contests):
     '''
