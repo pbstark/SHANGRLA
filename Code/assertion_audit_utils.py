@@ -1620,7 +1620,7 @@ def find_p_values(contests : dict, mvr_sample : list, cvr_sample : list=None, \
         p_max = np.max([p_max, contests[c]['max_p']])
     return p_max
 
-def find_sample_size(contests, sample_size_function, use_style = True, cvr_list = None, max_cards = max_cards):
+def find_sample_size(contests, sample_size_function, use_style = True, cvr_list = None, max_cards = None):
     '''
     Find initial sample size: maximum across assertions for all contests.
 
@@ -1855,7 +1855,7 @@ def new_sample_size(contests, mvr_sample, cvr_sample=None, cvr_list = None, use_
     if cvr_list:
         for cvr in cvr_list:
             for c in contests:
-                if cvr.has_contest(c): # & cvr not in cvr_sample: <- is this accounting for sampled cards twice?
+                if cvr.has_contest(c): # & cvr not in cvr_sample: <- how should we account for already sampled cards?
                     cvr.set_p(np.max(sample_size_quantiles[c] / contests[c]['cards'], cvr.p))
         total_sample_size = np.round(np.sum(np.array([x.get_p() for x in cvr_list])))
     else:
