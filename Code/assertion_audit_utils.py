@@ -1774,7 +1774,7 @@ def consistent_sampling(cvr_list, contests, sample_size_dict, sampled_cvr_indice
     sorted_cvr_indices = [i+1 for i, cv in sorted(enumerate(cvr_list), key = lambda x: x[1].sample_num)]
     inx = len(sampled_cvr_indices)
     # the following is O(contests^3); could re-write to improve efficiency.
-    while any([contest_in_progress(c) for c in contests] and (inx < len(cvr_list))):
+    while any([contest_in_progress(c) for c in contests]) and (inx < len(cvr_list)):
         if any([(contest_in_progress(c) and cvr_list[sorted_cvr_indices[inx]-1].has_contest(c)) for c in contests]):
             sampled_cvr_indices.append(sorted_cvr_indices[inx])
             for c in contests:
