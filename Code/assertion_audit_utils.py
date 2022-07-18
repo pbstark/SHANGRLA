@@ -1095,8 +1095,12 @@ class TestNonnegMean:
             hypothesized fraction of ones in the population
         eta : float in (mu,u]
             alternative hypothesized population mean
+        f : nonnegative float
+            parameter passed to estim()
+        u : nonnegative float
+            upper bound on the assorter, passed to estim()
         estim : function (note: class methods are not of type Callable)
-            estim(x, N, mu, eta, u) -> np.array of length len(x), the sequence of values of eta_j for ALPHA
+            estim(x, N, mu, nu, u, f) -> np.array of length len(x), the sequence of values of eta_j for ALPHA
 
         Returns
         -------
@@ -1109,7 +1113,9 @@ class TestNonnegMean:
             estim = TestNonnegMean.shrink_trunc
         S = np.insert(np.cumsum(x),0,0)[0:-1]  # 0, x_1, x_1+x_2, ...,
         j = np.arange(1,len(x)+1)              # 1, 2, 3, ..., len(x)
-        m = (N*t-S)/(N-j+1) if np.isfinite(N) else t   # mean of population after (j-1)st draw, if null is true
+        if len(x) > N and np.isfinite(N):
+            raise ValueError(f'sampling without replacement: sample size {len(x)} exceeds population size {N}')
+        m = (N*t-S)/(N-j+1) if np.isfinite(N) else t       # mean of population after (j-1)st draw, if null is true
         etaj = estim(x=x, N=N, mu=m, nu=eta, u=u, f=f)
         x = np.array(x)
         with np.errstate(divide='ignore',invalid='ignore'):
@@ -1606,14 +1612,15 @@ def find_p_values(contests : dict, mvr_sample : list, cvr_sample : list=None, \
         for a in contests[c]['assertions']:
             if cvr_sample: # comparison audit
                 d = [contests[c]['assertions'][a].overstatement_assorter(mvr_sample[i], cvr_sample[i],\
-                    contests[c]['assertions'][a].margin, contests[c]['cards'], \
+                    contests[c]['assertions'][a].margin, \
                     use_style=use_style) for i in range(len(mvr_sample))]
             else:         # polling audit. Assume style information is irrelevant
                 d = [contests[c]['assertions'][a].assort(mvr_sample[i]) for i in range(len(mvr_sample))]
             contests[c]['assertions'][a].p_value, contests[c]['assertions'][a].p_history = \
-                     risk_function(d, contests[c]['assertions'][a].margin,  contests[c]['cards'])
+                     risk_function(d, contests[c]['assertions'][a].margin, contests[c]['cards'])
             contests[c]['assertions'][a].proved = \
-                     (contests[c]['assertions'][a].p_value <= contests[c]['risk_limit']) or contests[c]['assertions'][a].proved
+                     (contests[c]['assertions'][a].p_value <= contests[c]['risk_limit']) or \
+                      contests[c]['assertions'][a].proved
             contests[c]['p_values'].update({a: contests[c]['assertions'][a].p_value})
             contests[c]['proved'].update({a: int(contests[c]['assertions'][a].proved)})
             contest_max_p = np.max([contest_max_p, contests[c]['assertions'][a].p_value])
@@ -1847,19 +1854,20 @@ def new_sample_size(contests, mvr_sample, cvr_sample=None, cvr_list = None, use_
                         d = [contests[c]['assertions'][a].overstatement_assorter(mvr_sample[i], cvr_sample[i],\
                             contests[c]['assertions'][a].margin, use_style=use_style) for i in range(len(mvr_sample))]
                     else:
-                        d = [contests[c]['assertions'][a].assort(mvr_sample[i], use_style=use_style) for i in range(len(mvr_sample))]
-                    while p > contests[c]['risk_limit'] and new_size < cards:
+                        d = [contests[c]['assertions'][a].assort(mvr_sample[i], use_style=use_style) \
+                             for i in range(len(mvr_sample))]
+                    while p > contests[c]['risk_limit'] and len(d) < cards:
                         one_more = sample_by_index(len(d), 1, prng=prng)[0]
                         d.append(d[one_more-1])
                         p = risk_function(d, contests[c]['assertions'][a].margin, cards)[0]
                     new_size = np.max([new_size, len(d)])
             sample_sizes[c][r] = new_size
     sample_size_quantiles = {c:int(np.quantile(sample_sizes[c], quantile)) for c in sample_sizes.keys()}
-    #need to figure out how to measure total sample size without CVRs/style information
+    # need to figure out how to measure total sample size without CVRs/style information
     if cvr_list:
         for cvr in cvr_list:
             for c in contests:
-                if cvr.has_contest(c): # & cvr not in cvr_sample: <- how should we account for already sampled cards?
+                if cvr.has_contest(c): # this doesn't mark already-sampled cards as having p=1
                     cvr.set_p(np.max(sample_size_quantiles[c] / contests[c]['cards'], cvr.p))
         total_sample_size = np.round(np.sum(np.array([x.get_p() for x in cvr_list])))
     else:
