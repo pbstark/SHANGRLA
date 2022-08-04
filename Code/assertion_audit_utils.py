@@ -567,15 +567,17 @@ class CVR:
     get_p : get the highest sampling probability associated with the CVR for any contest. Used to estimate sample sizes
     set_sample_num : set the sampling number for the CVR, for consistent sampling
     get_sample_num : get the sample number assigned to the CVR (to implement consistent sampling)
-
+    set_sampled : set indicator of whether CVR was sampled to 1
+    get_sampled : get indicator of whether CVR was sampled
     '''
 
-    def __init__(self, id = None, votes = {}, phantom=False, sample_num=None, p=None):
+    def __init__(self, id = None, votes = {}, phantom=False, sample_num=None, p=None, sampled=0):
         self.votes = votes
         self.id = id
         self.phantom = phantom
         self.sample_num = sample_num
         self.p = p
+        self.sampled = sampled
 
     def __str__(self):
         return f"id: {str(self.id)} votes: {str(self.votes)} phantom: {str(self.phantom)}"
@@ -612,6 +614,12 @@ class CVR:
 
     def set_p(self, p):
         self.p = p
+
+    def get_sampled(self):
+        return self.sampled
+
+    def set_sampled(self):
+        self.sampled = 1
 
     def has_contest(self, contest):
         return contest in self.votes
@@ -1605,9 +1613,9 @@ def find_p_values(contests : dict, mvr_sample : list, cvr_sample : list=None, \
         contest_max_p = 0
         for a in contests[c]['assertions']:
             if cvr_sample: # comparison audit
-                d = [contests[c]['assertions'][a].overstatement_assorter(mvr_sample[i], cvr_sample[i],\
-                    contests[c]['assertions'][a].margin, contests[c]['cards'], \
-                    use_style=use_style) for i in range(len(mvr_sample))]
+                d = [contests[c]['assertions'][a].overstatement_assorter(mvr = mvr_sample[i], cvr = cvr_sample[i],\
+                    margin = contests[c]['assertions'][a].margin, \
+                    use_style=use_style) for i in range(len(mvr_sample))] #overstatement error doesn't use cards, so this throws an error
             else:         # polling audit. Assume style information is irrelevant
                 d = [contests[c]['assertions'][a].assort(mvr_sample[i]) for i in range(len(mvr_sample))]
             contests[c]['assertions'][a].p_value, contests[c]['assertions'][a].p_history = \
@@ -1779,6 +1787,10 @@ def consistent_sampling(cvr_list, contests, sample_size_dict, sampled_cvr_indice
             for c in contests:
                 current_sizes[c] += (1 if cvr_list[sorted_cvr_indices[inx]-1].has_contest(c) else 0)
         inx += 1
+    #loop through and set CVR sample indicators equal to 1 if they are in the sample (could be more efficient?)
+    for i in range(len(cvr_list)):
+        if i in sampled_cvr_indices:
+            cvr_list[i].set_sampled()
     return sampled_cvr_indices
 
 def new_sample_size(contests, mvr_sample, cvr_sample=None, cvr_list = None, use_style=True,\
@@ -1829,9 +1841,17 @@ def new_sample_size(contests, mvr_sample, cvr_sample=None, cvr_list = None, use_
         raise ValueError("use_style is True but cvr_list was not provided.")
     if use_style:
         for cvr in cvr_list:
-            cvr.set_p(0)
+            ## NOTE: fix get_sampled name
+            if cvr.get_sampled():
+                cvr.set_p(1)
+            else:
+                cvr.set_p(0)
     prng = np.random.RandomState(seed=seed)
     sample_sizes = {c:np.zeros(reps) for c in contests.keys()}
+    #set dict of old sample sizes for each contest
+    old_sizes = {c:0 for c in contests.keys()}
+    for c in contests:
+        old_sizes[c] = np.sum(np.array([cvr.get_sampled() for cvr in cvr_list if cvr.has_contest(c)]))
     for r in range(reps):
         for c in contests:
             new_size = 0
@@ -1846,21 +1866,27 @@ def new_sample_size(contests, mvr_sample, cvr_sample=None, cvr_list = None, use_
                     else:
                         d = [contests[c]['assertions'][a].assort(mvr_sample[i], use_style=use_style) for i in range(len(mvr_sample))]
                     while p > contests[c]['risk_limit'] and new_size < cards:
+                        #there could probably be a short cut if there is no error in d and it is a comparison audit
                         one_more = sample_by_index(len(d), 1, prng=prng)[0]
                         d.append(d[one_more-1])
                         p = risk_function(d, contests[c]['assertions'][a].margin, cards)[0]
                     new_size = np.max([new_size, len(d)])
             sample_sizes[c][r] = new_size
-    sample_size_quantiles = {c:int(np.quantile(sample_sizes[c], quantile)) for c in sample_sizes.keys()}
+    #all I've done here is to subtract the number of cards already sampled from the estimated quantiles/
+    #and, below, from the number of cards in the contest (the denominator)/
+    #I expect this is *not* the best way to do this.
+    # Can we actually condition on the sampled cards in the loop above?
+    new_sample_size_quantiles = {c:int(np.quantile(sample_sizes[c], quantile) - old_sizes[c]) for c in sample_sizes.keys()}
     #need to figure out how to measure total sample size without CVRs/style information
     if cvr_list:
         for cvr in cvr_list:
             for c in contests:
-                if cvr.has_contest(c): # & cvr not in cvr_sample: <- how should we account for already sampled cards?
-                    cvr.set_p(np.max(sample_size_quantiles[c] / contests[c]['cards'], cvr.p))
+                ## NOTE: get_sampled -> in_sample AND should be boolean not 0/1
+                if cvr.has_contest(c) and cvr.get_sampled() == 0: #<- the second conditions avoids counting new cards (are we accounting for these twice?)
+                    cvr.set_p(np.max(new_sample_size_quantiles[c] / (contests[c]['cards'] - old_sizes[c]), cvr.p))
         total_sample_size = np.round(np.sum(np.array([x.get_p() for x in cvr_list])))
     else:
-        total_sample_size = np.max(np.array(sample_size_quantiles.values))
+        total_sample_size = np.max(np.array(new_sample_size_quantiles.values))
     return total_sample_size, sample_size_quantiles
 
 def summarize_status(contests):
