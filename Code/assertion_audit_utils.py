@@ -1838,7 +1838,6 @@ def new_sample_size(contests, mvr_sample, cvr_sample=None, cvr_list = None, use_
         raise ValueError("use_style is True but cvr_list was not provided.")
     if use_style:
         for cvr in cvr_list:
-            ## NOTE: fix in_sample name
             if cvr.in_sample():
                 cvr.set_p(1)
             else:
