@@ -1611,11 +1611,10 @@ def find_p_values(contests : dict, mvr_sample : list, cvr_sample : list=None, \
         contests[c]['proved'] = {}
         contest_max_p = 0
         for a in contests[c]['assertions']:
-            if cvr_sample:
-                d = [contests[c]['assertions'][a].overstatement_assorter(mvr = mvr_sample[i], cvr = cvr_sample[i],\
-                    margin = contests[c]['assertions'][a].margin, \
-                    use_style=use_style) for i in range(len(mvr_sample))]
-            else:
+            if cvr_sample: # comparison audit
+                d = [contests[c]['assertions'][a].overstatement_assorter(mvr_sample[i], cvr_sample[i],\
+                    contests[c]['assertions'][a].margin, use_style=use_style) for i in range(len(mvr_sample))]
+            else:         # polling audit. Assume style information is irrelevant
                 d = [contests[c]['assertions'][a].assort(mvr_sample[i]) for i in range(len(mvr_sample))]
             contests[c]['assertions'][a].p_value, contests[c]['assertions'][a].p_history = \
                      risk_function(d, contests[c]['assertions'][a].margin,  contests[c]['cards'])
