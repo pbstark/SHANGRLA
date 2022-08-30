@@ -1557,7 +1557,7 @@ def find_margins(contests : dict, cvr_list : list, use_style : bool):
         for a in contests[c]['assertions']:
             amean = contests[c]['assertions'][a].assorter_mean(cvr_list, use_style=use_style)
             if amean < 1/2:
-                warn(f"assertion {a} not satisfied by CVRs: mean value is {amean}")
+                warnings.warn(f"assertion {a} not satisfied by CVRs: mean value is {amean}")
             margin = 2*amean-1
             contests[c]['assertions'][a].margin = margin
             contests[c]['margins'].update({a: margin})
@@ -1613,7 +1613,7 @@ def find_p_values(contests : dict, mvr_sample : list, cvr_sample : list=None, \
         for a in contests[c]['assertions']:
             if cvr_sample: # comparison audit
                 d = [contests[c]['assertions'][a].overstatement_assorter(mvr_sample[i], cvr_sample[i],\
-                    contests[c]['assertions'][a].margin, use_style=use_style) for i in range(len(mvr_sample))]
+                    contests[c]['assertions'][a].margin, use_style=use_style) for i in range(len(mvr_sample)) if (not use_style) or cvr_sample[i].has_contest(c) ]
             else:         # polling audit. Assume style information is irrelevant
                 d = [contests[c]['assertions'][a].assort(mvr_sample[i]) for i in range(len(mvr_sample))]
             contests[c]['assertions'][a].p_value, contests[c]['assertions'][a].p_history = \

@@ -12,6 +12,8 @@ import warnings
 import copy
 import xml.etree.ElementTree as ET
 import xml.dom.minidom
+
+from zipfile import ZipFile, Path
 from assertion_audit_utils import \
     Assertion, Assorter, CVR, TestNonnegMean, check_audit_parameters, find_margins,\
     find_p_values, find_sample_size, new_sample_size, summarize_status,\
@@ -64,7 +66,7 @@ def prep_manifest(manifest, max_cards, n_cvrs):
     return manifest, manifest_cards, phantoms
 
 
-def read_hart_cvr(cvr_path):
+def read_hart_cvr(cvr_string):
     """
     read a single Hart CVR from XML into python
 
@@ -89,9 +91,7 @@ def read_hart_cvr(cvr_path):
               "xmlns": "http://tempuri.org/CVRDesign.xsd"}
     #pat = re.compile('[^\w\-\<\>\[\]"\\\']+') # match "word" characters and hyphens
     pat = re.compile('\n/ +/')
-    with open(cvr_path, 'r', encoding='latin-1') as xml_file:
-        raw_string = xml_file.read()
-    cleaned_string = re.sub(pat, " ", raw_string)
+    cleaned_string = re.sub(pat, " ", cvr_string)
     cvr_root = ET.fromstring(cleaned_string)
     batch_sequence = cvr_root.findall("xmlns:BatchSequence", namespaces)[0].text
     sheet_number = cvr_root.findall("xmlns:SheetNumber", namespaces)[0].text
@@ -132,9 +132,9 @@ def read_hart_cvr(cvr_path):
     return CVR(id = batch_sequence + "_" + sheet_number, votes = vote_dict)
 
 
-def read_cvrs(cvr_folder):
+def read_cvrs_directory(cvr_directory):
     """
-    read a batch of Hart CVRs from XML to list
+    read a batch of Hart CVRs from a directory of XMLs to a list
 
     Parameters:
     -----------
@@ -145,11 +145,39 @@ def read_cvrs(cvr_folder):
     --------
     cvr_list : list of CVRs as returned by read_hart_CVR()
     """
-    cvr_files = os.listdir(cvr_folder)
+    cvr_files = os.listdir(cvr_directory)
     cvr_list = []
     for file in cvr_files:
-        cvr_list.append(read_hart_cvr(cvr_folder + "/" + file))
+        cvr_path = cvr_directory + "/" + file
+        with open(cvr_path, 'r', encoding='latin-1') as xml_file:
+            raw_string = xml_file.read()
+        cvr_list.append(read_hart_cvr(raw_string))
 
+    return cvr_list
+
+#add new function to wrap read_hart_cvr that reads from ZIPs instead of from a directory
+def read_cvrs_zip(cvr_zip, size = None):
+    """
+    read a batch of Hart CVRs from a zipfile of XMLs to a list
+
+    Parameters:
+    -----------
+    cvr_zip : string
+        name of zipfile containing CVRs as XML files
+
+    Returns:
+    --------
+    cvr_list : list of CVRs as returned by read_hart_CVR()
+    """
+    cvr_list = []
+    with ZipFile(cvr_zip, 'r') as data:
+        file_list = data.namelist()
+        if(size is None):
+            size = len(file_list)
+        for cvr in file_list[0:size]:
+            with data.open(cvr) as xml_file:
+                raw_string = xml_file.read().decode()
+                cvr_list.append(read_hart_cvr(raw_string))
     return cvr_list
 
 
@@ -204,17 +232,17 @@ def sample_from_manifest(manifest, sample):
 def sample_from_cvrs(cvr_list : list, manifest : list, sample : np.array):
     """
     Sample from a list of CVRs: return info to find the cards, CVRs, & mvrs for sampled phantom cards
-    
+
     Parameters
     ----------
-    cvr_list : list of CVR objects. 
-        The id for the cvr is assumed to be composed of a batch name, and 
+    cvr_list : list of CVR objects.
+        The id for the cvr is assumed to be composed of a batch name, and
         ballot number, joined with underscores, Hart's format
     manifest : pandas dataframe
         a ballot manifest as a pandas dataframe
     sample : numpy array of ints
-        the CVRs to sample    
-        
+        the CVRs to sample
+
     Returns
     -------
     cards: list
@@ -343,4 +371,3 @@ def get_votes(cvr_list):
                                     ignore_index = True)
     vote_count_df = all_votes.groupby(["contest", "vote", "style"]).size().reset_index().rename(columns = {0 : "num_votes"})
     return vote_count_df
-
