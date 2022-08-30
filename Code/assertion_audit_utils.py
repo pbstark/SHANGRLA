@@ -1606,12 +1606,13 @@ def find_p_values(contests : dict, mvr_sample : list, cvr_sample : list=None, \
     if cvr_sample is not None:
         assert len(mvr_sample) == len(cvr_sample), "unequal numbers of cvrs and mvrs"
     p_max = 0
+    #consider reordering loops so that we only go through list of CVRs once
     for c in contests.keys():
         contests[c]['p_values'] = {}
         contests[c]['proved'] = {}
         contest_max_p = 0
         for a in contests[c]['assertions']:
-            if cvr_sample: # comparison audit
+            if cvr_sample:
                 d = [contests[c]['assertions'][a].overstatement_assorter(mvr_sample[i], cvr_sample[i],\
                     contests[c]['assertions'][a].margin, use_style=use_style) for i in range(len(mvr_sample)) if (not use_style) or cvr_sample[i].has_contest(c) ]
             else:         # polling audit. Assume style information is irrelevant
@@ -1871,11 +1872,11 @@ def new_sample_size(contests, mvr_sample, cvr_sample=None, cvr_list = None, use_
         for cvr in cvr_list:
             for c in contests:
                 if cvr.has_contest(c) and not cvr.in_sample():
-                    cvr.set_p(np.max(new_sample_size_quantiles[c] / (contests[c]['cards'] - old_sizes[c]), cvr.p))
+                    cvr.set_p(np.max(new_sample_size_quantiles[c] / (contests[c]['cards'] - old_sizes[c]), cvr.get_p()))
         total_sample_size = np.round(np.sum(np.array([x.get_p() for x in cvr_list])))
     else:
         total_sample_size = np.max(np.array(new_sample_size_quantiles.values))
-    return total_sample_size, sample_size_quantiles
+    return total_sample_size, new_sample_size_quantiles
 
 def summarize_status(contests):
     '''
