@@ -1437,7 +1437,7 @@ class TestNonnegMean:
             in the sample are not more frequent than the assumed rate
 
         '''
-        assert alpha > 0 and alpha < 1/2
+        assert alpha > 0 and alpha < 1/2, f'{alpha=}. Not in (0, 1/2)'
         assert margin > 0, 'Margin is nonpositive'
 
         if not polling:        # ballot-level comparison audit
@@ -1660,6 +1660,7 @@ def find_sample_size(contests, sample_size_function, use_style = True, cvr_list 
                 margin = contests[c]['assertions'][a].margin
                 contest_sample_size = np.max([contest_sample_size, sample_size_function(margin, risk, cards)])
             sample_sizes[c] = contest_sample_size
+            # set the sampling probability for each card that contains the contest
             for cvr in cvr_list:
                 if cvr.has_contest(c):
                     cvr.set_p(np.maximum(contest_sample_size / contests[c]['cards'], cvr.p))
