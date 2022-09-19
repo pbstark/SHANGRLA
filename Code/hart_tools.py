@@ -90,8 +90,8 @@ def read_hart_cvr(cvr_string):
               "xsd": "http://www.w3.org/2001/XMLSchema",
               "xmlns": "http://tempuri.org/CVRDesign.xsd"}
     #pat = re.compile('[^\w\-\<\>\[\]"\\\']+') # match "word" characters and hyphens
-    pat = re.compile('\n/ +/')
-    cleaned_string = re.sub(pat, " ", cvr_string)
+    pat = re.compile('\\\n+| +')
+    cleaned_string = re.sub(pat, ' ', cvr_string)
     cvr_root = ET.fromstring(cleaned_string)
     batch_sequence = cvr_root.findall("xmlns:BatchSequence", namespaces)[0].text
     sheet_number = cvr_root.findall("xmlns:SheetNumber", namespaces)[0].text
@@ -132,7 +132,7 @@ def read_hart_cvr(cvr_string):
     return CVR(id = batch_sequence + "_" + sheet_number, votes = vote_dict)
 
 
-def read_cvrs_directory(cvr_directory):
+def read_cvrs_directory(cvr_directory, extensions = [".xml"]):
     """
     read a batch of Hart CVRs from a directory of XMLs to a list
 
@@ -140,22 +140,30 @@ def read_cvrs_directory(cvr_directory):
     -----------
     cvr_folder : string
         name of folder containing CVRs as XML files
-
+    extensions: a  list of strings
+        the extensions of the files to be read, others are tabulated but not read.
     Returns:
     --------
     cvr_list : list of CVRs as returned by read_hart_CVR()
     """
     cvr_files = os.listdir(cvr_directory)
     cvr_list = []
+    other_extensions = []
     for file in cvr_files:
-        cvr_path = cvr_directory + "/" + file
-        with open(cvr_path, 'r', encoding='latin-1') as xml_file:
-            raw_string = xml_file.read()
-        cvr_list.append(read_hart_cvr(raw_string))
-
+        ext = os.path.splitext(file)[-1]
+        if ext in extensions:
+            cvr_path = cvr_directory + "/" + file
+            with open(cvr_path, 'r', encoding='latin-1') as xml_file:
+                raw_string = xml_file.read()
+                cvr_list.append(read_hart_cvr(raw_string))
+        else:
+            other_extensions.append(ext)
+    if len(other_extensions) > 0:
+        other_extension_counts = np.unique(other_extensions, return_counts = True)
+        print("Other than XMLs, found the following extensions in the zipfile: \n", other_extension_counts)
     return cvr_list
 
-#add new function to wrap read_hart_cvr that reads from ZIPs instead of from a directory
+
 def read_cvrs_zip(cvr_zip, size = None):
     """
     read a batch of Hart CVRs from a zipfile of XMLs to a list
@@ -170,14 +178,22 @@ def read_cvrs_zip(cvr_zip, size = None):
     cvr_list : list of CVRs as returned by read_hart_CVR()
     """
     cvr_list = []
+    other_extensions = []
     with ZipFile(cvr_zip, 'r') as data:
         file_list = data.namelist()
         if(size is None):
             size = len(file_list)
-        for cvr in file_list[0:size]:
-            with data.open(cvr) as xml_file:
-                raw_string = xml_file.read().decode()
-                cvr_list.append(read_hart_cvr(raw_string))
+        for file in file_list[0:size]:
+            extension = os.path.splitext(file)[1]
+            if extension == ".xml":
+                with data.open(file) as xml_file:
+                    raw_string = xml_file.read().decode()
+                    cvr_list.append(read_hart_cvr(raw_string))
+            else:
+                other_extensions.append(extension)
+    if len(other_extensions) > 0:
+        extension_counts = np.unique(other_extensions, return_counts = True)
+        print("Other than XMLs, found the following extensions in the zipfile: \n", extension_counts)
     return cvr_list
 
 
@@ -336,7 +352,7 @@ def tabulate_styles(cvr_list):
     # iterate through and find all the unique styles
     styles = []
     for cvr in cvr_list:
-        style = cvr.votes.keys()
+        style = set(cvr.votes.keys())
         if style not in styles:
             styles.append(style)
     # then count the number of times each style appears
