@@ -132,7 +132,7 @@ def read_hart_cvr(cvr_string):
     return CVR(id = batch_sequence + "_" + sheet_number, votes = vote_dict)
 
 
-def read_cvrs_directory(cvr_directory):
+def read_cvrs_directory(cvr_directory, extensions = [".xml"]):
     """
     read a batch of Hart CVRs from a directory of XMLs to a list
 
@@ -140,7 +140,8 @@ def read_cvrs_directory(cvr_directory):
     -----------
     cvr_folder : string
         name of folder containing CVRs as XML files
-
+    extensions: a  list of strings
+        the extensions of the files to be read, others are tabulated but not read.
     Returns:
     --------
     cvr_list : list of CVRs as returned by read_hart_CVR()
@@ -149,17 +150,17 @@ def read_cvrs_directory(cvr_directory):
     cvr_list = []
     other_extensions = []
     for file in cvr_files:
-        extension = os.path.splitext(file)[1]
-        if extension == ".xml":
+        ext = os.path.splitext(file)[-1]
+        if ext in extensions:
             cvr_path = cvr_directory + "/" + file
             with open(cvr_path, 'r', encoding='latin-1') as xml_file:
                 raw_string = xml_file.read()
                 cvr_list.append(read_hart_cvr(raw_string))
         else:
-            other_extensions.append(extension)
+            other_extensions.append(ext)
     if len(other_extensions) > 0:
-        extension_counts = np.unique(other_extensions, return_counts = True)
-        print("Other than XMLs, found the following extensions in the zipfile: \n", extension_counts)
+        other_extension_counts = np.unique(other_extensions, return_counts = True)
+        print("Other than XMLs, found the following extensions in the zipfile: \n", other_extension_counts)
     return cvr_list
 
 
