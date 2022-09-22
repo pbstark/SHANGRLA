@@ -89,9 +89,11 @@ def read_hart_cvr(cvr_string):
     namespaces = {'xsi': "http://www.w3.org/2001/XMLSchema-instance",
               "xsd": "http://www.w3.org/2001/XMLSchema",
               "xmlns": "http://tempuri.org/CVRDesign.xsd"}
-    #pat = re.compile('[^\w\-\<\>\[\]"\\\']+') # match "word" characters and hyphens
-    pat = re.compile('\\\n+| +')
-    cleaned_string = re.sub(pat, ' ', cvr_string)
+    #pat = re.compile('\n| +')
+    #cleaned_string = re.sub(pat, ' ', cvr_string)
+    cleaned_string = cvr_string.replace("\n", " ")
+    cleaned_string = cleaned_string.replace("\r", " ")
+    cleaned_string = cleaned_string.replace("  ", " ")
     cvr_root = ET.fromstring(cleaned_string)
     batch_sequence = cvr_root.findall("xmlns:BatchSequence", namespaces)[0].text
     sheet_number = cvr_root.findall("xmlns:SheetNumber", namespaces)[0].text
@@ -164,7 +166,7 @@ def read_cvrs_directory(cvr_directory, extensions = [".xml"]):
     return cvr_list
 
 
-def read_cvrs_zip(cvr_zip, size = None, extensions = [".xml"]):
+def read_cvrs_zip(cvr_zip, size = None, read_from_end = False, extensions = [".xml"]):
     """
     read a batch of Hart CVRs from a zipfile of XMLs to a list
 
@@ -187,7 +189,11 @@ def read_cvrs_zip(cvr_zip, size = None, extensions = [".xml"]):
         file_list = data.namelist()
         if(size is None):
             size = len(file_list)
-        for file in file_list[0:size]:
+        if read_from_end:
+            files_to_read = file_list[-size:]
+        else:
+            files_to_read = file_list[:size]
+        for file in files_to_read:
             ext = os.path.splitext(file)[-1]
             if ext in extensions:
                 with data.open(file) as xml_file:
@@ -197,7 +203,7 @@ def read_cvrs_zip(cvr_zip, size = None, extensions = [".xml"]):
                 other_extensions.append(ext)
     if len(other_extensions) > 0:
         other_extension_counts = np.unique(other_extensions, return_counts = True)
-        print("Other than XMLs, found the following extensions in the zipfile: \n", other_xtension_counts)
+        print("Other than XMLs, found the following extensions in the zipfile: \n", other_extension_counts)
     return cvr_list
 
 
