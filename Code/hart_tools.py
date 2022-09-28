@@ -31,21 +31,21 @@ def prep_manifest(manifest, max_cards, n_cvrs):
 
     Parameters:
     ----------
-    manifest : dataframe
+    manifest: dataframe
         should contain the columns
            'Container', 'Tabulator', 'Batch Name', 'Number of Ballots'
-    max_cards : int
+    max_cards: int
         upper bound on the number of cards cast
-    n_cvrs : int
+    n_cvrs: int
         number of CVRs
 
     Returns:
     --------
-    manifest : dataframe
+    manifest: dataframe
         original manifest with additional column for cumulative cards and, if needed, an additional batch for any phantom cards
-    manifest_cards : int
+    manifest_cards: int
         the total number of cards in the manifest
-    phantoms : int
+    phantoms: int
         the number of phantom cards required
     """
     cols = ['Container', 'Tabulator', 'Batch Name', 'Number of Ballots']
@@ -72,7 +72,7 @@ def read_hart_cvr(cvr_string):
 
     Parameters:
     -----------
-    cvr_path : string
+    cvr_path: string
         file path of a single CVR XML file
 
     Returns:
@@ -127,7 +127,7 @@ def read_hart_cvr(cvr_string):
         # reformat votes to be proper CVR format
         vote_dict = {}
         for key in votes.keys():
-            vote_dict[key] = {candidate : True for candidate in votes[key]}
+            vote_dict[key] = {candidate: True for candidate in votes[key]}
 
     return CVR(id = batch_sequence + "_" + sheet_number, votes = vote_dict)
 
@@ -138,12 +138,12 @@ def read_cvrs_directory(cvr_directory):
 
     Parameters:
     -----------
-    cvr_folder : string
+    cvr_folder: string
         name of folder containing CVRs as XML files
 
     Returns:
     --------
-    cvr_list : list of CVRs as returned by read_hart_CVR()
+    cvr_list: list of CVRs as returned by read_hart_CVR()
     """
     cvr_files = os.listdir(cvr_directory)
     cvr_list = []
@@ -162,12 +162,12 @@ def read_cvrs_zip(cvr_zip, size = None):
 
     Parameters:
     -----------
-    cvr_zip : string
+    cvr_zip: string
         name of zipfile containing CVRs as XML files
 
     Returns:
     --------
-    cvr_list : list of CVRs as returned by read_hart_CVR()
+    cvr_list: list of CVRs as returned by read_hart_CVR()
     """
     cvr_list = []
     with ZipFile(cvr_zip, 'r') as data:
@@ -189,22 +189,22 @@ def sample_from_manifest(manifest, sample):
 
     Parameters
     ----------
-    manifest : dataframe
+    manifest: dataframe
         the processed HART manifest, including phantom batches if max_cards exceeds the
         number of cards in the original manifest
-    sample : list of ints
+    sample: list of ints
         the cards to sample
 
     Returns
     -------
-    cards : list
+    cards: list
         sorted list of card identifiers corresponding to the sample. Card identifiers are 1-indexed.
         Each sampled card is listed as
             cart number, tray number, tabulator number, batch, card in batch, tabulator+batch+card_in_batch
-    sample_order : dict
+    sample_order: dict
         keys are card identifiers, values are dicts containing keys for "selection_order" and "serial_number"
         Example: {'999
-    mvr_phantoms : list
+    mvr_phantoms: list
         list of mvrs for sampled phantoms. The id for the mvr is 'phantom-' concatenated with the row.
     """
     cards = []
@@ -229,29 +229,29 @@ def sample_from_manifest(manifest, sample):
     return cards, sample_order, mvr_phantoms
 
 
-def sample_from_cvrs(cvr_list : list, manifest : list, sample : np.array):
+def sample_from_cvrs(cvr_list: list, manifest: list, sample: np.array):
     """
     Sample from a list of CVRs: return info to find the cards, CVRs, & mvrs for sampled phantom cards
 
     Parameters
     ----------
-    cvr_list : list of CVR objects.
+    cvr_list: list of CVR objects.
         The id for the cvr is assumed to be composed of a batch name, and
         ballot number, joined with underscores, Hart's format
-    manifest : pandas dataframe
+    manifest: pandas dataframe
         a ballot manifest as a pandas dataframe
-    sample : numpy array of ints
+    sample: numpy array of ints
         the CVRs to sample
 
     Returns
     -------
     cards: list
         card identifiers corresponding to the sample, sorted by identifier
-    sample_order : dict
+    sample_order: dict
         keys are card identifiers, values are dicts containing keys for "selection_order" and "serial"
     cvr_sample: list of CVR objects
         the CVRs in the sample
-    mvr_phantoms : list of CVR objects
+    mvr_phantoms: list of CVR objects
         the mvrs for phantom sheets in the sample
     """
     cards = []
@@ -285,14 +285,14 @@ def check_for_contest(cvr, contest_name):
 
     Parameters:
     -----------
-    cvr : list
+    cvr: list
         a single CVR
     contest_name: string
         name of contest
 
     Returns:
     --------
-    contest_present : boolean
+    contest_present: boolean
         whether contest is present in the CVR
     """
     if contest_name in cvr.votes.keys():
@@ -307,14 +307,14 @@ def filter_cvr_contest(cvr_list, contest_name):
 
     Parameters:
     -----------
-    cvr_list : list
+    cvr_list: list
         a list of CVRs
     contest_name: string
         name of contest to filter by
 
     Returns:
     --------
-    filtered_cvr_list : list
+    filtered_cvr_list: list
         CVRs containing contest_name
     """
     filtered_list = list(filter(lambda cvr: check_for_contest(cvr, contest_name), cvr_list))
@@ -369,5 +369,5 @@ def get_votes(cvr_list):
         vote_df["style"] = styles[0].index(cvr_list[i].votes.keys()) + 1
         all_votes = all_votes.append(vote_df,
                                     ignore_index = True)
-    vote_count_df = all_votes.groupby(["contest", "vote", "style"]).size().reset_index().rename(columns = {0 : "num_votes"})
+    vote_count_df = all_votes.groupby(["contest", "vote", "style"]).size().reset_index().rename(columns = {0: "num_votes"})
     return vote_count_df

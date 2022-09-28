@@ -7,7 +7,7 @@ import csv
 import pandas as pd
 import warnings
 import copy
-from assertion_audit_utils import CVR
+from CVR import CVR
 
 
 def prep_manifest(manifest, max_cards, n_cvrs):
@@ -21,21 +21,21 @@ def prep_manifest(manifest, max_cards, n_cvrs):
     
     Parameters:
     ----------
-    manifest : dataframe
+    manifest: dataframe
         should contain the columns
            'Tray #', 'Tabulator Number', 'Batch Number', 'Total Ballots', 'VBMCart.Cart number'
-    max_cards : int
+    max_cards: int
         upper bound on the number of cards cast
-    n_cvrs : int
+    n_cvrs: int
         number of CVRs
         
     Returns:
     --------
-    manifest : dataframe
+    manifest: dataframe
         original manifest with additional column for cumulative cards and, if needed, an additional batch for any phantom cards   
-    manifest_cards : int
+    manifest_cards: int
         the total number of cards in the manifest
-    phantoms : int
+    phantoms: int
         the number of phantom cards required
     """
     cols = ['Tray #', 'Tabulator Number', 'Batch Number', 'Total Ballots', 'VBMCart.Cart number']
@@ -67,12 +67,12 @@ def read_cvrs(cvr_file):
     
     Parameters:
     -----------
-    cvr_file : string
+    cvr_file: string
         filename for cvrs
         
     Returns:
     --------
-    cvr_list : list of CVR objects
+    cvr_list: list of CVR objects
        
     """
     with open(cvr_file, 'r') as f:
@@ -102,21 +102,21 @@ def sample_from_manifest(manifest, sample):
     
     Parameters
     ----------
-    manifest : dataframe
+    manifest: dataframe
         the processed Dominion manifest, including phantom batches if max_cards exceeds the 
         number of cards in the original manifest
-    sample : list of ints
+    sample: list of ints
         the cards to sample    
         
     Returns
     -------
-    cards : list
+    cards: list
         sorted list of card identifiers corresponding to the sample. Card identifiers are 1-indexed.
         Each sampled card is listed as
             cart number, tray number, tabulator number, batch, card in batch, tabulator+batch+card_in_batch
-    sample_order : dict
+    sample_order: dict
         keys are card identifiers, values are dicts containing keys for "selection_order" and "serial"
-    mvr_phantoms : list
+    mvr_phantoms: list
         list of mvrs for sampled phantoms. The id for the mvr is 'phantom-' concatenated with the row.
     """
     cards = []
@@ -140,30 +140,30 @@ def sample_from_manifest(manifest, sample):
     cards.sort(key=lambda x: x[-2])
     return cards, sample_order, mvr_phantoms
 
-def sample_from_cvrs(cvr_list : list, manifest : list, sample : np.array):
+def sample_from_cvrs(cvr_list: list, manifest: list, sample: np.array):
     """
     Sample from a list of CVRs: return info to find the cards, CVRs, & mvrs for sampled phantom cards
     
     Parameters
     ----------
-    cvr_list : list of CVR objects. 
+    cvr_list: list of CVR objects. 
         The id for the cvr is assumed to be composed of a scanner number, batch number, and 
         ballot number, joined with underscores, Dominion's format
         
-    manifest : pandas dataframe
+    manifest: pandas dataframe
         a ballot manifest as a pandas dataframe
-    sample : numpy array of ints
+    sample: numpy array of ints
         the CVRs to sample    
         
     Returns
     -------
     cards: list
         card identifiers corresponding to the sample, sorted by identifier
-    sample_order : dict
+    sample_order: dict
         keys are card identifiers, values are dicts containing keys for "selection_order" and "serial"
     cvr_sample: list of CVR objects
         the CVRs in the sample
-    mvr_phantoms : list of CVR objects
+    mvr_phantoms: list of CVR objects
         the mvrs for phantom sheets in the sample
     """
     cards = []
@@ -193,20 +193,20 @@ def sample_from_cvrs(cvr_list : list, manifest : list, sample : np.array):
     return cards, sample_order, cvr_sample, mvr_phantoms
 
 
-def write_cards_sampled(sample_file : str, cards : list, print_phantoms : bool=True):
+def write_cards_sampled(sample_file: str, cards: list, print_phantoms: bool=True):
     """
     Write the identifiers of the sampled CVRs to a file.
     
     Parameters
     ----------  
-    sample_file : string
+    sample_file: string
         filename for output
         
-    cards : list of lists
+    cards: list of lists
         'VBMCart.Cart number','Tray #','Tabulator Number','Batch Number', 'ballot_in_batch', 
               'imprint', 'absolute_card_index'
     
-    print_phantoms : Boolean
+    print_phantoms: Boolean
         if print_phantoms, prints all sampled cards, including "phantom" cards that were not in
         the original manifest.
         if not print_phantoms, suppresses "phantom" cards

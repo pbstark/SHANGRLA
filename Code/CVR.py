@@ -1,0 +1,582 @@
+import math
+import numpy as np
+import json
+import csv
+import warnings
+import typing
+from numpy import testing
+from collections import OrderedDict, defaultdict
+from cryptorandom.cryptorandom import SHA256, random, int_from_hash
+from cryptorandom.sample import random_permutation
+from cryptorandom.sample import sample_by_index
+
+
+class CVR:
+    '''
+    Generic class for cast-vote records.
+
+    The CVR class DOES NOT IMPOSE VOTING RULES. For instance, the social choice
+    function might consider a CVR that contains two votes in a contest to be an overvote.
+
+    Rather, a CVR is supposed to reflect what the ballot shows, even if the ballot does not
+    contain a valid vote in one or more contests.
+
+    Class method get_votefor returns the vote for a given candidate if the candidate is a
+    key in the CVR, or False if the candidate is not in the CVR.
+
+    This allows very flexible representation of votes, including ranked voting.
+
+    For instance, in a plurality contest with four candidates, a vote for Alice (and only Alice)
+    in a mayoral contest could be represented by any of the following:
+            {"id": "A-001-01", "votes": {"mayor": {"Alice": True}}}
+            {"id": "A-001-01", "votes": {"mayor": {"Alice": "marked"}}}
+            {"id": "A-001-01", "votes": {"mayor": {"Alice": 5}}}
+            {"id": "A-001-01", "votes": {"mayor": {"Alice": 1, "Bob": 0, "Candy": 0, "Dan": ""}}}
+            {"id": "A-001-01", "votes": {"mayor": {"Alice": True, "Bob": False}}}
+    A CVR that contains a vote for Alice for "mayor" and a vote for Bob for "DA" could be represented as
+            {"id": "A-001-01", "votes": {"mayor": {"Alice": True}, "DA": {"Bob": True}}}
+
+    NOTE: some methods distinguish between a CVR that contains a particular contest, but no valid
+    vote in that contest, and a CVR that does not contain that contest at all. Thus, the following
+    are not equivalent:
+            {"id": "A-001-01", "votes": {"mayor": {}} }
+            and
+            {"id": "A-001-01", "votes": {} }
+
+    Ranked votes also have simple representation, e.g., if the CVR is
+            {"id": "A-001-01", "votes": {"mayor": {"Alice": 1, "Bob": 2, "Candy": 3, "Dan": ''}}}
+    Then int(vote_for("Candy","mayor"))=3, Candy's rank in the "mayor" contest.
+
+    CVRs can be flagged as "phantoms" to account for cards not listed in the manifest (Boolean `phantom` attribute).
+
+    CVRs can include sampling probabilities `p` and sample numbers `sample_num` (random numbers to facilitate
+        consistent sampling)
+
+    CVRs can include a sequence number to facilitate ordering and reordering
+
+    Methods:
+    --------
+
+    get_votefor: 
+         get_votefor(candidate, contest, votes) returns the value in the votes dict for the key `candidate`, or
+         False if the candidate did not get a vote or the contest is not in the CVR
+    has_contest: returns bool
+         does the CVR have the contest?
+    cvrs_to_json :
+         represent CVR list as json
+    from_dict :
+         create CVRs from a list of dicts
+    from_raire :
+         create CVRs from the RAIRE representation
+    [FIX ME!: more to document}
+    '''
+
+    def __init__(self, id = None, votes = {}, phantom=False, sample_num=None, p=None, sampled=False):
+        self.votes = votes
+        self.id = id
+        self.phantom = phantom
+        self.sample_num = sample_num
+        self.p = p
+        self.sampled = sampled
+
+    def __str__(self):
+        return f"id: {str(self.id)} votes: {str(self.votes)} phantom: {str(self.phantom)}"
+
+    def get_votefor(self, contest, candidate):
+        return CVR.get_vote_from_cvr(contest, candidate, self)
+
+
+    def has_contest(self, contest):
+        return contest in self.votes
+
+    @classmethod
+    def cvrs_to_json(cls, cvr):
+        return json.dumps(cvr)
+
+    @classmethod
+    def from_dict(cls, cvr_dict):
+        '''
+        Construct a list of CVR objects from a list of dicts containing cvr data
+
+        Parameters:
+        -----------
+        cvr_dict: a list of dicts, one per cvr
+
+        Returns:
+        ---------
+        list of CVR objects
+        '''
+        cvr_list = []
+        for c in cvr_dict:
+            phantom = False if 'phantom' not in c.keys() else c['phantom']
+            cvr_list.append(CVR(id = c['id'], votes = c['votes'], phantom=phantom))
+        return cvr_list
+
+    @classmethod
+    def from_raire(cls, raire, phantom=False):
+        '''
+        Create a list of CVR objects from a list of cvrs in RAIRE format
+
+        Parameters:
+        -----------
+        raire: list of comma-separated values
+            source in RAIRE format. From the RAIRE documentation:
+            The RAIRE format (for later processing) is a CSV file.
+            First line: number of contests.
+            Next, a line for each contest
+             Contest,id,N,C1,C2,C3 ...
+                id is the contest id
+                N is the number of candidates in that contest
+                and C1, ... are the candidate id's relevant to that contest.
+            Then a line for every ranking that appears on a ballot:
+             Contest id,Ballot id,R1,R2,R3,...
+            where the Ri's are the unique candidate ids.
+
+            The CVR file is assumed to have been read using csv.reader(), so each row has
+            been split.
+
+        Returns:
+        --------
+        list of CVR objects corresponding to the RAIRE cvrs
+        '''
+        skip = int(raire[0][0])
+        cvr_list = []
+        for c in raire[(skip+1):]:
+            contest = c[0]
+            id = c[1]
+            votes = {}
+            for j in range(2, len(c)):
+                votes[str(c[j])] = j-1
+            cvr_list.append(CVR.from_vote(votes, id=id, contest=contest, phantom=phantom))
+        return CVR.merge_cvrs(cvr_list)
+
+    @classmethod
+    def merge_cvrs(cls, cvr_list):
+        '''
+        Takes a list of CVRs that might contain duplicated ballot ids and merges the votes
+        so that each identifier is listed only once, and votes from different records for that
+        identifier are merged.
+        The merge is in the order of the list: if a later mention of a ballot id has votes
+        for the same contest as a previous mention, the votes in that contest are updated
+        per the later mention.
+
+        If any of the CVRs has phantom==False, sets phantom=False in the result.
+
+
+        Parameters:
+        -----------
+        cvr_list: list of CVRs
+
+        Returns:
+        -----------
+        list of merged CVRs
+        '''
+        od = OrderedDict()
+        for c in cvr_list:
+            if c.id not in od:
+                od[c.id] = c
+            else:
+                od[c.id].votes = {**od[c.id].votes, **c.votes}
+                od[c.id].phantom = (c.phantom and od[c.id].phantom)
+        return [v for v in od.values()]
+
+    @classmethod
+    def from_vote(cls, vote, id = 1, contest = 'AvB', phantom=False):
+        '''
+        Wraps a vote and creates a CVR, for unit tests
+
+        Parameters:
+        ----------
+        vote: dict of votes in one contest
+
+        Returns:
+        --------
+        CVR containing that vote in the contest "AvB", with CVR id=1.
+        '''
+        return CVR(id=id, votes={contest: vote}, phantom=phantom)
+
+    @classmethod
+    def as_vote(cls, v):
+        return int(bool(v))
+
+    @classmethod
+    def as_rank(cls, v):
+        return int(v)
+
+    @classmethod
+    def get_vote_from_votes(cls, contest, candidate, votes):
+        '''
+        Returns the vote for a candidate if the dict of votes contains a vote for that candidate
+        in that contest; otherwise returns False
+
+        Parameters:
+        -----------
+        contest: string
+            identifier for the contest
+        candidate: string
+            identifier for candidate
+
+        votes: dict
+            a dict of votes
+
+        Returns:
+        --------
+        vote
+        '''
+        return False if (contest not in votes or candidate not in votes[contest])\
+               else votes[contest][candidate]
+
+    @classmethod
+    def get_vote_from_cvr(cls, contest, candidate, cvr):
+        '''
+        Returns the vote for a candidate if the cvr contains a vote for that candidate;
+        otherwise returns False
+
+        Parameters:
+        -----------
+        contest: string
+            identifier for contest
+        candidate: string
+            identifier for candidate
+
+        cvr: a CVR object
+
+        Returns:
+        --------
+        vote: bool or int
+        '''
+        return False if (contest not in cvr.votes or candidate not in cvr.votes[contest])\
+               else cvr.votes[contest][candidate]
+
+    @classmethod
+    def has_one_vote(cls, contest, candidates, cvr):
+        '''
+        Is there exactly one vote among the candidates in the contest?
+
+        Parameters:
+        -----------
+        contest: string
+            identifier of contest
+        candidates: list
+            list of identifiers of candidates
+
+        Returns:
+        ----------
+        True if there is exactly one vote among those candidates in that contest, where a
+        vote means that the value for that key casts as boolean True.
+        '''
+        v = np.sum([0 if c not in cvr.votes[contest] else bool(cvr.votes[contest][c]) \
+                    for c in candidates])
+        return True if v==1 else False
+
+    @classmethod
+    def make_phantoms(cls, max_cards, cvr_list, contests, use_style=True, prefix=''):
+        '''
+        Make phantom CVRs as needed for phantom cards; set contest parameters `cards` (if not set) and `cvrs`
+
+        If `use_style`, phantoms are "per contest": each contest needs enough to account for the difference between
+        the number of cards that might contain the contest and the number of CVRs that contain the contest. This can
+        result in having more cards in all (manifest and phantoms) than max_cards, the maximum cast.
+
+        If `not use_style`, phantoms are for the election as a whole: need enough to account for the difference
+        between the number of cards in the manifest and the number of CVRs that contain the contest. Then, the total
+        number of cards (manifest plus phantoms) equals max_cards.
+
+        If `not use_style` sets `cards = max_cards` for each contest
+
+        Parameters
+        ----------
+        max_cards: int
+            upper bound on the number of ballot cards
+        cvr_list: list of CVR objects
+            the reported CVRs
+        contests: dict of contests
+            information about each contest under audit
+        prefix: String
+            prefix for ids for phantom CVRs to be added
+        use_style: Boolean
+            does the sampling use style information?
+
+        Returns
+        -------
+        cvr_list: list of CVR objects
+            the reported CVRs and the phantom CVRs
+        n_phantoms: int
+            number of phantom cards added
+
+        Side effects
+        ------------
+        for each contest in `contests`, sets `cards` to max_cards if not specified by the user or if `not use_style`
+        for each contest in `contests`, set `cvrs` to be the number of (real) CVRs that contain the contest
+        '''
+        phantom_vrs = []
+        n_cvrs = len(cvr_list)
+        for c, v in contests.items():  # set contest parameters
+            v['cvrs'] = np.sum([cvr.has_contest(c) for cvr in cvr_list if not cvr.phantom])
+            v['cards'] = max_cards if ((v['cards'] is None) or (not use_style)) else v['cards']
+        if not use_style:              #  make (max_cards - len(cvr_list)) phantoms
+            phantoms = max_cards - n_cvrs
+            for i in range(phantoms):
+                phantom_vrs.append(CVR(id=prefix+str(i+1), votes={}, phantom=True))
+        else:                          # create phantom CVRs as needed for each contest
+            for c, v in contests.items():
+                phantoms_needed = v['cards']-v['cvrs']
+                while len(phantom_vrs) < phantoms_needed:
+                    phantom_vrs.append(CVR(id=prefix+str(len(phantom_vrs)+1), votes={}, phantom=True))
+                for i in range(phantoms_needed):
+                    phantom_vrs[i].votes[c]={}  # list contest c on the phantom CVR
+            phantoms = len(phantom_vrs)
+        cvr_list = cvr_list + phantom_vrs
+        return cvr_list, phantoms
+
+    @classmethod
+    def assign_sample_nums(cls, cvr_list, prng):
+        '''
+        Assigns a pseudo-random sample number to each cvr in cvr_list
+
+        Parameters
+        ----------
+        cvr_list: list of CVR objects
+        prng: instance of cryptorandom SHA256 generator
+
+        Returns
+        -------
+        True
+
+        Side effects
+        ------------
+        assigns (or overwrites) sample numbers in each CVR in cvr_list
+        '''
+        for cvr in cvr_list:
+            cvr.sample_num = int_from_hash(prng.nextRandom())
+        return True
+
+    @classmethod
+    def rcv_lfunc_wo(cls, contest, winner, loser, cvr):
+        '''
+        Check whether vote is a vote for the loser with respect to a 'winner only'
+        assertion between the given 'winner' and 'loser'.
+
+        Parameters:
+        -----------
+        contest: string
+            identifier for the contest
+        winner: string
+            identifier for winning candidate
+        loser: string
+            identifier for losing candidate
+        cvr: CVR object
+
+        Returns:
+        --------
+        1 if the given vote is a vote for 'loser' and 0 otherwise
+        '''
+        rank_winner = CVR.get_vote_from_cvr(contest, winner, cvr)
+        rank_loser = CVR.get_vote_from_cvr(contest, loser, cvr)
+
+        if not bool(rank_winner) and bool(rank_loser):
+            return 1
+        elif bool(rank_winner) and bool(rank_loser) and rank_loser < rank_winner:
+            return 1
+        else:
+            return 0
+
+    @classmethod
+    def rcv_votefor_cand(cls, contest, cand, remaining, cvr):
+        '''
+        Check whether 'vote' is a vote for the given candidate in the context
+        where only candidates in 'remaining' remain standing.
+
+        Parameters:
+        -----------
+        contest: string
+            identifier of the contest
+        cand: string
+            identifier for candidate
+        remaining: list
+            list of identifiers of candidates still standing
+
+        vote: dict of dicts
+
+        Returns:
+        --------
+        1 if the given vote for the contest counts as a vote for 'cand' and 0 otherwise. Essentially,
+        if you reduce the ballot down to only those candidates in 'remaining',
+        and 'cand' is the first preference, return 1; otherwise return 0.
+        '''
+        if not cand in remaining:
+            return 0
+
+        rank_cand = CVR.get_vote_from_cvr(contest, cand, cvr)
+
+        if not bool(rank_cand):
+            return 0
+        else:
+            for altc in remaining:
+                if altc == cand:
+                    continue
+                rank_altc = CVR.get_vote_from_cvr(contest, altc, cvr)
+                if bool(rank_altc) and rank_altc <= rank_cand:
+                    return 0
+            return 1
+
+############################
+### Unit tests
+
+def test_rcv_lfunc_wo():
+    votes = CVR.from_vote({"Alice": 1, "Bob": 2, "Candy": 3, "Dan": ''})
+    assert CVR.rcv_lfunc_wo("AvB", "Bob", "Alice", votes) == 1
+    assert CVR.rcv_lfunc_wo("AvB", "Alice", "Candy", votes) == 0
+    assert CVR.rcv_lfunc_wo("AvB", "Dan", "Candy", votes) == 1
+
+def test_rcv_votefor_cand():
+    votes = CVR.from_vote({"Alice": 1, "Bob": 2, "Candy": 3, "Dan": '', "Ross": 4, "Aaron": 5})
+    remaining = ["Bob","Dan","Aaron","Candy"]
+    assert CVR.rcv_votefor_cand("AvB", "Candy", remaining, votes) == 0
+    assert CVR.rcv_votefor_cand("AvB", "Alice", remaining, votes) == 0
+    assert CVR.rcv_votefor_cand("AvB", "Bob", remaining, votes) == 1
+    assert CVR.rcv_votefor_cand("AvB", "Aaron", remaining, votes) == 0
+
+    remaining = ["Dan","Aaron","Candy"]
+    assert CVR.rcv_votefor_cand("AvB", "Candy", remaining, votes) == 1
+    assert CVR.rcv_votefor_cand("AvB", "Alice", remaining, votes) == 0
+    assert CVR.rcv_votefor_cand("AvB", "Bob", remaining, votes) == 0
+    assert CVR.rcv_votefor_cand("AvB", "Aaron", remaining, votes) == 0
+
+def test_cvr_from_dict():
+    cvr_dict = [{'id': 1, 'votes': {'AvB': {'Alice':True}, 'CvD': {'Candy':True}}},\
+                {'id': 2, 'votes': {'AvB': {'Bob':True}, 'CvD': {'Elvis':True, 'Candy':False}}},\
+                {'id': 3, 'votes': {'EvF': {'Bob':1, 'Edie':2}, 'CvD': {'Elvis':False, 'Candy':True}}}]
+    cvr_list = CVR.from_dict(cvr_dict)
+    assert len(cvr_list) == 3
+    assert cvr_list[0].id == 1
+    assert cvr_list[1].id == 2
+    assert cvr_list[2].id == 3
+
+    assert cvr_list[0].get_votefor('AvB', 'Alice') == True
+    assert cvr_list[0].get_votefor('CvD', 'Candy') == True
+    assert cvr_list[0].get_votefor('AvB', 'Bob') == False
+    assert cvr_list[0].get_votefor('EvF', 'Bob') == False
+
+    assert cvr_list[1].get_votefor('AvB', 'Alice') == False
+    assert cvr_list[1].get_votefor('CvD', 'Candy') == False
+    assert cvr_list[1].get_votefor('CvD', 'Elvis') == True
+    assert cvr_list[1].get_votefor('CvD', 'Candy') == False
+    assert cvr_list[1].get_votefor('CvD', 'Edie') == False
+    assert cvr_list[1].get_votefor('AvB', 'Bob') == True
+    assert cvr_list[1].get_votefor('EvF', 'Bob') == False
+
+    assert cvr_list[2].get_votefor('AvB', 'Alice') == False
+    assert cvr_list[2].get_votefor('CvD', 'Candy') == True
+    assert cvr_list[2].get_votefor('CvD', 'Edie') == False
+    assert cvr_list[2].get_votefor('AvB', 'Bob') == False
+    assert cvr_list[2].get_votefor('EvF', 'Bob') == 1
+    assert cvr_list[2].get_votefor('EvF', 'Edie') == 2
+    assert cvr_list[2].get_votefor('EvF', 'Alice') == False
+
+def test_cvr_has_contest():
+    cvr_dict = [{'id': 1, 'votes': {'AvB': {}, 'CvD': {'Candy':True}}},\
+                {'id': 2, 'votes': {'CvD': {'Elvis':True, 'Candy':False}}}]
+    cvr_list = CVR.from_dict(cvr_dict)
+    assert cvr_list[0].has_contest('AvB')
+    assert cvr_list[0].has_contest('CvD')
+    assert not cvr_list[0].has_contest('EvF')
+
+    assert not cvr_list[1].has_contest('AvB')
+    assert cvr_list[1].has_contest('CvD')
+    assert not cvr_list[1].has_contest('EvF')
+
+def test_cvr_from_raire():
+    raire_cvrs = [['1'],\
+                  ["Contest","339","5","15","16","17","18","45"],\
+                  ["339","99813_1_1","17"],\
+                  ["339","99813_1_3","16"],\
+                  ["339","99813_1_6","18","17","15","16"],\
+                  ["3","99813_1_6","2"]\
+                 ]
+    c = CVR.from_raire(raire_cvrs)
+    assert len(c) == 3
+    assert c[0].id == "99813_1_1"
+    assert c[0].votes == {'339': {'17':1}}
+    assert c[2].id == "99813_1_6"
+    assert c[2].votes == {'339': {'18':1, '17':2, '15':3, '16':4}, '3': {'2':1}} # merges votes?
+
+def test_make_phantoms():
+    contests =  {'city_council':{'risk_limit':0.05,
+                             'cards': None,
+                             'choice_function':'plurality',
+                             'n_winners':3,
+                             'candidates':['Doug','Emily','Frank','Gail','Harry'],
+                             'reported_winners': ['Doug', 'Emily', 'Frank']
+                            },
+                 'measure_1':{'risk_limit':0.05,
+                             'cards': 5,
+                             'choice_function':'supermajority',
+                             'share_to_win':2/3,
+                             'n_winners':1,
+                             'candidates':['yes','no'],
+                             'reported_winners': ['yes']
+                            }
+                }
+    cvrs = [CVR(id="1", votes={"city_council": {"Alice": 1},     "measure_1": {"yes": 1}}, phantom=False), \
+                CVR(id="2", votes={"city_council": {"Bob": 1},   "measure_1": {"yes": 1}}, phantom=False), \
+                CVR(id="3", votes={"city_council": {"Bob": 1},   "measure_1": {"no": 1}}, phantom=False), \
+                CVR(id="4", votes={"city_council": {"Charlie": 1}}, phantom=False), \
+                CVR(id="5", votes={"city_council": {"Doug": 1}}, phantom=False), \
+                CVR(id="6", votes={"measure_1": {"no": 1}}, phantom=False)
+            ]
+    max_cards = 8
+    prefix = 'phantom-'
+
+    cvr_list, phantoms = CVR.make_phantoms(max_cards, cvrs, contests, use_style=True, prefix='')
+    assert len(cvr_list) == 9
+    assert phantoms == 3
+    assert contests['city_council']['cvrs'] == 5
+    assert contests['measure_1']['cvrs'] == 4
+    assert contests['city_council']['cards'] == 8
+    assert contests['measure_1']['cards'] == 5
+    assert np.sum([c.has_contest('city_council') for c in cvr_list]) == 8, \
+                   np.sum([c.has_contest('city_council') for c in cvr_list])
+    assert np.sum([c.has_contest('measure_1') for c in cvr_list]) == 5, \
+                  np.sum([c.has_contest('measure_1') for c in cvr_list])
+    assert np.sum([c.has_contest('city_council') and not c.phantom for c in cvr_list]) ==  5
+    assert np.sum([c.has_contest('measure_1') and not c.phantom for c in cvr_list]) == 4
+
+    cvr_list, phantoms = CVR.make_phantoms(max_cards, cvrs, contests, use_style=False, prefix='')
+    assert len(cvr_list) == 8
+    assert phantoms == 2
+    assert contests['city_council']['cvrs'] == 5
+    assert contests['measure_1']['cvrs'] == 4
+    assert contests['city_council']['cards'] == 8
+    assert contests['measure_1']['cards'] == 8
+    assert np.sum([c.has_contest('city_council') for c in cvr_list]) == 5, \
+                   np.sum([c.has_contest('city_council') for c in cvr_list])
+    assert np.sum([c.has_contest('measure_1') for c in cvr_list]) == 4, \
+                   np.sum([c.has_contest('measure_1') for c in cvr_list])
+    assert np.sum([c.has_contest('city_council') and not c.phantom for c in cvr_list]) ==  5
+    assert np.sum([c.has_contest('measure_1') and not c.phantom for c in cvr_list]) == 4
+
+def test_assign_sample_nums():
+    cvrs = [CVR(id="1", votes={"city_council": {"Alice": 1}, "measure_1": {"yes": 1}}, phantom=False), \
+                CVR(id="2", votes={"city_council": {"Bob": 1},   "measure_1": {"yes": 1}}, phantom=False), \
+                CVR(id="3", votes={"city_council": {"Bob": 1},   "measure_1": {"no": 1}}, phantom=False), \
+                CVR(id="4", votes={"city_council": {"Charlie": 1}}, phantom=False), \
+                CVR(id="5", votes={"city_council": {"Doug": 1}}, phantom=False), \
+                CVR(id="6", votes={"measure_1": {"no": 1}}, phantom=False)
+            ]
+    prng = SHA256(1234567890)
+    CVR.assign_sample_nums(cvrs,prng)
+    assert cvrs[0].sample_num == 100208482908198438057700745423243738999845662853049614266130533283921761365671
+    assert cvrs[5].sample_num == 93838330019164869717966768063938259297046489853954854934402443181124696542865
+
+
+########
+
+if __name__ == "__main__":
+    test_cvr_from_raire()
+    test_cvr_from_dict()
+    test_cvr_has_contest()
+    test_make_phantoms()
+    test_assign_sample_nums()
+    test_rcv_lfunc_wo()
+    test_rcv_votefor_cand()
