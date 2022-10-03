@@ -420,6 +420,125 @@ class CVR:
                     return 0
             return 1
 
+    @classmethod
+    def prep_comparison_sample(cls, mvr_sample, cvr_sample, sample_order):
+        '''
+        prepare the MVRs and CVRs for comparison by putting the MVRs into the same (random) order
+        in which the CVRs were selected
+
+        conduct data integrity checks.
+
+        Side-effects: sorts the mvr sample into the same order as the cvr sample
+
+        Parameters
+        ----------
+        mvr_sample: list of CVR objects
+            the manually determined votes for the audited cards
+        cvr_sample: list of CVR objects
+            the electronic vote record for the audited cards
+        sample_order: dict
+            dict to look up selection order of the cards. Keys are card identifiers. Values are dicts
+            containing "selection_order" (which draw yielded the card) and "serial" (the card's original position)
+
+        Returns
+        -------
+        '''
+        mvr_sample.sort(key = lambda x: sample_order[x.id]["selection_order"])
+        cvr_sample.sort(key = lambda x: sample_order[x.id]["selection_order"])
+        assert len(cvr_sample) == len(mvr_sample),\
+            "Number of cvrs ({}) and number of mvrs ({}) differ".format(len(cvr_sample), len(mvr_sample))
+        for i in range(len(cvr_sample)):
+            assert mvr_sample[i].id == cvr_sample[i].id, \
+                f'Mismatch between id of cvr ({cvr_sample[i].id}) and mvr ({mvr_sample[i].id})'
+
+    @classmethod
+    def prep_polling_sample(cls, mvr_sample: list, sample_order: dict):
+        '''
+        Put the mvr sample back into the random selection order.
+
+        Only about the side effects.
+
+        Parameters
+        ----------
+        mvr_sample: list
+            list of CVR objects
+        sample_order: dict of dicts
+            dict to look up selection order of the cards. Keys are card identifiers. Values are dicts
+            containing "selection_order" (which draw yielded the card) and "serial" (the card's original position)
+
+        Returns
+        -------
+        only side effects: mvr_sample is reordered
+        '''
+        mvr_sample.sort(key= lambda x: sample_order[x.id]["selection_order"])
+
+    @classmethod
+    def sort_cvr_sample_num(cls, cvr_list: list):
+        '''
+        Sort cvr_list by sample_num
+
+        Only about the side effects.
+
+        Parameters
+        ----------
+        cvr_list: list
+            list of CVR objects
+
+        Returns
+        -------
+        only side effects: cvr_list is ordered by sample_num
+        '''
+        cvr_list.sort(key = lambda x: x.sample_num)
+        return True
+
+    @classmethod
+    def consistent_sampling(
+                            cls, cvr_list: list, contests: dict, sample_size_dict: dict, 
+                            sampled_cvr_indices: list=None) -> list:
+        '''
+        Sample CVR ids for contests to attain sample sizes in sample_size_dict
+
+        Assumes that phantoms have already been generated and sample_num has been assigned
+        to every CVR, including phantoms
+
+        Parameters
+        ----------
+        cvr_list: list
+            list of CVR objects
+        contests: dict
+            dict of contests
+        sample_size_dict: dict
+            dict of sample sizes by contest
+        sampled_cvr_indices: list
+            indices of cvrs already in the sample
+
+        Returns
+        -------
+        sampled_cvr_indices: list
+            locations of CVRs to sample
+        '''
+        current_sizes = defaultdict(int)
+        contest_in_progress = lambda c: (current_sizes[c] < sample_size_dict[c])
+        if sampled_cvr_indices is None:
+            sampled_cvr_indices = []
+        else:
+            for sam in sampled_cvr_indices:
+                for c in contests:
+                    current_sizes[c] += (1 if cvr_list[sam].has_contest(c) else 0)
+        sorted_cvr_indices = [i+1 for i, cv in sorted(enumerate(cvr_list), key = lambda x: x[1].sample_num)]
+        inx = len(sampled_cvr_indices)
+        while any([contest_in_progress(c) for c in contests]):
+            if any([(contest_in_progress(c) and cvr_list[sorted_cvr_indices[inx]-1].has_contest(c)) for c in contests]):
+                sampled_cvr_indices.append(sorted_cvr_indices[inx])
+                for c in contests:
+                    current_sizes[c] += (1 if cvr_list[sorted_cvr_indices[inx]-1].has_contest(c) else 0)
+            inx += 1
+        for i in range(len(cvr_list)):
+            if i in sampled_cvr_indices:
+                cvr_list[i].sampled = True
+        return sampled_cvr_indices
+
+    
 ############################
 ### Unit tests
 
@@ -569,6 +688,20 @@ def test_assign_sample_nums():
     assert cvrs[0].sample_num == 100208482908198438057700745423243738999845662853049614266130533283921761365671
     assert cvrs[5].sample_num == 93838330019164869717966768063938259297046489853954854934402443181124696542865
 
+def test_consistent_sampling():
+    cvrs = [CVR(id="1", votes={"city_council": {"Alice": 1}, "measure_1": {"yes": 1}}, phantom=False), \
+            CVR(id="2", votes={"city_council": {"Bob": 1},   "measure_1": {"yes": 1}}, phantom=False), \
+            CVR(id="3", votes={"city_council": {"Bob": 1},   "measure_1": {"no": 1}}, phantom=False), \
+            CVR(id="4", votes={"city_council": {"Charlie": 1}}, phantom=False), \
+            CVR(id="5", votes={"city_council": {"Doug": 1}}, phantom=False), \
+            CVR(id="6", votes={"measure_1": {"no": 1}}, phantom=False)
+            ]
+    prng = SHA256(1234567890)
+    CVR.assign_sample_nums(cvrs, prng)
+    contests = {'city_council': ' ', 'measure_1': ' '}
+    sample_cvr_indices = CVR.consistent_sampling(cvrs, contests, {'city_council': 3, 'measure_1': 3})
+    assert sample_cvr_indices == [5, 4, 6, 1, 2]
+
 
 ########
 
@@ -577,6 +710,7 @@ if __name__ == "__main__":
     test_cvr_from_dict()
     test_cvr_has_contest()
     test_make_phantoms()
-    test_assign_sample_nums()
     test_rcv_lfunc_wo()
     test_rcv_votefor_cand()
+    test_assign_sample_nums()
+    test_consistent_sampling()

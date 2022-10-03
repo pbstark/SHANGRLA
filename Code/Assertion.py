@@ -8,6 +8,7 @@ import typing
 from numpy import testing
 from collections import OrderedDict, defaultdict
 from CVR import CVR
+import Utils
 
 class Assertion:
     '''
@@ -18,12 +19,17 @@ class Assertion:
     An _assorter_ maps votes to nonnegative numbers not exceeding some upper bound `u`
     '''
 
-    JSON_ASSERTION_TYPES = ["WINNER_ONLY", "IRV_ELIMINATION"]  # supported json assertion types for imported assertions
-
-    def __init__(self, contest: object=None, assorter: callable=None, margin: float=None, 
-                 upper_bound: float=1, p_value: float=1, p_history: list=[], proved: bool=False):
+    # supported json assertion types for imported assertions
+    JSON_ASSERTION_TYPES = (WINNER_ONLY:= "WINNER_ONLY", 
+                            IRV_ELIMINATION:= "IRV_ELIMINATION")  
+    
+    def __init__(
+                 self, contest: object=None, assorter: callable=None, margin: float=None, 
+                 upper_bound: float=1, risk_function: callable=None, 
+                 p_value: float=1, p_history: list=[], proved: bool=False, sample_size=None):
         '''
-        The assorter is callable; should produce a non-negative real.
+        assorter() should produce a float in [0, upper_bound]
+        risk_function() should produce a float in [0, 1]
 
         Parameters
         ----------
@@ -34,6 +40,9 @@ class Assertion:
             the assorter for the assertion
         margin: float
             the assorter margin
+        risk_function: callable
+            the function to find the p-value of the hypothesis that the assertion is true, i.e., that the 
+            assorter mean is <=1/2
         p_value: float
             the current p-value for the complementary null hypothesis that the assertion is false
         p_history: list
@@ -41,19 +50,24 @@ class Assertion:
             functions.
         proved: boolean
             has the complementary null hypothesis been rejected?
+        sample_size: int
+            estimated total sample size to complete the audit of this assertion
 
         '''
         self.assorter = assorter
         self.contest = contest
         self.margin = margin
         self.upper_bound = upper_bound
+        self.risk_function = risk_function
         self.p_value = p_value
         self.p_history = p_history
         self.proved = proved
+        self.sample_size = sample_size
 
     def __str__(self):
         return (f'contest: {self.contest} margin: {self.margin} upper bound: {self.upper_bound} '
-                f'p-value: {self.p_value} p-history length: {len(self.p_history)} proved: {self.proved}'
+                f'risk function: {self.risk_function} p-value: {self.p_value} '
+                f'p-history length: {len(self.p_history)} proved: {self.proved} sample_size: {self.sample_size}'
                )
 
     def assort(self, cvr):
@@ -66,16 +80,16 @@ class Assertion:
         '''
         find the mean of the assorter applied to a list of CVRs
 
-        Parameters:
-        -----------
+        Parameters
+        ----------
         cvr_list: list
             a list of cast-vote records
         use_style: Boolean
             does the audit use card style information? If so, apply the assorter only to CVRs
             that contain the contest in question.
 
-        Returns:
-        --------N
+        Returns
+        -------
         mean: float
             the mean value of the assorter over the list of cvrs. If use_style, ignores CVRs that
             do not contain the contest.
@@ -90,7 +104,7 @@ class Assertion:
         '''
         find the sum of the assorter applied to a list of CVRs
 
-        Parameters:
+        Parameters
         ----------
         cvr_list: list of CVRs
             a list of cast-vote records
@@ -98,8 +112,8 @@ class Assertion:
             does the audit use card style information? If so, apply the assorter only to CVRs
             that contain the contest in question.
 
-        Returns:
-        ----------
+        Returns
+        -------
         sum: float
             sum of the value of the assorter over a list of CVRs. If use_style, ignores CVRs that
             do not contain the contest.
@@ -126,19 +140,24 @@ class Assertion:
         '''
         return 2*self.assorter_mean(cvr_list, use_style=use_style)-1
     
-    def overstatement_assorter_margin(self, assorter_margin: float=None, one_vote_overstatement_rate: float=0,
-                                     cvr_list: list=None) -> float:
+    def overstatement_assorter_margin(
+                                      self, assorter_margin: float=None, one_vote_overstatement_rate: float=0,
+                                      cvr_list: list=None) -> float:
         '''
         find the overstatement assorter margin corresponding to an assumed rate of 1-vote overstatements
         
-        Parameters:
-        
+        Parameters
+        ----------        
         assorter_margin: float
             the margin for the underlying "raw" assorter. If this is not provided, calculates it from the CVR list
         one_vote_overstatement_rate: float
             the assumed rate of one-vote overstatement errors in the CVRs
         cvr_list: list
             CVRs to calculate the assorter margin. Only used if assorter_margin is None
+    
+        Returns
+        -------
+        the overstatement assorter margin implied by the reported margin and the assumed rate of one-vote overstatements
         '''
         if assorter_margin is None:
             if cvr_list:
@@ -148,8 +167,9 @@ class Assertion:
         u = self.upper_bound
         return (1-r*u/assorter_margin)/(2*u/assorter_margin-1)
     
-    def overstatement_assorter_mean(self, assorter_margin: float=None, one_vote_overstatement_rate: float=0,
-                                     cvr_list: list=None) -> float:
+    def overstatement_assorter_mean(
+                                    self, assorter_margin: float=None, one_vote_overstatement_rate: float=0,
+                                    cvr_list: list=None) -> float:
         '''
         find the overstatement assorter mean corresponding to an assumed rate of 1-vote overstatements
         
@@ -161,14 +181,27 @@ class Assertion:
             the assumed rate of one-vote overstatement errors in the CVRs
         cvr_list: list
             CVRs to calculate the assorter margin. Only used if assorter_margin is None
+            
+        Parameters
+        ----------
+        assorter_margin: float
+            the margin of the raw assorter
+        one_vote_overstatement_rate: float
+            assumed rate of one-vote overstatements
+        cvr_list: list
+            list of CVR objects to calculate the assorter margin, if the assorter margin was not provided
+        
+        Returns
+        -------
+        overstatement assorter mean implied by the assorter mean and the assumed rate of 1-vote overstatements
+        
         '''
         if assorter_margin is None:
             if cvr_list:
                 assorter_margin = self.assorter_margin(cvr_list)
             else:
                 raise ValueError("must provide either assorter_margin or cvr_list")
-        u = self.upper_bound
-        return (1-r/2)/(2-assorter_margin/u)
+        return (1-r/2)/(2-assorter_margin/self.upper_bound)
     
 
     def overstatement(self, mvr, cvr, use_style=True):
@@ -186,15 +219,15 @@ class Assertion:
             A phantom MVR is considered a vote for the loser (i.e., assort()=0) in every
             contest.
 
-        Parameters:
-        -----------
+        Parameters
+        ----------
         mvr: Cvr
             the manual interpretation of voter intent
         cvr: Cvr
             the machine-reported cast vote record
 
-        Returns:
-        --------
+        Returns
+        -------
         overstatement: float
             the overstatement error
         '''
@@ -216,15 +249,15 @@ class Assertion:
                 raise ValueError("Assertion.overstatement: use_style==True but CVR does not contain the contest")
         return overstatement
 
-    def overstatement_assorter(self, mvr: list=None, cvr: list=None, margin: float=None, use_style=True):
+    def overstatement_assorter(self, mvr: list=None, cvr: list=None, use_style=True) -> float:
         '''
         assorter that corresponds to normalized overstatement error for an assertion
 
-        If use_style, then if the CVR contains the contest but the MVR does not,
+        If `use_style = True`, then if the CVR contains the contest but the MVR does not,
         that is considered to be an overstatement, because the ballot is presumed to contain
         the contest.
 
-        If not use_style, then if the CVR contains the contest but the MVR does not,
+        If `use_style == False`, then if the CVR contains the contest but the MVR does not,
         the MVR is considered to be a non-vote in the contest.
 
         Parameters:
@@ -232,9 +265,7 @@ class Assertion:
         mvr: Cvr
             the manual interpretation of voter intent
         cvr: Cvr
-            the machine-reported cast vote record
-        margin: float
-            2*(assorter applied to all CVRs) - 1, the assorter margin
+            the machine-reported cast vote record. 
 
         Returns:
         --------
@@ -244,25 +275,71 @@ class Assertion:
                 u is the upper bound on the value the assorter assigns to any ballot
                 v is the assorter margin
         '''
-        return (1-self.overstatement(mvr, cvr, use_style)/self.assorter.upper_bound)\
-                /(2-margin/self.assorter.upper_bound)
+        return (1-self.overstatement(mvr, cvr, use_style)/self.assorter.upper_bound)/(2-self.margin/self.assorter.upper_bound)
     
+    def find_margin(self, cvr_list: list=None, use_style=False):
+        '''
+        find and set the assorter margin
+        
+        Parameters
+        ----------
+        cvr_list: list
+            cvrs from which the sample will be drawn
+        use_style: bool
+            is the sample drawn only from ballots that should contain the contest?
+            
+        Returns
+        -------
+        nothing
+        
+        Side effects
+        ------------
+        sets assorter.margin
+        
+        '''
+        amean =self.assorter_mean(cvr_list, use_style=use_style)
+        if amean < 1/2:
+            warnings.warn(f"assertion {a} not satisfied by CVRs: mean value is {amean}")
+        self.margin = 2*amean-1
+                
+                
+    def make_overstatement(self, overs: float, cvr_list: list=None, use_style: bool=False) -> float:
+        '''
+        return the numerical value corresponding to an overstatement of `overs` times the assorter upper bound `u`
+        
+        Parameters
+        ----------
+        overs: float
+            the multiple of `u`
+        cvr_list: list of CVR objects
+            the cvrs. Only used if the assorter margin has not been set
+        use_style: bool
+            flag to use style information. Only used if the assorter margin has not been set
+        
+        Returns
+        -------
+        the numerical value corresponding to an overstatement of that multiple
+        
+        Side effects
+        ------------
+        sets the assorter's margin if it had not been set
+        '''
+        if not self.margin:
+            self.find_margin(cvrs, use_style=use_style)
+        return (1-overs/self.assorter.upper_bound)/(2-self.margin/self.assorter.upper_bound)
+                
+
     def initial_sample_size(
-                            self, risk_fn: callable, polling: bool=False, error_rate: float=0, 
-                            reps: int=None, bias_up: bool=True, quantile: float=0.5, seed: int=1234567890) -> int:
+                            self, error_rate: float=0, reps: int=None, bias_up: bool=True, 
+                            quantile: float=0.5, seed: int=1234567890) -> int:
         '''
         Estimate sample size needed to reject the null hypothesis that the assorter mean is <=1/2,
-        for the specified risk function, given the margin
-        and--for comparison audits--assumptions about the rate of overstatement errors.
+        for the specified risk function, given the margin and--for comparison audits--assumptions 
+        about the rate of overstatement errors.
 
-        If `polling == True`, bases estimates on the margin alone, for a ballot-polling audit using sampling 
-        without replacement.
+        This function is for a single assorter.
 
-        If `polling == False`, uses `error_rate` as an assumed rate of one-vote overstatements.
-
-        This function is for a single contest.
-
-        Implements two strategies when `polling == False`:
+        Implements two strategies if audit_style==BALLOT_COMPARISON:
 
             1. If reps is not None, uses simulations to estimate the `quantile` quantile
             of sample size required. The simulations use the numpy Mersenne Twister PRNG.
@@ -275,27 +352,9 @@ class Assertion:
 
         Parameters:
         -----------
-        risk_function: callable
-            risk function to use. risk_function should take four arguments (x, m, N, u) and return
-            an array of p-values corresponding to the sample sequence x.
-        N: int
-            cards potentially containing the contest, or N = np.infty for sampling with replacement
-        margin: float
-            assorter margin. If the assorter is an overstatement assorter, it should be the overstatement assorter margin.
-        t: float
-            hypothesized value of the population mean
-        u: float
-            maximum value the assorter can assign to any ballot in the contest
-            For example, 
-                u=1 for polling audit of plurality contests
-                u=2/(2-margin/original_assorter_upper_bound) for comparison audits
-        alpha: float
-            significance level in (0, 0.5)
-        polling: bool
-            True for polling audit, False for ballot-level comparison audit
         error_rate: float
             assumed rate of 1-vote overstatements for ballot-level comparison audit.
-            Ignored if `polling==True`
+            Ignored if audit_style==POLLING
         reps: int
             if reps is not none, performs `reps` simulations to estimate the `quantile` quantile of sample size
         bias_up: boolean
@@ -314,51 +373,58 @@ class Assertion:
             in the sample are not more frequent than the assumed rate
 
         '''
-        assert alpha > 0 and alpha < 1/2, f'{alpha=}. Not in (0, 1/2)'
-        assert margin > 0, 'Margin is nonpositive'
-
-        if not polling:          # ballot-level comparison audit
-            clean = u/2          # 1/(2-margin/upper_bound) is the maximum possible value of the overstatement assorter
-            one_vote_over = u/4  # (1-(upper_bound/2)/upper_bound)/(2-margin/upper_bound)
+        alpha = self.contest['risk_limit']
+        assert alpha > 0 and alpha < 1/2, f'{alpha=} is not in (0, 1/2)'
+        assert self.margin > 0, f'Margin {self.margin} is nonpositive'
+sample_size(
+                    cls, risk_fn: callable, x: np.array, N: int, t: float=1/2, alpha: float=0.05, 
+                    reps: int=None, prefix: bool=False, quantile: float=0.5, **kwargs) -> int:
+        if self.contest['audit_type'] == Contest.BALLOT_COMPARISON:        
+            clean = self.make_overstatement(overs=0)          # assumes margin has been set
+            one_vote_over = self.make_overstatement(overs=1)  # assumes margin has been set
             if reps is None:     # allocate errors deterministically
                 offset = 0 if bias_up else 1
                 x = clean*np.ones(N)
                 if error_rate > 0:
                     for k in range(N):
                         x[k] = (one_vote_over if (k+offset) % int(1/error_rate) == 0 else x[k])
-                p = risk_function(x, margin, N, u)
+                p = self.risk_function.sample_size(x)[1]
                 crossed = (p<=alpha)
                 sam_size = int(N if np.sum(crossed)==0 else (np.argmax(crossed)+1))
             else:                # estimate the quantile by simulation
                 prng = np.random.RandomState(seed)  # use the Mersenne Twister for speed
                 sams = np.zeros(int(reps))
                 for r in range(reps):
-                    pop = clean*np.ones(N)
+                    x = clean*np.ones(N)
                     inx = (prng.random(size=N) <= error_rate)  # randomly allocate errors
-                    pop[inx] = one_vote_over
-                    p = risk_function(pop, margin, N, u)
+                    x[inx] = one_vote_over
+                    p = self.risk_function.test(x)[1]
                     crossed = (p<=alpha)
                     sams[r] = N if np.sum(crossed)==0 else (np.argmax(crossed)+1)
                 sam_size = int(np.quantile(sams, quantile))
-        else:                   # ballot-polling audit
+        elif self.audit_type == Contest.POLLING:     # ballot-polling audit
             if reps is None:
                 raise ValueError('estimating ballot-polling sample size requires setting `reps`')
             else: 
-                pop = np.zeros(N)
+                x = np.zeros(N)
                 nonzero = math.floor((margin+1)/2)
-                pop[0:nonzero] = np.ones(nonzero)
+                x[0:nonzero] = np.ones(nonzero)
                 prng = np.random.RandomState(seed)  # use the Mersenne Twister for speed
                 sams = np.zeros(int(reps))
                 for r in range(reps):
-                    pop = prng.permutation(pop)
-                    p = risk_function(pop, margin, N, u)
+                    x = prng.permutation(x)
+                    p = self.risk_function.test(x)[1]
                     crossed = (p <= alpha)
                     sams[r] = N if np.sum(crossed)==0 else (np.argmax(crossed)+1)
                 sam_size = int(np.quantile(sams, quantile))
+        else:
+            raise NotImplementedError(f'audit type {audit_type} not implemented')
         return sam_size
 
     @classmethod
-    def make_plurality_assertions(cls, contest, winners, losers):
+    def make_plurality_assertions(
+                                  cls, contest, winners, losers, audit_type: str=Contest.POLLING, 
+                                  risk_function: callable=None):
         '''
         Construct assertions that imply the winner(s) got more votes than the loser(s).
 
@@ -371,25 +437,34 @@ class Assertion:
             list of identifiers of winning candidate(s)
         losers: list
             list of identifiers of losing candidate(s)
+        audit_type: str
+            audit_type in Contest.AUDIT_TYPES
+        risk_function: callable
+            risk function for the contest
 
         Returns:
         --------
         a dict of Assertions
 
         '''
+        if audit_type not in Contest.AUDIT_TYPES:
+            raise ValueError(f'audit type {audit_type} not implemented')
         assertions = {}
         for winr in winners:
             for losr in losers:
                 wl_pair = winr + ' v ' + losr
-                assertions[wl_pair] = Assertion(contest, Assorter(contest=contest, \
-                                      assort = lambda c, contest=contest, winr=winr, losr=losr:\
-                                      ( CVR.as_vote(CVR.get_vote_from_cvr(contest, winr, c)) \
-                                      - CVR.as_vote(CVR.get_vote_from_cvr(contest, losr, c)) \
-                                      + 1)/2, upper_bound = 1))
+                assertions[wl_pair] = Assertion(contest, Assorter(contest=contest, 
+                                      assort = lambda c, contest=contest, winr=winr, losr=losr:
+                                      (CVR.as_vote(CVR.get_vote_from_cvr(contest, winr, c))
+                                      - CVR.as_vote(CVR.get_vote_from_cvr(contest, losr, c))
+                                      + 1)/2, upper_bound = 1), audit_type=audit_type, 
+                                      risk_function=risk_function)
         return assertions
 
     @classmethod
-    def make_supermajority_assertion(cls, contest, winner, losers, share_to_win):
+    def make_supermajority_assertion(
+                                     cls, contest, winner, losers, share_to_win: float=1/2, 
+                                     audit_type: str=Contest.POLLING, risk_function: callable=None):
         '''
         Construct assertion that winner got >= share_to_win \in (0,1) of the valid votes
 
@@ -417,12 +492,18 @@ class Assertion:
             list of identifiers of losing candidate(s)
         share_to_win: float
             fraction of the valid votes the winner must get to win
+        audit_type: str
+            audit_type in Contest.AUDIT_TYPES
+        risk_function: callable
+            risk function for the contest
 
         Returns:
         --------
         a dict containing one Assertion
 
         '''
+        if audit_type not in Contest.AUDIT_TYPES:
+            raise ValueError(f'audit type {audit_type} not implemented')
         assert share_to_win < 1, f"share_to_win is {share_to_win} but must be less than 1"
 
         assertions = {}
@@ -430,14 +511,18 @@ class Assertion:
         cands = losers.copy()
         cands.append(winner)
         assertions[wl_pair] = Assertion(contest, \
-                                 Assorter(contest=contest, assort = lambda c, contest=contest: \
-                                 CVR.as_vote(CVR.get_vote_from_cvr(contest, winner, c))/(2*share_to_win) \
-                                 if CVR.has_one_vote(contest, cands, c) else 1/2,\
-                                 upper_bound = 1/(2*share_to_win) ))
+                                 Assorter(contest=contest, 
+                                          assort = lambda c, contest=contest: 
+                                                CVR.as_vote(CVR.get_vote_from_cvr(contest, winner, c))/(2*share_to_win) 
+                                                if CVR.has_one_vote(contest, cands, c) else 1/2,
+                                          upper_bound = 1/(2*share_to_win)), 
+                                 risk_function=risk_function)
         return assertions
 
     @classmethod
-    def make_assertions_from_json(cls, contest, candidates, json_assertions):
+    def make_assertions_from_json(
+                                  cls, contest, candidates, json_assertions, audit_type: str=Contest.POLLING, 
+                                  risk_function: callable=None):
         '''
         dict of Assertion objects from a RAIRE-style json representations of assertions.
 
@@ -454,21 +539,23 @@ class Assertion:
 
         json_assertions:
             Assertions to be tested for the relevant contest.
+        audit_type: str
+            audit_type in Contest.AUDIT_TYPES
+        risk_function: callable
+            risk function for the contest
 
         Returns:
         --------
         dict of assertions for each assertion specified in 'json_assertions'.
         '''
+        if audit_type not in Contest.AUDIT_TYPES:
+            raise ValueError(f'audit type {audit_type} not implemented')
         assertions = {}
         for assrtn in json_assertions:
             winr = assrtn['winner']
             losr = assrtn['loser']
 
-            # Is this a 'winner only' assertion
-            if assrtn['assertion_type'] not in Assertion.JSON_ASSERTION_TYPES:
-                raise ValueError("assertion type " + assrtn['assertion_type'])
-
-            elif assrtn['assertion_type'] == "WINNER_ONLY":
+            if assrtn['assertion_type'] == WINNER_ONLY:
                 # CVR is a vote for the winner only if it has the
                 # winner as its first preference
                 winner_func = lambda v, contest=contest, winr=winr: 1 \
@@ -480,24 +567,25 @@ class Assertion:
                              CVR.rcv_lfunc_wo(contest, winr, losr, v)
 
                 wl_pair = winr + ' v ' + losr
-                assertions[wl_pair] = Assertion(contest, Assorter(contest=contest, winner=winner_func, \
-                                                loser=loser_func, upper_bound=1))
+                assertions[wl_pair] = Assertion(contest, 
+                                                Assorter(contest=contest, winner=winner_func, 
+                                                   loser=loser_func, upper_bound=1), 
+                                                risk_function=risk_function)
 
-            elif assrtn['assertion_type'] == "IRV_ELIMINATION":
+            elif assrtn['assertion_type'] == IRV_ELIMINATION:
                 # Context is that all candidates in 'eliminated' have been
                 # eliminated and their votes distributed to later preferences
                 elim = [e for e in assrtn['already_eliminated']]
                 remn = [c for c in candidates if c not in elim]
                 # Identifier for tracking which assertions have been proved
                 wl_given = winr + ' v ' + losr + ' elim ' + ' '.join(elim)
-                assertions[wl_given] = Assertion(contest, Assorter(contest=contest, \
-                                       assort = lambda v, contest=contest, winr=winr, losr=losr, remn=remn: \
-                                       ( CVR.rcv_votefor_cand(contest, winr, remn, v) \
-                                       - CVR.rcv_votefor_cand(contest, losr, remn, v) +1)/2,\
-                                       upper_bound = 1))
+                assertions[wl_given] = Assertion(contest, Assorter(contest=contest, 
+                                       assort = lambda v, contest=contest, winr=winr, losr=losr, remn=remn:
+                                       ( CVR.rcv_votefor_cand(contest, winr, remn, v)
+                                       - CVR.rcv_votefor_cand(contest, losr, remn, v) +1)/2,
+                                       upper_bound = 1), risk_function=risk_function)
             else:
-                raise NotImplemented('JSON assertion type %s not implemented. ' \
-                                      % assertn['assertion_type'])
+                raise NotImplemented(f'JSON assertion type {assertn["assertion_type"]} not implemented.')
         return assertions
 
     @classmethod
@@ -523,21 +611,23 @@ class Assertion:
             scf = contests[c]['choice_function']
             winrs = contests[c]['reported_winners']
             losrs = [cand for cand in contests[c]['candidates'] if cand not in winrs]
-            if scf == 'plurality':
-                contests[c]['assertions'] = Assertion.make_plurality_assertions(c, winrs, losrs)
-            elif scf == 'supermajority':
-                contests[c]['assertions'] = Assertion.make_supermajority_assertion(c, winrs[0], losrs, \
-                                  contests[c]['share_to_win'])
-            elif scf == 'IRV':
+            risk_function = contests[c]['risk_function']  ### FIX ME! risk_function needs to be initialized
+            if scf == Contest.PLURALITY:
+                contests[c]['assertions'] = Assertion.make_plurality_assertions(c, winrs, losrs, 
+                                                                                risk_function=risk_function)
+            elif scf == Contest.SUPERMAJORITY:
+                contests[c]['assertions'] = Assertion.make_supermajority_assertion(c, winrs[0], losrs,
+                                                    contests[c]['share_to_win'], risk_function=risk_function)
+            elif scf == Contest.IRV:
                 # Assumption: contests[c]['assertion_json'] yields list assertions in JSON format.
-                contests[c]['assertions'] = Assertion.make_assertions_from_json(c, contests[c]['candidates'], \
-                    contests[c]['assertion_json'])
+                contests[c]['assertions'] = Assertion.make_assertions_from_json(c, contests[c]['candidates'],
+                                                    contests[c]['assertion_json'], risk_function=risk_function)
             else:
-                raise NotImplementedError("Social choice function " + scf + " is not supported")
+                raise NotImplementedError(f'Social choice function {scf} is not implemented.')
         return True
 
     @classmethod
-    def find_margins(cls, contests: dict, cvr_list: list, use_style: bool):
+    def set_all_margins(cls, contests: dict, cvr_list: list, use_style: bool):
         '''
         Find all the assorter margins in a set of Assertions. Updates the dict of dicts of assertions
         and the contest dict.
@@ -563,19 +653,13 @@ class Assertion:
         for c in contests:
             contests[c]['margins'] = {}
             for a in contests[c]['assertions']:
-                amean = contests[c]['assertions'][a].assorter_mean(cvr_list, use_style=use_style)
-                if amean < 1/2:
-                    warnings.warn(f"assertion {a} not satisfied by CVRs: mean value is {amean}")
-                margin = 2*amean-1
-                contests[c]['assertions'][a].margin = margin
+                contests[c]['assertions'][a].margin = (margin:= contests[c]['assertions'][a].find_margin(use_style=use_style))
                 contests[c]['margins'].update({a: margin})
                 min_margin = np.min([min_margin, margin])
         return min_margin
 
     @classmethod
-    def find_p_values(
-                      cls, contests: dict, mvr_sample: list, cvr_sample: list=None, use_style: bool=False,
-                      risk_function: callable=(lambda x, N, t, **kwargs: TestNonnegMean.kaplan_wald(x))) -> float :
+    def set_all_p_values(cls, contests: dict, mvr_sample: list, cvr_sample: list=None) -> float :
         '''
         Find the p-value for every assertion and update assertions & contests accordingly
 
@@ -595,12 +679,6 @@ class Assertion:
             the cvrs for the same sheets, for ballot-level comparison audits
             not needed for polling audits
 
-        use_style: Boolean
-            See documentation
-
-        risk_function: function (class methods are not of type Callable)
-            function to calculate the p-value from assorter values
-
         Returns:
         --------
         p_max: float
@@ -619,29 +697,201 @@ class Assertion:
             contests[c]['p_values'] = {}
             contests[c]['proved'] = {}
             contest_max_p = 0
+            audit_type = contests[c]['audit_type']
+            use_style = contests[c]['use_style']
             for a in contests[c]['assertions']:
-                margin = contests[c]['assertions'][a].margin
-                upper_bound = contests[c]['assertions'][a].upper_bound
-                if cvr_sample: # comparison audit
-                    d = [contests[c]['assertions'][a].overstatement_assorter(mvr_sample[i], cvr_sample[i],\
-                         margin, use_style=use_style) for i in range(len(mvr_sample)) \
-                         if ((not use_style) or cvr_sample[i].has_contest(c)) ]
+                asrt = contests[c]['assertions'][a]
+                margin = asrt.margin
+                upper_bound = asrt.upper_bound
+                if audit_type == 'BALLOT_COMPARISON':
+                    d = [asrt.overstatement_assorter(mvr_sample[i], cvr_sample[i],
+                                margin, use_style=use_style) for i in range(len(mvr_sample)) 
+                                if ((not use_style) or cvr_sample[i].has_contest(c))]
                     u = 2/(2-margin/upper_bound)
-                else:         # polling audit. Assume style information is irrelevant
-                    d = [contests[c]['assertions'][a].assort(mvr_sample[i]) for i in range(len(mvr_sample))]
+                elif audit_type=='POLLING':         # polling audit. Assume style information is irrelevant
+                    d = [asrt.assort(mvr_sample[i]) for i in range(len(mvr_sample))]
                     u = upper_bound
+                else:
+                    raise NotImplementedError(f'audit type {audit_type} not implemented')
                 contests[c]['assertions'][a].p_value, contests[c]['assertions'][a].p_history = \
-                         risk_function(d, margin, contests[c]['cards'], u)
-                # should the risk_function be called with the margin? FIX ME!
-                contests[c]['assertions'][a].proved = \
-                         (contests[c]['assertions'][a].p_value <= contests[c]['risk_limit']) \
-                         or contests[c]['assertions'][a].proved
+                                                asrt.risk_function.test(d)
+                contests[c]['assertions'][a].proved = ((
+                                                contests[c]['assertions'][a].p_value <= contests[c]['risk_limit']) 
+                                                or contests[c]['assertions'][a].proved)
                 contests[c]['p_values'].update({a: contests[c]['assertions'][a].p_value})
                 contests[c]['proved'].update({a: int(contests[c]['assertions'][a].proved)})
                 contest_max_p = np.max([contest_max_p, contests[c]['assertions'][a].p_value])
             contests[c].update({'max_p': contest_max_p})
             p_max = np.max([p_max, contests[c]['max_p']])
         return p_max
+
+    @classmethod
+    def find_all_sample_sizes(
+                              cls, contests: dict, use_style: bool=True, 
+                              polling: bool=False, cvr_list: list=None, max_cards: int=None):
+        '''
+        Find initial sample size: maximum across assertions for all contests.
+
+        Parameters:
+        -----------
+        contests: dict of dicts
+        assertion: dict of dicts
+        sample_size_function: callable
+            takes three parameters: margin, risk limit, cards; returns a sample size
+            cards is read from the contest dict.
+        use_style: bool
+            use style information to target the sample?
+        polling: bool
+            is this a polling audit? (False for comparison audit)
+        cvr_list: list
+            list of CVR objects
+        max_cards: int
+            upper bound on the true number of cards
+
+
+        Returns:
+        --------
+        total_sample_size: int
+            sample size expected to be adequate to confirm all assertions for all contests
+        contest_sample_size: dict of ints
+            sample sizes expected to be adequate to confirm each contest (keys are contests)
+        '''
+        sample_sizes = {c:0 for c in contests.keys()}
+        if use_style and cvr_list is None:
+            raise ValueError("use_style==True but cvr_list was not provided.")
+        if use_style:
+            # initialize sampling probabilities
+            for cvr in cvr_list:
+                cvr.p=0
+            for c in contests:
+                risk = contests[c]['risk_limit']
+                cards = contests[c]['cards']
+                contest_sample_size = 0
+                for a in contests[c]['assertions']:
+                    margin = contests[c]['assertions'][a].margin
+                    upper_bound = contests[c]['assertions'][a].upper_bound
+                    u =  upper_bound if polling else 2/(2-margin/upper_bound)
+                    contest_sample_size = np.max([contest_sample_size, a.initial_sample_size(])
+                sample_sizes[c] = contest_sample_size
+                # set the sampling probability for each card that contains the contest
+                for cvr in cvr_list:
+                    if cvr.has_contest(c):
+                        cvr.p = np.maximum(contest_sample_size / contests[c]['cards'], cvr.p)
+
+            total_sample_size = np.sum(np.array([x.p for x in cvr_list]))
+        else:
+            if max_cards is None:
+                raise ValueError("use_style==False but max_cards was not provided.")
+            cards = max_cards
+            for c in contests:
+                contest_sample_size = 0
+                risk = contests[c]['risk_limit']
+                for a in contests[c]['assertions']:
+                    margin = contests[c]['assertions'][a].margin
+                    upper_bound = contests[c]['assertions'][a].upper_bound
+                    u = upper_bound if polling else 2/(1-margin/upper_bound)
+                    contest_sample_size = np.max([contest_sample_size, sample_size_function(risk, margin, cards, u)])
+                sample_sizes[c] = contest_sample_size
+            total_sample_size = np.max(np.array(sample_sizes.values))
+        return total_sample_size, sample_sizes
+
+
+    @classmethod
+    def find_all_new_sample_sizes(
+                        cls, contests: dict, mvr_sample: list, cvr_sample: list=None, cvr_list: list=None, 
+                        use_style: bool=True, polling: bool=False, 
+                        risk_function: callable=(lambda x, m, N, u:TestNonnegMean.alpha_mart(x)[1]),
+                        quantile: float=0.5, reps: int=200, seed: int=1234567890) -> typing.Tuple[int, dict]:
+        '''
+        Estimate sample size for each contest and overall to allow the audit to complete,
+        if discrepancies continue at the rate already observed.
+        
+        For comparison audits only.
+
+        Uses simulations. For speed, uses the numpy.random Mersenne Twister instead of cryptorandom.
+
+        Parameters:
+        -----------
+        contests: dict of dicts
+            the contest data structure. outer keys are contest identifiers; inner keys are assertions
+
+        mvr_sample: list of CVR objects
+            the manually ascertained voter intent from sheets, including entries for phantoms
+
+        cvr_sample: list of CVR objects
+            the cvrs for the same sheets. For
+
+        use_style: bool
+            If True, use style information inferred from CVRs to target the sample on cards that contain
+            each contest. Otherwise, sample from all cards.
+
+        risk_function: callable
+            function to calculate the p-value from overstatement_assorter values.
+            Should take three arguments, the sample x, the margin m, and the number of cards N.
+
+        quantile: float
+            estimated quantile of the sample size to return
+
+        reps: int
+            number of replications to use to estimate the quantile
+
+        seed: int
+            seed for the Mersenne Twister prng
+
+        Returns:
+        --------
+        new_size: int
+            new sample size
+        sams: array of ints
+            array of all sizes found in the simulation
+        '''
+        if use_style and cvr_list is None:
+            raise ValueError("use_style==True but cvr_list was not provided.")
+        if use_style:
+            for cvr in cvr_list:
+                if cvr.in_sample():
+                    cvr.p=1
+                else:
+                    cvr.p=0
+        prng = np.random.RandomState(seed=seed)
+        sample_sizes = {c:np.zeros(reps) for c in contests.keys()}
+        #set dict of old sample sizes for each contest
+        old_sizes = {c:0 for c in contests.keys()}
+        for c in contests:
+            old_sizes[c] = np.sum(np.array([cvr.in_sample() for cvr in cvr_list if cvr.has_contest(c)]))
+        for r in range(reps):
+            for c in contests:
+                new_size = 0
+                cards = contests[c]['cards']
+                #raise an error or warning if the error rate implies the reported outcome is wrong
+                for a in contests[c]['assertions']:
+                    if not contests[c]['assertions'][a].proved:
+                        p = contests[c]['assertions'][a].p_value
+                        margin = contests[c]['assertions'][a].margin
+                        upper_bound = contests[c]['assertions'][a].upper_bound
+                        u = upper_bound if polling else 2/(2-margin/upper_bound)
+                        if cvr_sample:
+                            d = [contests[c]['assertions'][a].overstatement_assorter(mvr_sample[i], cvr_sample[i],\
+                                contests[c]['assertions'][a].margin, use_style=use_style) for i in range(len(mvr_sample))]
+                        else:
+                            d = [contests[c]['assertions'][a].assort(mvr_sample[i], use_style=use_style) \
+                                 for i in range(len(mvr_sample))]
+                        while p > contests[c]['risk_limit'] and new_size < cards:
+                            one_more = sample_by_index(len(d), 1, prng=prng)[0]
+                            d.append(d[one_more-1])
+                            p = risk_function(d, margin, cards, u)
+                        new_size = np.max([new_size, len(d)])
+                sample_sizes[c][r] = new_size
+        new_sample_size_quantiles = {c:int(np.quantile(sample_sizes[c], quantile) - old_sizes[c]) for c in sample_sizes.keys()}
+        if cvr_list:
+            for cvr in cvr_list:
+                for c in contests:
+                    if cvr.has_contest(c) and not cvr.in_sample():
+                        cvr.p = np.max(new_sample_size_quantiles[c] / (contests[c]['cards'] - old_sizes[c]), cvr.p)
+            total_sample_size = np.round(np.sum(np.array([x.p for x in cvr_list])))
+        else:
+            total_sample_size = np.max(np.array(new_sample_size_quantiles.values))
+        return total_sample_size, new_sample_size_quantiles
 
 class Assorter:
     '''
@@ -674,7 +924,7 @@ class Assorter:
 
     '''
 
-    def __init__(self, contest=None, assort=None, winner=None, loser=None, upper_bound = 1):
+    def __init__(self, contest: dict=None, assort: callable=None, winner: str=None, loser: str=None, upper_bound: float=1):
         '''
         Constructs an Assorter.
 
@@ -705,6 +955,74 @@ class Assorter:
             assert callable(loser),  "loser must be callable if assort is None"
             self.assort = lambda cvr: (self.winner(cvr) - self.loser(cvr) + 1)/2
 
+
+
+class Contest:
+    '''
+    Objects and methods for contests. 
+    '''
+    
+    # social choice functions
+    SOCIAL_CHOICE_FUNCTIONS = (PLURALITY:= 'PLURALITY', 
+                               SUPERMAJORITY:= 'SUPERMAJORITY', 
+                               IRV:= 'IRV')
+    
+    AUDIT_TYPES = (POLLING:= 'POLLING', BALLOT_COMPARISON:= 'BALLOT_COMPARISON') 
+    # TO DO: BATCH_COMPARISON, STRATIFIED, HYBRID, ...
+
+    ATTRIBUTES = ('id','name','risk_limit','cards','choice_function','n_winners','candidates','reported_winners',
+                  'assertion_file','audit_type','risk_function','use_style')
+    
+    def __init__(
+                 self, id: object=None, name: str=None, risk_limit: float=0.05, cards: int=0, 
+                 choice_function: str=PLURALITY,
+                 n_winners: int=1, candidates: list=None, reported_winners: list=None,
+                 assertion_file: str=None, audit_type: str=Assertion.BALLOT_COMPARISON,
+                 risk_function: callable=None,  use_style: bool=True):
+        self.id = id
+        self.name = name
+        self.risk_limit = risk_limit
+        self.cards = cards
+        self.choice_function = choice_function
+        self.n_winners = n_winners
+        self.candidates = candidates
+        self.reported_winners = reported_winners
+        self.assertion_file = assertion_file
+        self.audit_type = audit_type
+        self.risk_function = risk_function
+        self.use_style = use_style
+
+    def initial_sample_size(self, **kwargs) -> int:
+        '''
+        Find the initial sample size to confirm the contest at its risk limit.
+        
+        To perform the calculation, 
+        
+        Parameters
+        ----------
+        '''
+        sam_size = 0
+        for c in self.assertions:
+            c.sample_size = c.
+            
+        
+                            
+    def __str__(self):
+                            
+
+    @classmethod
+    def from_dict(cls, d: dict) -> dict:
+        '''
+        define a dict of contest objects from a dict of dicts, each containing data for one contest
+        '''
+        contest_dict = {}
+        for c in d:
+            contest_dict[c] = {}
+            for att in ATTRIBUTES:
+                contest_dict[c][att] = d[c].get(att)
+                
+    
+    
 ####### Unit tests
 def test_make_plurality_assertions():
     winners = ["Alice","Bob"]
@@ -942,29 +1260,99 @@ def test_overstatement_assorter():
                     assort = lambda c, contest="AvB", winr="Alice", losr="Bob":\
                     ( CVR.as_vote(CVR.get_vote_from_cvr("AvB", winr, c)) \
                     - CVR.as_vote(CVR.get_vote_from_cvr("AvB", losr, c)) \
-                    + 1)/2, upper_bound = 1))
-    assert aVb.overstatement_assorter(mvrs[0], cvrs[0], margin=0.2, use_style=True) == 1/1.8
-    assert aVb.overstatement_assorter(mvrs[0], cvrs[0], margin=0.2, use_style=False) == 1/1.8
+                    + 1)/2, upper_bound = 1), )
+    aVb.margin=0.2
+    assert aVb.overstatement_assorter(mvrs[0], cvrs[0], use_style=True) == 1/1.8
+    assert aVb.overstatement_assorter(mvrs[0], cvrs[0], use_style=False) == 1/1.8
 
-    assert aVb.overstatement_assorter(mvrs[1], cvrs[0], margin=0.2, use_style=True) == 0
-    assert aVb.overstatement_assorter(mvrs[1], cvrs[0], margin=0.2, use_style=False) == 0
+    assert aVb.overstatement_assorter(mvrs[1], cvrs[0], use_style=True) == 0
+    assert aVb.overstatement_assorter(mvrs[1], cvrs[0], use_style=False) == 0
 
-    assert aVb.overstatement_assorter(mvrs[0], cvrs[1], margin=0.3, use_style=True) == 2/1.7
-    assert aVb.overstatement_assorter(mvrs[0], cvrs[1], margin=0.3, use_style=False) == 2/1.7
+    aVb.margin=0.3
+    assert aVb.overstatement_assorter(mvrs[0], cvrs[1], use_style=True) == 2/1.7
+    assert aVb.overstatement_assorter(mvrs[0], cvrs[1], use_style=False) == 2/1.7
 
-    assert aVb.overstatement_assorter(mvrs[2], cvrs[0], margin=0.1, use_style=True) == 0.5/1.9
-    assert aVb.overstatement_assorter(mvrs[2], cvrs[0], margin=0.1, use_style=False) == 0.5/1.9
+    aVb.margin=0.1
+    assert aVb.overstatement_assorter(mvrs[2], cvrs[0], use_style=True) == 0.5/1.9
+    assert aVb.overstatement_assorter(mvrs[2], cvrs[0], use_style=False) == 0.5/1.9
 
 
 def test_assorter_mean():
     pass # [FIX ME]
 
+
+def test_initial_sample_size():
+    max_cards = int(10**3)
+    risk_function_vec = lambda x, m, N, u: TestNonnegMean.kaplan_kolmogorov(x, N=N, t=1/2, g=0.1)[1]
+    n_det = Utils.initial_sample_size(risk_function_vec, max_cards, margin=0.1, t=1/2, u=1, alpha=0.05,
+                                               polling=False, error_rate=0.001)
+    n_rand = Utils.initial_sample_size(risk_function_vec, max_cards, margin=0.1, t=1/2, u=1, alpha=0.05,
+                                                polling=False, error_rate=0.001, reps=100)
+    print(f'test_initial_sample_size: {n_det=}, {n_rand=}')
+
+
+def test_initial_sample_size_alpha():
+    max_cards = int(10**3)
+    margin = 0.1
+    upper_bound = 1
+    u = 2/(2-margin/upper_bound)
+    error_rate = 0.001
+    m = (1 - error_rate*upper_bound/margin)/(2*upper_bound/margin - 1)
+    estim = lambda x, N, mu, eta, u: TestNonnegMean.shrink_trunc(x=x, N=N, mu=mu, eta=eta, u=u, 
+                                                        c=(eta-mu)/2, d=100, f=2, minsd=10**-6)
+    risk_fn_vec = lambda x, N, mu, u: TestNonnegMean.alpha_mart(x, N=N, t=mu, eta=(m+1)/2, u=u, estim=estim)[1]
+    n_det = Utils.initial_sample_size(risk_fn_vec, max_cards, margin=0.1, t=1/2, u=1, alpha=0.05,
+                                               polling=False, error_rate=0.001)
+    n_rand = Utils.initial_sample_size(risk_fn_vec, max_cards, margin=0.1, t=1/2, u=1, alpha=0.05,
+                                                polling=False, error_rate=0.001, reps=100)
+    print(f'test_initial_sample_size_alpha: {n_det=}, {n_rand=}')
+
+
+def test_initial_sample_size_KW():
+    # Test the initial_sample_size on the Kaplan-Wald risk function
+    g = 0
+    alpha = 0.05
+    error_rate = 0.01
+    N = int(10**4)
+    margin = 0.1
+    upper_bound = 1
+    u = 2/(2-margin/upper_bound)
+    m = (1 - error_rate*upper_bound/margin)/(2*upper_bound/margin - 1)
+    one_over = 1/3.8 # 0.5/(2-margin)
+    clean = 1/1.9    # 1/(2-margin)
+
+    risk_fn_vec = lambda x, margin, N, u: TestNonnegMean.kaplan_wald(x, t=1/2, g=g, random_order=False)[1]
+    # first test
+    bias_up = False
+    sam_size = Utils.initial_sample_size(risk_fn_vec, N, margin=m, t=1/2, u=u, alpha=alpha,
+                                                  polling=False, error_rate=error_rate,
+                                                  reps=None, bias_up=bias_up, quantile=0.5, seed=1234567890)
+    sam_size_0 = 59 # math.ceil(math.log(20)/math.log(2/1.9)), since this is < 1/error_rate
+    np.testing.assert_almost_equal(sam_size, sam_size_0)
+    # second test
+    bias_up = True
+    sam_size = Utils.initial_sample_size(risk_fn_vec, N, margin=m, t=1/2, u=u, alpha=alpha,
+                                                  polling=False, error_rate=error_rate, 
+                                                  reps=None, bias_up=bias_up, quantile=0.5, seed=1234567890)
+    sam_size_1 = 72 # (1/1.9)*(2/1.9)**71 = 20.08
+    np.testing.assert_almost_equal(sam_size, sam_size_1)
+    # third test
+    sam_size = Utils.initial_sample_size(risk_fn_vec, N, margin=m, t=1/2, u=u, alpha=alpha,
+                                                  polling=False, error_rate=error_rate, 
+                                                  reps=1000, bias_up=bias_up, quantile=0.5, seed=1234567890)
+    np.testing.assert_array_less(sam_size_0, sam_size+1) # crude test, but ballpark
+    np.testing.assert_array_less(sam_size, sam_size_1+1) # crude test, but ballpark
+
 ########
 if __name__ == "__main__":
 
-    test_make_plurality_assertions()
     test_supermajority_assorter()
     test_rcv_assorter()
     test_assorter_mean()
     test_overstatement_assorter()
     test_overstatement()
+    test_make_plurality_assertions()
+    
+    test_initial_sample_size()
+    test_initial_sample_size_KW()
+    test_initial_sample_size_alpha()
