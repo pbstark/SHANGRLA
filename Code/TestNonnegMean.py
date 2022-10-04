@@ -407,23 +407,34 @@ class TestNonnegMean:
     def optimal_comparison(self, x: np.array, **kwargs) -> np.array:
         '''
         The "bet" that is optimal for ballot-level comparison audits, for which overstatement
-        assorters take a small number of possible values and (when the system behaved correctly)
-        are concentrated on a single value.
+        assorters take a small number of possible values and are concentrated on a single value
+        when the CVRs have no errors.
+        
+        See Spertus (2022). The value is based on sampling *with* replacement, and it only
+        accounts for 2-vote overstatements.
+        
+        Let p0 be the rate of error-free CVRs, p1=0 the rate of 1-vote overstatements,
+        and p2 the rate of 2-vote overstatements. Then
+        
+        eta = (1-u*p0)/(2-2*u) + u*p0 - 1/2, where p0 is the rate of error-free CVRs.
+        
+        Translating to p2=1-p0 gives:
+        
+        eta = (1-u*(1-p2))/(2-2*u) + u*(1-p2) - 1/2.
 
         Parameters
         ----------
         x: np.array
             input data
-        error_rate: float
-            hypothesized rate of one-vote overstatements
+        rate_error_2: float
+            hypothesized rate of two-vote overstatements 
         '''
         # set the parameters
+        p2 = getattr(self, 'rate_error_2', 1e-4) # rate of 2-vote overstatement errors
         u = self.u
         t = self.t
         N = self.N
-        error_rate = getattr(self, 'error_rate', 10**-3)
-        #
-        raise(NotImplementedError)
+        return (1-u*(1-p2))/(2-2*u) + u*(1-p2) - 1/2
                      
     def sample_size(
                     self, x: list=None, alpha: float=0.05, reps: int=None, prefix: bool=False, 
@@ -432,7 +443,7 @@ class TestNonnegMean:
         Estimate the sample size to reject the null hypothesis that the population mean of a population of size 
         `N` is `<=t` at significance level `alpha`, using pilot data `x`.
 
-        If `reps is None`, concatenates copies of `x` to produce a list of length `N`.
+        If `reps is None`, tiles copies of `x` to produce a list of length `N`.
 
         If `reps is not None`, samples at random from `x` to produce `reps` lists of length `N` and reports 
         the `quantile` quantile of the resulting sample sizes.
@@ -449,11 +460,11 @@ class TestNonnegMean:
         reps: int
             the number of replications to use to simulate the sample size. If `reps is None`, estimates deterministically
         prefix: bool
-            whether to use `x` as the prefix of the data sequence. Not relevant if `reps is None`
+            whether to use `x` as the prefix of the data sequence. Not used if `reps is None`
         quantile: float in (0, 1)
             desired quantile of the sample sizes from simulations. Not used if `reps is None`
         kwargs:
-            arguments passed to risk_fn()
+            keyword args passed to self.test()
             
         Returns
         -------
@@ -462,11 +473,11 @@ class TestNonnegMean:
         '''
         N = self.N
         if reps is None:
-            pop = np.repeat(np.array(x), math.ceil(N/len(x)))[0:N]  # replicate data to make the population
+            pop = np.repeat(np.array(x), math.ceil(N/len(x)))[0:N]  # tile data to make the population
             p = self.test(pop, **kwargs)[1]
             crossed = (p<=alpha)
             sam_size = int(N if np.sum(crossed)==0 else (np.argmax(crossed)+1))
-        else:  # estimate the quantile by simulation
+        else:  # estimate the quantile by a bootstrap-like simulation
             seed = kwargs.get('seed',1234567890)
             prng = np.random.RandomState(seed)  # use the Mersenne Twister for speed
             sams = np.zeros(int(reps))
