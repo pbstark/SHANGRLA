@@ -13,8 +13,8 @@ from cryptorandom.cryptorandom import SHA256, random, int_from_hash
 from cryptorandom.sample import random_permutation
 from cryptorandom.sample import sample_by_index
 from CVR import CVR
-from Assertion import Assertion, Assorter
-from TestNonnegMean import TestNonnegMean
+# from Audit import Audit, Assertion, Assorter, Contest
+from NonnegMean import NonnegMean
 
 
 class Utils:
@@ -22,7 +22,6 @@ class Utils:
     Utilities for SHANGRLA RLAs
     '''
     
-
     @classmethod
     def check_audit_parameters(cls, risk_function, error_rate, contests):
         '''
