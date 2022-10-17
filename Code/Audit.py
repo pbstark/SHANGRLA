@@ -48,9 +48,15 @@ class Assertion:
     JSON_ASSERTION_TYPES = (WINNER_ONLY:= "WINNER_ONLY", 
                             IRV_ELIMINATION:= "IRV_ELIMINATION") 
     def __init__(
-                 self, contest: object=None, assorter: callable=None, 
-                 margin: float=None, test: object=None, p_value: float=1, p_history: list=[], 
-                 proved: bool=False, sample_size=None):
+                 self, 
+                 contest: object=None, 
+                 assorter: callable=None, 
+                 margin: float=None, 
+                 test: object=None, 
+                 p_value: float=1, 
+                 p_history: list=[], 
+                 proved: bool=False, 
+                 sample_size: int=None):
         '''
         assorter() should produce a float in [0, upper_bound]
         test is an instance of NonnegMean
@@ -89,7 +95,8 @@ class Assertion:
 
     def __str__(self):
         return (f'contest_id: {self.contest.id} '
-                f'risk function: {self.test} p-value: {self.p_value} '
+                f'assorter: {str(self.assorter)} p-value: {self.p_value} '
+                f'margin: {self.margin} test: {str(self.test)} ',
                 f'p-history length: {len(self.p_history)} proved: {self.proved} sample_size: {self.sample_size}'
                 f'assorter upper bound: {self.assorter.upper_bound}'
                )
@@ -100,7 +107,7 @@ class Assertion:
     def min_p(self):
         return min(self.p_history)
 
-    def assorter_mean(self, cvr_list, use_style=True):
+    def assorter_mean(self, cvr_list: list=None, use_style: bool=True):
         '''
         find the mean of the assorter applied to a list of CVRs
 
@@ -124,7 +131,7 @@ class Assertion:
             filtr = lambda c: True
         return np.mean([self.assorter.assort(c) for c in cvr_list if filtr(c)])
 
-    def assorter_sum(self, cvr_list, use_style=True):
+    def assorter_sum(self, cvr_list: list=None, use_style: bool=True):
         '''
         find the sum of the assorter applied to a list of CVRs
 
@@ -148,7 +155,7 @@ class Assertion:
             filtr = lambda c: True
         return np.sum([self.assorter.assort(c) for c in cvr_list if filtr(c)])
 
-    def assorter_margin(self, cvr_list, use_style=True):
+    def assorter_margin(self, cvr_list: list=None, use_style: bool=True):
         '''
         find the margin for a list of Cvrs.
         By definition, the margin is twice the mean of the assorter, minus 1.
@@ -354,7 +361,7 @@ class Assertion:
         return (1-overs/self.assorter.upper_bound)/(2-self.margin/self.assorter.upper_bound)
                 
 
-    def sample_size(
+    def find_sample_size(
                     self, data: np.array=None, prefix: bool=True, rate: float=None, 
                     reps: int=None, quantile: float=0.5, seed: int=1234567890) -> int:
         '''
@@ -417,17 +424,17 @@ class Assertion:
         else:     # construct data. 
                   # For POLLING, values are 0 and u. 
                   # For BALLOT_COMPARISON, values are overstatement assorter values corresponding to overstatements of u or 0
-            big = self.u if self.contest.audit_type == Audit.AUDIT_TYPE.POLLING else self.make_overstatement(overs=0)
+            big = self.test.u if self.contest.audit_type == Audit.AUDIT_TYPE.POLLING else self.make_overstatement(overs=0)
             small = 0 if self.contest.audit_type == Audit.AUDIT_TYPE.POLLING else self.make_overstatement(overs=1) 
             small_rate = (rate if self.contest.audit_type == Audit.AUDIT_TYPE.BALLOT_COMPARISON 
                           else (rate if rate is not None else (1-self.margin)/2))   # rate of small values
-            x = big*np.ones(self.N)
-            for k in range(self.N):
+            x = big*np.ones(self.test.N)
+            for k in range(self.test.N):
                 x[k] = (small if (small_rate > 0 and k % int(1/small_rate) == 0) else x[k])
             sample_size = self.test.sample_size(x, alpha=self.contest.risk_limit, reps=reps, 
                                                 prefix=prefix, quantile=quantile, seed=seed)            
-        self.sample_size = sam_size
-        return sam_size
+        self.sample_size = sample_size
+        return sample_size
 
     @classmethod
     def make_plurality_assertions(
@@ -458,7 +465,7 @@ class Assertion:
                 wl_pair = winr + ' v ' + losr
                 _test = NonnegMean(test=contest.test, estim=contest.estim, g=contest.g, u=1, N=contest.cards,
                                        t=1/2, random_order=True)
-                assertions[wl_pair] = Assertion(contest.id, Assorter(contest=contest, 
+                assertions[wl_pair] = Assertion(contest, Assorter(contest_id=contest.id, 
                                       assort = lambda c, contest_id=contest.id, winr=winr, losr=losr:
                                       (CVR.as_vote(c.get_vote_for(contest.id, winr))
                                       - CVR.as_vote(c.get_vote_for(contest.id, losr))
@@ -513,8 +520,8 @@ class Assertion:
         cands = losers.copy()
         cands.append(winner)
         _test = NonnegMean(test=test, estim=estim, u=1/(2*contest.share_to_win), N=contest.cards, t=1/2, random_order=True)
-        assertions[wl_pair] = Assertion(contest.id, \
-                                 Assorter(contest=contest, 
+        assertions[wl_pair] = Assertion(contest,
+                                 Assorter(contest_id=contest.id, 
                                           assort = lambda c, contest_id=contest.id: 
                                                 CVR.as_vote(c.get_vote_for(contest.id, winner))/(2*contest.share_to_win) 
                                                 if c.has_one_vote(contest.id, cands) else 1/2,
@@ -579,9 +586,9 @@ class Assertion:
                 wl_given = winr + ' v ' + losr + ' elim ' + ' '.join(elim)
                 _test = NonnegMean(test=test, estim=estim, u=1, N=contest.cards, t=1/2, random_order=True)               
                 assertions[wl_given] = Assertion(contest, Assorter(contest_id=contest.id, 
-                                       assort = lambda v, contest_id=contest.id, winr=winr, losr=losr, remn=remn:
-                                       ( v.rcv_votefor_cand(contest, winr, remn)
-                                       - v.rcv_votefor_cand(contest, losr, remn) +1)/2,
+                                       assort = lambda v, contest_id=contest.id, winner=winr, loser=losr, remn=remn:
+                                       ( v.rcv_votefor_cand(contest.id, winner, remn)
+                                       - v.rcv_votefor_cand(contest.id, loser, remn) +1)/2,
                                        upper_bound=1), test=_test)
             else:
                 raise NotImplemented(f'JSON assertion type {assertn["assertion_type"]} not implemented.')
@@ -843,7 +850,7 @@ class Contest:
                  assertion_file: str=None, 
                  audit_type: str=Audit.AUDIT_TYPE.BALLOT_COMPARISON,
                  test: callable=None, 
-                 g: float=0.1
+                 g: float=0.1,
                  estim: callable=None, 
                  use_style: bool=True, 
                  assertions: dict=None,
@@ -870,7 +877,7 @@ class Contest:
         return str(self.__dict__)
                           
 
-    def sample_size(self, reps: int=None, quantile: float=0.5, seed: int=1234567890, **kwargs) -> int:
+    def find_sample_size(self, reps: int=None, quantile: float=0.5, seed: int=1234567890, **kwargs) -> int:
         '''
         Find the initial sample size to confirm the contest at its risk limit.
         
@@ -892,7 +899,7 @@ class Contest:
         self.sample_size = 0
         for a in self.assertions:
             self.sample_size = max(self.sample_size, 
-                                   a.sample_size(rate=rate, reps=reps, quantile=quantile, seed=seed))
+                                   a.find_sample_size(rate=rate, reps=reps, quantile=quantile, seed=seed))
         return self.sample_size                   
                             
 
@@ -950,7 +957,7 @@ class Contest:
         for c in contests:
             c.sample_size = 0
             for a in contests[c].assertions:
-                sam_size = a.sample_size(rate=rate, reps=reps, quantile=quantile, seed=seed)
+                sam_size = a.find_sample_size(rate=rate, reps=reps, quantile=quantile, seed=seed)
                 c.sample_size  = max(c.sample_size, sam_size)
         if use_style:
             for cvr in cvr_list:

@@ -292,7 +292,6 @@ class TestAssertion:
             # winner only assertion
             assorter = assertions['334']['5 v 47'].assorter
             
-            print(f'assorter: {str(assorter)}')
             votes = CVR.from_vote({'5': 1, '47': 2})
             assert assorter.assort(votes) == 1, f'{assorter.assort(votes)=}'
 
@@ -310,7 +309,7 @@ class TestAssertion:
             
             # elimination assertion
             assorter = assertions['334']['5 v 3 elim 1 6 47'].assorter
-            
+                  
             votes = CVR.from_vote({'5': 1, '47': 2})
             assert assorter.assort(votes) == 1, f'{assorter.assort(votes)=}'
 
@@ -473,12 +472,11 @@ class TestAssertion:
         winners = ["Alice"]
         losers = ["Bob"]
 
-        aVb = Assertion(contest=self.con_test, 
-                        Assorter(contest_id='AvB',
-                                 assort = (lambda c, contest_id="AvB", winr="Alice", losr="Bob": 
-                                          ( CVR.as_vote(c.get_vote_for("AvB", winr)) 
-                                            - CVR.as_vote(c.get_vote_for("AvB", losr))+ 1)/2),
-                                upper_bound=1))
+        aVb = Assertion(contest=self.con_test, assorter=Assorter(contest_id="AvB", \
+                        assort = (lambda c, contest_id="AvB", winr="Alice", losr="Bob":\
+                        ( CVR.as_vote(c.get_vote_for("AvB", winr)) \
+                        - CVR.as_vote(c.get_vote_for("AvB", losr)) \
+                        + 1)/2), upper_bound=1))
         aVb.margin=0.2
         assert aVb.overstatement_assorter(mvrs[0], cvrs[0], use_style=True) == 1/1.8
         assert aVb.overstatement_assorter(mvrs[0], cvrs[0], use_style=False) == 1/1.8
@@ -526,11 +524,12 @@ class TestAssertion:
         # first test
         bias_up = False
         for a_id, a in assertions.items():
-            sam_size = a.sample_size(data=None, prefix=True, rate=rate, reps=None, quantile=0.5, seed=1234567890)
+            a.margin = margin
+            sam_size = a.find_sample_size(data=None, prefix=True, rate=rate, reps=None, quantile=0.5, seed=1234567890)
             sam_size_1 = 72 # (1/1.9)*(2/1.9)**71 = 20.08
             np.testing.assert_almost_equal(sam_size, sam_size_1)
             # 2nd test
-            sam_size = a.sample_size(data=None, prefix=True, rate=rate, reps=10**3, quantile=0.5, seed=1234567890)
+            sam_size = a.find_sample_size(data=None, prefix=True, rate=rate, reps=10**3, quantile=0.5, seed=1234567890)
             np.testing.assert_array_less(sam_size, sam_size_1+1) # crude test, but ballpark
     
 ###################################################################################################
