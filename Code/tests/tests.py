@@ -251,20 +251,21 @@ class TestAssertion:
         assn = Assertion.make_supermajority_assertion(contest=self.con_test, winner="Alice", 
                                                       losers=losers)
 
+        label = 'Alice v ' + Audit.CANDIDATES.ALL_OTHERS
         votes = CVR.from_vote({"Alice": 1})
-        assert assn['Alice v all'].assorter.assort(votes) == 3/4, "wrong value for vote for winner"
+        assert assn[label].assorter.assort(votes) == 3/4, "wrong value for vote for winner"
 
         votes = CVR.from_vote({"Bob": True})
-        assert assn['Alice v all'].assorter.assort(votes) == 0, "wrong value for vote for loser"
+        assert assn[label].assorter.assort(votes) == 0, "wrong value for vote for loser"
 
         votes = CVR.from_vote({"Dan": True})
-        assert assn['Alice v all'].assorter.assort(votes) == 1/2, "wrong value for invalid vote--Dan"
+        assert assn[label].assorter.assort(votes) == 1/2, "wrong value for invalid vote--Dan"
 
         votes = CVR.from_vote({"Alice": True, "Bob": True})
-        assert assn['Alice v all'].assorter.assort(votes) == 1/2, "wrong value for invalid vote--Alice & Bob"
+        assert assn[label].assorter.assort(votes) == 1/2, "wrong value for invalid vote--Alice & Bob"
 
         votes = CVR.from_vote({"Alice": False, "Bob": True, "Candy": True})
-        assert assn['Alice v all'].assorter.assort(votes) == 1/2, "wrong value for invalid vote--Bob & Candy"
+        assert assn[label].assorter.assort(votes) == 1/2, "wrong value for invalid vote--Bob & Candy"
 
 
     def test_rcv_assorter(self):
@@ -516,6 +517,8 @@ class TestAssertion:
                      'choice_function': Audit.SOCIAL_CHOICE_FUNCTION.PLURALITY,
                      'n_winners': 1,
                      'candidates': ['Alice','Bob'],
+                     'winners': ['Alice'],
+                     'audit_type': Audit.AUDIT_TYPE.BALLOT_COMPARISON,
                      'test': NonnegMean.kaplan_markov,
                      'g': 0.1,
                      'use_style': True
@@ -526,6 +529,8 @@ class TestAssertion:
         for a_id, a in assertions.items():
             a.margin = margin
             sam_size = a.find_sample_size(data=None, prefix=True, rate=rate, reps=None, quantile=0.5, seed=1234567890)
+            # Kaplan-Markov martingale is \prod (t+g)/(x+g). For "clean", the term is (1/2+g)/(clean+g); for one_over
+            # it is (1/2+g)/(one_over+g). The first x is 
             sam_size_1 = 72 # (1/1.9)*(2/1.9)**71 = 20.08
             np.testing.assert_almost_equal(sam_size, sam_size_1)
             # 2nd test
@@ -686,42 +691,49 @@ class TestNonnegMean:
         else:
             raise AssertionError
 
-    def test_kaplan_kolmogorov(self):
-        # NEEDS WORK! This just prints; it doesn't really test anything.
-        N = 100
-        x = np.ones(10)
-        test = NonnegMean(N=N)
-        p1 = test.kaplan_kolmogorov(x)
-        x = np.zeros(10)
-        test.g = 0.1
-        p2 = test.kaplan_kolmogorov(x)
-        print(f'kaplan_kolmogorov: {p1} {p2}')
-
     def test_sample_size(self):
         eta = 0.75
         u = 1
         N = 1000
-        x = np.ones(math.floor(N/200))
         t = 1/2
-        risk_limit = 0.05
+        alpha = 0.05
         prefix = True
         quantile = 0.5
         reps=None
         prefix=False
+        
         test = NonnegMean(test=NonnegMean.alpha_mart, 
                               estim=NonnegMean.fixed_alternative_mean, 
                               u=u, N=N, t=t, eta=eta)
-        sam_size = test.sample_size(x=x, risk_limit=risk_limit, reps=reps, prefix=prefix, quantile=quantile)
+        
+        x = np.ones(math.floor(N/200))
+        sam_size = test.sample_size(x=x, alpha=alpha, reps=reps, prefix=prefix, quantile=quantile)
         np.testing.assert_equal(sam_size, 8) # ((.75/.5)*1+(.25/.5)*0)**8 = 25 > 1/alpha, so sam_size=8
     #    
         reps=100
-        sam_size = test.sample_size(x=x, risk_limit=risk_limit, reps=reps, prefix=prefix, quantile=quantile)
+        sam_size = test.sample_size(x=x, alpha=alpha, reps=reps, prefix=prefix, quantile=quantile)
         np.testing.assert_equal(sam_size, 8) # all simulations should give the same answer
     #
         x = 0.75*np.ones(math.floor(N/200))
-        sam_size = test.sample_size(x=x, risk_limit=risk_limit, reps=reps, prefix=prefix, quantile=quantile)
+        sam_size = test.sample_size(x=x, alpha=alpha, reps=reps, prefix=prefix, quantile=quantile)
         np.testing.assert_equal(sam_size, 14) # ((.75/.5)*.75+(.25/.5)*.25)**14 = 22.7 > 1/alpha, so sam_size=14    
+    #
+        g = 0.1        
+        x = np.ones(math.floor(N/200))
 
+        test = NonnegMean(test=NonnegMean.kaplan_wald, 
+                              estim=NonnegMean.fixed_alternative_mean, 
+                              u=u, N=N, t=t, eta=eta, g=g)
+        sam_size = test.sample_size(x=x, alpha=alpha, reps=None, prefix=prefix, quantile=quantile)
+    #   p-value is \prod ((1-g)*x/t + g), so 
+        kw_size = math.ceil(math.log(1/alpha)/math.log((1-g)/t + g))
+        np.testing.assert_equal(sam_size, kw_size)
+
+        x = 0.75*np.ones(math.floor(N/200))
+        sam_size = test.sample_size(x=x, alpha=alpha, reps=None, prefix=prefix, quantile=quantile)
+    #   p-value is \prod ((1-g)*x/t + g), so 
+        kw_size = math.ceil(math.log(1/alpha)/math.log(0.75*(1-g)/t + g))
+        np.testing.assert_equal(sam_size, kw_size)
 
 ##########################################################################################    
 if __name__ == "__main__":

@@ -238,8 +238,8 @@ class NonnegMean:
         g = getattr(self, 'g', 0)
         random_order = getattr(self, 'random_order', True)
         t = self.t
-        if g < 0:
-            raise ValueError('g cannot be negative')
+        if g < 0 or g>1:
+            raise ValueError(f'{g=}, but g must be between 0 and 1. ')
         if any(xx < 0 for xx in x):
             raise ValueError('Negative value in sample from a nonnegative population.')
         p_history = np.cumprod((1-g)*x/t + g)
@@ -433,10 +433,7 @@ class NonnegMean:
         '''
         # set the parameters
         p2 = getattr(self, 'rate_error_2', 1e-4) # rate of 2-vote overstatement errors
-        u = self.u
-        t = self.t
-        N = self.N
-        return (1-u*(1-p2))/(2-2*u) + u*(1-p2) - 1/2
+        return (1-self.u*(1-p2))/(2-2*self.u) + self.u*(1-p2) - 1/2
                      
     def sample_size(
                     self, x: list=None, alpha: float=0.05, reps: int=None, prefix: bool=False, 
