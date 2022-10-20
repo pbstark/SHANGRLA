@@ -209,6 +209,8 @@ class Assertion:
 
         '''
         self.contest = contest
+        self.winner_id = winner_id
+        self.loser_id = loser_id
         self.assorter = assorter
         self.margin = margin
         self.test = test
@@ -218,10 +220,10 @@ class Assertion:
         self.sample_size = sample_size
 
     def __str__(self):
-        return (f'contest_id: {self.contest.id} '
+        return (f'contest_id: {self.contest.id} winner_id: {self.winner_id} loser_id: {self.loser_id} '
                 f'assorter: {str(self.assorter)} p-value: {self.p_value} '
-                f'margin: {self.margin} test: {str(self.test)} ',
-                f'p-history length: {len(self.p_history)} proved: {self.proved} sample_size: {self.sample_size}'
+                f'margin: {self.margin} test: {str(self.test)} '
+                f'p-history length: {len(self.p_history)} proved: {self.proved} sample_size: {self.sample_size} '
                 f'assorter upper bound: {self.assorter.upper_bound}'
                )
 
@@ -444,7 +446,7 @@ class Assertion:
         ----------
         tally: dict
             dict of tallies for the candidates in the contest. Keys are candidates as listed
-            in Contest.candidates.
+            in Contest.candidates. If `tally is None` tries to use the contest.tally.
             
         The margin for a supermajority contest with a winner is (see SHANRGLA section 2.3)
               2(pq/(2f) + (1 − q)/2 - 1/2) = q(p/f-1), where:
@@ -458,14 +460,15 @@ class Assertion:
         
         Side effects
         ------------
-        sets assorter.margin
+        sets self.margin
         
         '''
+        tally = tally if tally else self.contest.tally
         if self.contest.choice_function == Audit.SOCIAL_CHOICE_FUNCTION.PLURALITY \
              or self.contest.choice_function == Audit.SOCIAL_CHOICE_FUNCTION.APPROVAL:
-            self.margin = (tally[self.winner]-tally[self.loser]).self.contest.cards
+            self.margin = (tally[self.winner_id]-tally[self.loser_id])/self.contest.cards
         elif self.contest.choice_function == Audit.SOCIAL_CHOICE_FUNCTION.SUPERMAJORITY:
-            if winner == Audit.CANDIDATES.NO_CANDIDATE or loser != Audit.CANDIDATES.ALL_OTHERS:
+            if self.winner_id == Audit.CANDIDATES.NO_CANDIDATE or self.loser_id != Audit.CANDIDATES.ALL_OTHERS:
                 raise NotImplementedError(f'TO DO: currently only support super-majority with a winner')
             else:
                 q = np.sum([tally[c] for c in self.contest.candidates])/self.contest.cards
@@ -563,19 +566,21 @@ class Assertion:
         
         '''
         assert self.margin > 0, f'Margin {self.margin} is nonpositive'        
-        if data:  # use the data provided
+        if data is not None:  # use the data provided
             sample_size = self.test.sample_size(data, alpha=self.contest.risk_limit, reps=reps, 
                                                 prefix=prefix, quantile=quantile, seed=seed)
         else:     # construct data. 
                   # For POLLING, values are 0 and u. 
                   # For BALLOT_COMPARISON, values are overstatement assorter values corresponding to overstatements of u or 0
             big = self.test.u if self.contest.audit_type == Audit.AUDIT_TYPE.POLLING else self.make_overstatement(overs=0)
-            small = 0 if self.contest.audit_type == Audit.AUDIT_TYPE.POLLING else self.make_overstatement(overs=1) 
+            small = 0 if self.contest.audit_type == Audit.AUDIT_TYPE.POLLING else self.make_overstatement(overs=1/2) 
             small_rate = (rate if self.contest.audit_type == Audit.AUDIT_TYPE.BALLOT_COMPARISON 
                           else (rate if rate is not None else (1-self.margin)/2))   # rate of small values
             x = big*np.ones(self.test.N)
             for k in range(self.test.N):
                 x[k] = (small if (small_rate > 0 and k % int(1/small_rate) == 0) else x[k])
+                
+            print(f'{x[0:10]=}')
             sample_size = self.test.sample_size(x, alpha=self.contest.risk_limit, reps=reps, 
                                                 prefix=prefix, quantile=quantile, seed=seed)            
         self.sample_size = sample_size
@@ -764,8 +769,8 @@ class Assertion:
         '''
         for c in contests:
             scf = contests[c].choice_function
-            winrs = contests[c].reported_winners
-            losrs = [cand for cand in contests[c].candidates if cand not in winrs]
+            winrs = contests[c].winners
+            losrs = list(set(contests[c].candidates) - set(winrs))
             test = contests[c].test  
             estim = contests[c].estim
             if scf == Audit.SOCIAL_CHOICE_FUNCTION.PLURALITY:
@@ -991,15 +996,15 @@ class Contest:
                   'n_winners',
                   'share_to_win',
                   'candidates',
-                  'reported_winners',
+                  'winners',
                   'assertion_file',
                   'audit_type',
                   'test',
                   'g',
                   'use_style',
                   'assertions',
-                  'sample_size',
-                  'tally'
+                  'tally',
+                  'sample_size'
                  )
 
     
@@ -1013,7 +1018,7 @@ class Contest:
                  n_winners: int=1, 
                  share_to_win: float=None, 
                  candidates: list=None, 
-                 reported_winners: list=None,
+                 winners: list=None,
                  assertion_file: str=None, 
                  audit_type: str=Audit.AUDIT_TYPE.BALLOT_COMPARISON,
                  test: callable=None, 
@@ -1031,7 +1036,7 @@ class Contest:
         self.n_winners = n_winners
         self.share_to_win = share_to_win
         self.candidates = candidates
-        self.reported_winners = reported_winners
+        self.winners = winners
         self.assertion_file = assertion_file
         self.audit_type = audit_type
         self.test = test
@@ -1079,6 +1084,31 @@ class Contest:
                                    a.find_sample_size(x=x, rate=rate, reps=reps, quantile=quantile, seed=seed))
         return self.sample_size                   
                             
+    def find_margins_from_tally(self):
+        '''
+        Use the `Contest.tally` attribute to set the margins of the contest's assorters.
+        
+        Appropriate only for the social choice functions
+                Audit.SOCIAL_CHOICE_FUNCTION.PLURALITY, 
+                Audit.SOCIAL_CHOICE_FUNCTION.SUPERMAJORITY,
+                Audit.SOCIAL_CHOICE_FUNCTION.APPROVAL
+        
+        
+        Parameters
+        ----------
+        None
+        
+        Returns
+        -------
+        None
+        
+        Side effects
+        ------------
+        sets Assertion.margin for all Assertions in the Contest
+        '''
+        for a, assn in self.assertions.items():
+            assn.find_margin_from_tally()
+  
 
     @classmethod
     def from_dict(cls, d: dict) -> dict:

@@ -103,7 +103,7 @@ class TestCVR:
                                      'choice_function':'plurality',
                                      'n_winners':3,
                                      'candidates':['Doug','Emily','Frank','Gail','Harry'],
-                                     'reported_winners': ['Doug', 'Emily', 'Frank']
+                                     'winners': ['Doug', 'Emily', 'Frank']
                                     },
                      'measure_1':   {'risk_limit':0.05,
                                      'id': 'measure_1',
@@ -112,7 +112,7 @@ class TestCVR:
                                      'share_to_win':2/3,
                                      'n_winners':1,
                                      'candidates':['yes','no'],
-                                     'reported_winners': ['yes']
+                                     'winners': ['yes']
                                     }
                     }
         cvrs = [CVR(id="1", votes={"city_council": {"Alice": 1},     "measure_1": {"yes": 1}}, phantom=False), \
@@ -182,7 +182,7 @@ class TestCVR:
                                      'choice_function':'plurality',
                                      'n_winners':3,
                                      'candidates':['Doug','Emily','Frank','Gail','Harry'],
-                                     'reported_winners': ['Doug', 'Emily', 'Frank'],
+                                     'winners': ['Doug', 'Emily', 'Frank'],
                                      'sample_size': 3
                                     },
                      'measure_1':   {'risk_limit':0.05,
@@ -192,7 +192,7 @@ class TestCVR:
                                      'share_to_win':2/3,
                                      'n_winners':1,
                                      'candidates':['yes','no'],
-                                     'reported_winners': ['yes'],
+                                     'winners': ['yes'],
                                      'sample_size': 3
                                     }
                     }
@@ -211,7 +211,7 @@ class TestAssertion:
                  'n_winners': 1,
                  'candidates': 3,
                  'candidates': ['Alice','Bob','Candy'],
-                 'reported_winners': ['Alice'],
+                 'winners': ['Alice'],
                  'audit_type': Audit.AUDIT_TYPE.BALLOT_COMPARISON,
                  'share_to_win': 2/3,
                  'test': NonnegMean.alpha_mart,
@@ -471,7 +471,7 @@ class TestAssertion:
         cvrs = CVR.from_dict(cvr_dict)
 
         winners = ["Alice"]
-        losers = ["Bob"]
+        losers = ["Bob", "Candy"]
 
         aVb = Assertion(contest=self.con_test, assorter=Assorter(contest_id="AvB", \
                         assort = (lambda c, contest_id="AvB", winr="Alice", losr="Bob":\
@@ -494,13 +494,8 @@ class TestAssertion:
         assert aVb.overstatement_assorter(mvrs[2], cvrs[0], use_style=False) == 0.5/1.9
 
 
-    def test_assorter_mean(self):
-        pass # [FIX ME]
-
-
     def test_assorter_sample_size(self):
         # Test Assorter.sample_size using the Kaplan-Wald risk function
-        
         rate = 0.01
         N = int(10**4)
         margin = 0.1
@@ -511,32 +506,65 @@ class TestAssertion:
         clean = 1/1.9    # 1/(2-margin)
 
         AvB = Contest.from_dict({'id': 'AvB',
+                             'name': 'AvB',
+                             'risk_limit': 0.05,
+                             'cards': 10**4,
+                             'choice_function': Audit.SOCIAL_CHOICE_FUNCTION.PLURALITY,
+                             'n_winners': 1,
+                             'candidates': ['Alice','Bob', 'Carol'],
+                             'winners': ['Alice'],
+                             'audit_type': Audit.AUDIT_TYPE.BALLOT_COMPARISON,
+                             'test': NonnegMean.kaplan_markov,
+                             'tally': {'Alice': 3000, 'Bob': 2000, 'Carol': 1000},
+                             'g': 0.1,
+                             'use_style': True
+                        })
+        losers = list(set(AvB.candidates)-set(AvB.winners))
+        AvB.assertions = Assertion.make_plurality_assertions(AvB, winners=AvB.winners, losers=losers)
+        AvB.find_margins_from_tally()
+        for a_id, a in AvB.assertions.items():
+            # first test
+            sam_size1 = a.find_sample_size(data=np.ones(10), prefix=True, rate=rate, reps=None, quantile=0.5, seed=1234567890)
+            # Kaplan-Markov martingale is \prod (t+g)/(x+g). For x = [1, 1, ...], sample size should be:
+            ss1 = math.ceil(np.log(AvB.risk_limit)/np.log((a.test.t+a.test.g)/(1+a.test.g)))
+            print(f'{sam_size1} {ss1}')
+            assert sam_size1 == ss1
+            #
+            # second test
+            # For "clean", the term is (1/2+g)/(clean+g); for one_over it is (1/2+g)/(one_over+g). 
+            sam_size2 = a.find_sample_size(data=None, prefix=True, rate=rate, reps=10**3, quantile=0.5, seed=1234567890)
+            clean = 1/(2-a.margin/a.assorter.upper_bound)
+            over = clean/2 # corresponds to an overstatement of upper_bound/2, i.e., 1 vote.
+            c = (a.test.t+a.test.g)/(clean+a.test.g)
+            o = (a.test.t+a.test.g)/(clean/2+a.test.g)
+            # the following calculation assumes the audit will terminate before the second overstatement error
+            ss2 = 1+math.ceil(np.log(AvB.risk_limit/o)/np.log(c)) 
+            assert sam_size2 == ss2    
+ 
+    def test_margin_from_tally(self):
+        AvB = Contest.from_dict({'id': 'AvB',
                      'name': 'AvB',
                      'risk_limit': 0.05,
                      'cards': 10**4,
                      'choice_function': Audit.SOCIAL_CHOICE_FUNCTION.PLURALITY,
                      'n_winners': 1,
-                     'candidates': ['Alice','Bob'],
+                     'candidates': ['Alice','Bob','Carol'],
                      'winners': ['Alice'],
                      'audit_type': Audit.AUDIT_TYPE.BALLOT_COMPARISON,
+                     'tally': {'Alice': 3000, 'Bob': 2000, 'Carol': 1000},
                      'test': NonnegMean.kaplan_markov,
                      'g': 0.1,
                      'use_style': True
                 })
-        assertions = Assertion.make_plurality_assertions(AvB, winners=['Alice'], losers=['Bob'])
-        # first test
-        bias_up = False
-        for a_id, a in assertions.items():
-            a.margin = margin
-            sam_size = a.find_sample_size(data=None, prefix=True, rate=rate, reps=None, quantile=0.5, seed=1234567890)
-            # Kaplan-Markov martingale is \prod (t+g)/(x+g). For "clean", the term is (1/2+g)/(clean+g); for one_over
-            # it is (1/2+g)/(one_over+g). The first x is 
-            sam_size_1 = 72 # (1/1.9)*(2/1.9)**71 = 20.08
-            np.testing.assert_almost_equal(sam_size, sam_size_1)
-            # 2nd test
-            sam_size = a.find_sample_size(data=None, prefix=True, rate=rate, reps=10**3, quantile=0.5, seed=1234567890)
-            np.testing.assert_array_less(sam_size, sam_size_1+1) # crude test, but ballpark
-    
+        AvB.assertions = Assertion.make_plurality_assertions(AvB, winners=['Alice'], losers=['Bob','Carol'])
+        AvB.find_margins_from_tally()
+        assert AvB.assertions['Alice v Bob'].margin == (AvB.tally['Alice'] - AvB.tally['Bob'])/AvB.cards
+        assert AvB.assertions['Alice v Carol'].margin == (AvB.tally['Alice'] - AvB.tally['Carol'])/AvB.cards
+        tally = {'Alice': 4000, 'Bob': 2000, 'Carol': 1000}
+        AvB.assertions['Alice v Carol'].find_margin_from_tally(tally)
+        assert AvB.assertions['Alice v Carol'].margin == (tally['Alice'] - tally['Carol'])/AvB.cards
+        
+        
 ###################################################################################################
 class TestContests:
     def test_contests_from_dict_of_dicts(self):
@@ -549,7 +577,7 @@ class TestContests:
         audit_type = [Audit.AUDIT_TYPE.POLLING, Audit.AUDIT_TYPE.BALLOT_COMPARISON]
         use_style = True
         atts = ('id','name','risk_limit','cards','choice_function','n_winners','share_to_win','candidates',
-                'reported_winners','assertion_file','audit_type','test','use_style')
+                'winners','assertion_file','audit_type','test','use_style')
         contest_dict = {
                  'con_1': {'id': '1',
                  'name': 'contest_1',
@@ -559,7 +587,7 @@ class TestContests:
                  'n_winners': 2,
                  'candidates': 5,
                  'candidates': ['alice','bob','carol','dave','erin'],
-                 'reported_winners': ['alice','bob'],
+                 'winners': ['alice','bob'],
                  'audit_type': Audit.AUDIT_TYPE.BALLOT_COMPARISON,
                  'test': NonnegMean.alpha_mart,
                  'use_style': True
@@ -572,7 +600,7 @@ class TestContests:
                  'n_winners': 1,
                  'candidates': 4,
                  'candidates': ['alice','bob','carol','dave',],
-                 'reported_winners': ['alice'],
+                 'winners': ['alice'],
                  'audit_type': Audit.AUDIT_TYPE.POLLING,
                  'test': NonnegMean.alpha_mart,
                  'use_style': False    
