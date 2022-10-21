@@ -365,13 +365,14 @@ class CVR:
                else cvr.votes[contest_id][candidate]
 
     @classmethod
-    def make_phantoms(cls, max_cards, cvr_list, contests, use_style=True, prefix=''):
+    def make_phantoms(cls, audit: None, contests: dict=None, cvr_list: list=None, prefix: str='phantom-'):
         '''
         Make phantom CVRs as needed for phantom cards; set contest parameters `cards` (if not set) and `cvrs`
 
-        If `use_style`, phantoms are "per contest": each contest needs enough to account for the difference between
-        the number of cards that might contain the contest and the number of CVRs that contain the contest. This can
-        result in having more cards in all (manifest and phantoms) than max_cards, the maximum cast.
+        **Currently only works for unstratified audits.**
+        If `audit.strata[s]['use_style']`, phantoms are "per contest": each contest needs enough to account for the 
+        difference between the number of cards that might contain the contest and the number of CVRs that contain 
+        the contest. This can result in having more cards in all (manifest and phantoms) than max_cards, the maximum cast.
 
         If `not use_style`, phantoms are for the election as a whole: need enough to account for the difference
         between the number of cards in the manifest and the number of CVRs that contain the contest. Then, the total
@@ -381,16 +382,12 @@ class CVR:
 
         Parameters
         ----------
-        max_cards: int
-            upper bound on the number of ballot cards
         cvr_list: list of CVR objects
             the reported CVRs
         contests: dict of contests
             information about each contest under audit
         prefix: String
             prefix for ids for phantom CVRs to be added
-        use_style: Boolean
-            does the sampling use style information?
 
         Returns
         -------
@@ -404,22 +401,28 @@ class CVR:
         for each contest in `contests`, sets `cards` to max_cards if not specified by the user or if `not use_style`
         for each contest in `contests`, set `cvrs` to be the number of (real) CVRs that contain the contest
         '''
+        if len(audit.strata) > 1:
+            raise NotImplementedError('stratified audits not implemented')
+        stratum = next(iter(audit.strata.values()))
+        use_style = stratum.use_style
+        max_cards = stratum.max_cards
         phantom_vrs = []
         n_cvrs = len(cvr_list)
         for c, v in contests.items():  # set contest parameters
-            v['cvrs'] = np.sum([cvr.has_contest(v['id']) for cvr in cvr_list if not cvr.phantom])
-            v['cards'] = max_cards if ((v['cards'] is None) or (not use_style)) else v['cards']
+            v.cvrs = np.sum([cvr.has_contest(v.id) for cvr in cvr_list if not cvr.phantom])
+            v.cards = max_cards if ((v.cards is None) or (not use_style)) else v.cards
+        # Note: this will need to change for stratified audits
         if not use_style:              #  make (max_cards - len(cvr_list)) phantoms
             phantoms = max_cards - n_cvrs
             for i in range(phantoms):
                 phantom_vrs.append(CVR(id=prefix+str(i+1), votes={}, phantom=True))
         else:                          # create phantom CVRs as needed for each contest
             for c, v in contests.items():
-                phantoms_needed = v['cards']-v['cvrs']
+                phantoms_needed = v.cards - v.cvrs
                 while len(phantom_vrs) < phantoms_needed:  # creat additional phantoms
                     phantom_vrs.append(CVR(id=prefix+str(len(phantom_vrs)+1), votes={}, phantom=True))
                 for i in range(phantoms_needed):
-                    phantom_vrs[i].votes[v['id']]={}  # list contest c on the phantom CVR
+                    phantom_vrs[i].votes[v.id]={}  # list contest c on the phantom CVR
             phantoms = len(phantom_vrs)
         cvr_list = cvr_list + phantom_vrs
         return cvr_list, phantoms

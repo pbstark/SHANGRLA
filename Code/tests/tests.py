@@ -99,7 +99,13 @@ class TestCVR:
         assert c[2].votes == {'339': {'18':1, '17':2, '15':3, '16':4}, '3': {'2':1}} # merges votes?
 
     def test_make_phantoms(self):
-        contests =  {'city_council': {'risk_limit':0.05,
+        audit = Audit.from_dict({'strata': {'stratum_1': {'max_cards':   8, 
+                                          'use_style':   True,
+                                          'replacement': False,
+                                          
+                                         }
+                                      }})
+        contests =  Contest.from_dict_of_dicts({'city_council': {'risk_limit':0.05,
                                      'id': 'city_council',
                                      'cards': None,
                                      'choice_function':'plurality',
@@ -116,7 +122,7 @@ class TestCVR:
                                      'candidates':['yes','no'],
                                      'winner': ['yes']
                                     }
-                    }
+                    })
         cvrs = [CVR(id="1", votes={"city_council": {"Alice": 1},     "measure_1": {"yes": 1}}, phantom=False), 
                     CVR(id="2", votes={"city_council": {"Bob": 1},   "measure_1": {"yes": 1}}, phantom=False), 
                     CVR(id="3", votes={"city_council": {"Bob": 1},   "measure_1": {"no": 1}}, phantom=False), 
@@ -124,30 +130,30 @@ class TestCVR:
                     CVR(id="5", votes={"city_council": {"Doug": 1}}, phantom=False), 
                     CVR(id="6", votes={"measure_1": {"no": 1}}, phantom=False)
                 ]
-        max_cards = 8
         prefix = 'phantom-'
 
-        cvr_list, phantoms = CVR.make_phantoms(max_cards, cvrs, contests, use_style=True, prefix='')
+        cvr_list, phantoms = CVR.make_phantoms(audit=audit, contests=contests, cvr_list=cvrs, prefix='phantom-')
         assert len(cvr_list) == 9
         assert phantoms == 3
-        assert contests['city_council']['cvrs'] == 5
-        assert contests['measure_1']['cvrs'] == 4
-        assert contests['city_council']['cards'] == 8
-        assert contests['measure_1']['cards'] == 5
+        assert contests['city_council'].cvrs == 5
+        assert contests['measure_1'].cvrs == 4
+        assert contests['city_council'].cards == 8
+        assert contests['measure_1'].cards == 5
         assert np.sum([c.has_contest('city_council') for c in cvr_list]) == 8, \
                        np.sum([c.has_contest('city_council') for c in cvr_list])
         assert np.sum([c.has_contest('measure_1') for c in cvr_list]) == 5, \
                       np.sum([c.has_contest('measure_1') for c in cvr_list])
         assert np.sum([c.has_contest('city_council') and not c.phantom for c in cvr_list]) ==  5
         assert np.sum([c.has_contest('measure_1') and not c.phantom for c in cvr_list]) == 4
-
-        cvr_list, phantoms = CVR.make_phantoms(max_cards, cvrs, contests, use_style=False, prefix='')
+        
+        audit.strata['stratum_1'].use_style = False
+        cvr_list, phantoms = CVR.make_phantoms(audit, contests, cvrs, prefix='phantom-')
         assert len(cvr_list) == 8
         assert phantoms == 2
-        assert contests['city_council']['cvrs'] == 5
-        assert contests['measure_1']['cvrs'] == 4
-        assert contests['city_council']['cards'] == 8
-        assert contests['measure_1']['cards'] == 8
+        assert contests['city_council'].cvrs == 5
+        assert contests['measure_1'].cvrs == 4
+        assert contests['city_council'].cards == 8
+        assert contests['measure_1'].cards == 8
         assert np.sum([c.has_contest('city_council') for c in cvr_list]) == 5, \
                        np.sum([c.has_contest('city_council') for c in cvr_list])
         assert np.sum([c.has_contest('measure_1') for c in cvr_list]) == 4, \
@@ -228,7 +234,7 @@ class TestAudit:
                            }
         }
         a = Audit.from_dict(d)
-        assert a.strata['stratum_1']['max_cards'] == 293555
+        assert a.strata['stratum_1'].max_cards == 293555
         assert a.quantile == 0.8
         assert a.reps == 100
     
@@ -612,7 +618,7 @@ class TestContests:
         atts = ('id','name','risk_limit','cards','choice_function','n_winners','share_to_win','candidates',
                 'winner','assertion_file','audit_type','test','use_style')
         contest_dict = {
-                 'con_1': {'id': '1',
+                 'con_1': {
                  'name': 'contest_1',
                  'risk_limit': 0.05,
                  'cards': 10**4,
@@ -625,7 +631,7 @@ class TestContests:
                  'test': NonnegMean.alpha_mart,
                  'use_style': True
                 },
-                 'con_2': {'id': '2',
+                 'con_2': {
                  'name': 'contest_2',
                  'risk_limit': 0.05,
                  'cards': 10**4,
@@ -640,9 +646,12 @@ class TestContests:
                 }
                 }
         contests = Contest.from_dict_of_dicts(contest_dict)
-        for c in contests:
+        for i, c in contests.items():
+            assert c.__dict__.get('id') == i
             for att in atts:
-                assert contests[c].__dict__.get(att) == contest_dict[c].get(att)
+                if att != 'id':
+                    assert c.__dict__.get(att) == c.get(att)
+        
 
 ##########################################################################################
 class TestNonnegMean:

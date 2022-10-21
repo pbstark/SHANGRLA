@@ -111,7 +111,9 @@ class Dominion:
         -------
         cvrs: list of CVR objects with "-" substituted for "_" in the id attribute.
         '''
-        return list(map(lambda c: str(c.id).replace("_","-"), cvr_list))
+        for c in cvr_list:
+            c.id = str(c.id).replace("_","-")
+        return cvr_list
 
     @classmethod
     def sample_from_manifest(cls, manifest, sample):

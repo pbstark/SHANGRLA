@@ -12,6 +12,38 @@ from NonnegMean import NonnegMean
 import Utils
 
 ##########################################################################################    
+class Stratum:
+    '''
+    stratum attributes
+    '''
+
+    def __init__(
+                  self,
+                  id: str=None,
+                  max_cards: int=None,
+                  use_style: bool=None,
+                  replacement: bool=False,
+                  audit_type:  str=None,
+                  test:  callable=None,
+                  estimator:  callable=None,
+                  test_kwargs: dict=None):
+
+        self.id = id
+        self.max_cards = max_cards
+        self.use_style = use_style
+        self.replacement = replacement
+        self.audit_type = audit_type
+        self.test = test
+        self.estimator = estimator
+        self.test_kwargs = test_kwargs
+
+    @classmethod
+    def from_dict(cls, d: dict=None):
+        s = Stratum()
+        s.__dict__.update(d)
+        return s
+
+##########################################################################################    
 class Audit:
     '''
     Primarily a holding place for various constants that specify what kind of contests are audited
@@ -20,6 +52,9 @@ class Audit:
     Methods to estimate the sample size to audit every contest.
     '''
     
+    ATTRIBUTES = ('seed', 'cvr_file', 'manifest_file', 'sample_file', 'mvr_file', 'log_file',
+                  'quantile', 'error_rate_1', 'error_rate_2', 'reps', 'max_cards', 'strata') 
+
     class SOCIAL_CHOICE_FUNCTION:
         '''
         social choice functions
@@ -49,9 +84,6 @@ class Audit:
         CANDIDATES = (ALL:= 'ALL',
                       ALL_OTHERS:= 'ALL_OTHERS',
                       NO_CANDIDATE:= 'NO_CANDIDATE')
-
-    ATTRIBUTES = ('seed', 'cvr_file', 'manifest_file', 'sample_file', 'mvr_file', 'log_file',
-                  'quantile', 'error_rate_1', 'error_rate_2', 'reps', 'max_cards', 'strata') 
     
     def __init__(
                  self,
@@ -85,18 +117,26 @@ class Audit:
         
         
     @classmethod
-    def from_dict(cls, d):
+    def from_dict(cls, d: dict=None):
         '''
         make an Audit object from a dict of attributes
+        assumes that the 'strata' attribute is itself a dict
         '''
         a = Audit()
+        # unpack stratum dictionary and create Stratum objects
+        strat_obj = {}
+        for id, st in d['strata'].items():
+            strat_obj[id] = Stratum.from_dict(st)
+            strat_obj[id].id = id
+        d['strata'] = strat_obj
         a.__dict__.update(d)
         return a
                
     @classmethod
     def find_sample_size(
-                        cls, contests: dict, mvr_sample: list, cvr_sample: list=None, cvr_list: list=None,
-                        rate: float=0, quantile: float=0.5, reps: int=200, seed: int=1234567890) -> tuple[int, dict]:
+                        cls, audit: object=None, contests: dict=None, mvr_sample: list=None, cvr_sample: list=None, 
+                        cvr_list: list=None, rate: float=0, quantile: float=0.5, reps: int=200, 
+                        seed: int=1234567890) -> tuple[int, dict]:
         '''
         Estimate sample size for each contest and overall to allow the audit to complete.
         Uses simulations. For speed, uses the numpy.random Mersenne Twister instead of cryptorandom.
@@ -138,10 +178,15 @@ class Audit:
         sample_sizes = {c:np.zeros(reps) for c in contests.keys()}
         # set dict of old sample sizes for each contest
         old_sizes = {c:0 for c in contests.keys()}
+        # use style information? Currently, only unstratified audits are supported
+        if len(audits.strata > 1):
+            raise NotImplementedError('only unstratified audits are currently supported')
+        stratum = next(iter(audit.strata.values()))
+        use_style = stratum.use_style
+        if use_style and cvr_list is None:
+            raise ValueError("use_style==True but cvr_list was not provided.")
         for i, c in contests.items():
-            if c.use_style and cvr_list is None:
-                raise ValueError("use_style==True but cvr_list was not provided.")
-            if c.use_style:
+            if use_style:
                 for cvr in cvr_list:
                     if cvr.in_sample():
                         cvr.p=1
@@ -159,11 +204,11 @@ class Audit:
                         u = upper_bound if polling else 2/(2-margin/upper_bound)
                         if cvr_sample:
                             d = [contests[c].assertions[a].overstatement_assorter(mvr_sample[i], cvr_sample[i],\
-                                contests[c].assertions[a].margin, use_style=contests[c].use_style) for i in range(len(mvr_sample))]
+                                contests[c].assertions[a].margin, use_style=use_style) for i in range(len(mvr_sample))]
                         else:
-                            d = [contests[c].assertions[a].assort(mvr_sample[i], use_style=contests[c].use_style) \
+                            d = [contests[c].assertions[a].assort(mvr_sample[i], use_style=use_style) \
                                  for i in range(len(mvr_sample))]
-                        while p > contests[c]['risk_limit'] and new_size < cards:
+                        while p > contests[c].risk_limit and new_size < cards:
                             one_more = sample_by_index(len(d), 1, prng=prng)[0]
                             d.append(d[one_more-1])
                             p = test.test(d)
@@ -174,7 +219,7 @@ class Audit:
             for cvr in cvr_list:
                 for c in contests:
                     if cvr.has_contest(c) and not cvr.in_sample():
-                        cvr.p = np.max(new_sample_size_quantiles[c] / (contests[c]['cards'] - old_sizes[c]), cvr.p)
+                        cvr.p = np.max(new_sample_size_quantiles[c] / (contests[c].cards - old_sizes[c]), cvr.p)
             total_sample_size = np.round(np.sum(np.array([x.p for x in cvr_list])))
         else:
             total_sample_size = np.max(np.array(new_sample_size_quantiles.values))
@@ -331,37 +376,42 @@ class Assertion:
         '''
         return 2*self.assorter_mean(cvr_list, use_style=use_style)-1
     
-    def overstatement_assorter_margin(self, one_vote_overstatement_rate: float=0) -> float:
+    def overstatement_assorter_margin(self, error_rate_1: float=0, error_rate_2: float=0) -> float:
         '''
-        find the overstatement assorter margin corresponding to an assumed rate of 1-vote overstatements
+        find the overstatement assorter margin corresponding to an assumed rate of 1-vote and 2-vote overstatements
         
         Parameters
         ----------        
-        one_vote_overstatement_rate: float
+        error_rate_1: float
             the assumed rate of one-vote overstatement errors in the CVRs
+        error_rate_2: float
+            the assumed rate of two-vote overstatement errors in the CVRs
+
         Returns
         -------
-        the overstatement assorter margin implied by the reported margin and the assumed rate of one-vote overstatements
+        the overstatement assorter margin implied by the reported margin and the assumed rates of overstatements
         '''
-        return (1 - one_vote_overstatement_rate*self.assorter.upper_bound/self.margin) \
+        return (1 - (error_rate_2 + error_rate_1/2)*self.assorter.upper_bound/self.margin) \
                 /(2*self.assorter.upper_bound/assorter_margin-1)
     
-    def overstatement_assorter_mean(self, one_vote_overstatement_rate: float=0) -> float:
+    def overstatement_assorter_mean(self, error_rate_1: float=0, error_rate_2: float=0) -> float:
         '''
-        find the overstatement assorter mean corresponding to an assumed rate of 1-vote overstatements
+        find the overstatement assorter mean corresponding to assumed rates of 1-vote and 2-vote overstatements
         
         Parameters
         ----------
-        one_vote_overstatement_rate: float
+        error_rate_1: float
             the assumed rate of one-vote overstatement errors in the CVRs
+        error_rate_2: float
+            the assumed rate of two-vote overstatement errors in the CVRs
             
         
         Returns
         -------
-        overstatement assorter mean implied by the assorter mean and the assumed rate of 1-vote overstatements
+        overstatement assorter mean implied by the assorter mean and the assumed error rates
         
         '''
-        return (1-one_vote_overstatement_rate/2)/(2-aself.margin/self.assorter.upper_bound)
+        return (1-error_rate_1/2 - error_rate_2)/(2-aself.margin/self.assorter.upper_bound)
     
 
     def overstatement(self, mvr, cvr, use_style=True):
@@ -437,7 +487,7 @@ class Assertion:
         '''
         return (1-self.overstatement(mvr, cvr, use_style)/self.assorter.upper_bound)/(2-self.margin/self.assorter.upper_bound)
     
-    def find_margin_from_cvrs(self, cvr_list: list=None):
+    def find_margin_from_cvrs(self, audit: object=None, cvr_list: list=None):
         '''
         find assorter margin from cvrs and store it
         
@@ -457,7 +507,11 @@ class Assertion:
         sets assorter.margin
         
         '''
-        amean =self.assorter_mean(cvr_list, use_style=self.contest.use_style)
+        if len(audit.strata) > 1:
+            raise NotImplementedError('stratified audits not yet supported')
+        stratum = next(iter(audit.strata.values()))
+        use_style = stratum.use_style
+        amean =self.assorter_mean(cvr_list, use_style=use_style)
         if amean < 1/2:
             warnings.warn(f"assertion {a} not satisfied by CVRs: mean value is {amean}")
         self.margin = 2*amean-1
@@ -826,7 +880,7 @@ class Assertion:
         return True
 
     @classmethod
-    def set_margins_from_cvrs(cls, contests: dict, cvr_list: list, use_style: bool):
+    def set_margins_from_cvrs(cls, audit: object=None, contests: dict=None, cvr_list: list=None):
         '''
         Find all the assorter margins in a set of Assertions. Updates the dict of dicts of assertions
         and the contest dict.
@@ -837,11 +891,11 @@ class Assertion:
 
         Parameters
         ----------
-        contests: dict of contest data, including assertions
+        audit: Audit
+            information about the audit
+        contests: dict of Contest objects
         cvr_list: list
             list of cvr objects
-        use_style: bool
-            flag indicating the sample will use style information to target the contest
 
         Returns
         -------
@@ -851,18 +905,20 @@ class Assertion:
         Side effects
         ------------
         sets the margin of every assertion
-        sets the assertion.test.u for every assertion, according to whether `assertion.contest.audit_type==Audit.POLLING`
-           or `assertion.contest.audit_type==Audit.BALLOT_COMPARISON`
+        sets the assertion.test.u for every assertion, according to whether 
+           `assertion.contest.audit_type==Audit.AUDIT_TYPE.POLLING`
+           or `assertion.contest.audit_type==Audit.AUDIT_TYPE.BALLOT_COMPARISON`
         '''
         min_margin = np.infty
         for c in contests:
             contests[c].margins = {}
             for a in contests[c].assertions:
-                contests[c].assertions[a].margin = (margin:= contests[c].assertions[a].find_margin_from_cvrs(cvr_list))
+                contests[c].assertions[a].find_margin_from_cvrs(audit, cvr_list)
+                margin = contests[c].assertions[a].margin
                 contests[c].margins.update({a: margin})
-                if contests[c].audit_type==Audit.POLLING:
+                if contests[c].audit_type==Audit.AUDIT_TYPE.POLLING:
                     u = contests[c].assertions[a].assorter.upper_bound
-                elif contests[c].audit_type==Audit.BALLOT_COMPARISON:
+                elif contests[c].audit_type==Audit.AUDIT_TYPE.BALLOT_COMPARISON:
                     u = 2/(2-margin/contests[c].assertions[a].assorter.upper_bound)
                 else:
                     raise NotImplementedError(f'audit type {contests[c].audit_type} not implemented')
@@ -1087,8 +1143,8 @@ class Contest:
                           
 
     def find_sample_size(
-                         self, cvrs: list=None, mvrs: list=None, reps: int=None, quantile: float=0.5, 
-                         seed: int=1234567890, **kwargs) -> int:
+                         self, audit: object=None, cvrs: list=None, mvrs: list=None, reps: int=None, 
+                         quantile: float=0.5, seed: int=1234567890, **kwargs) -> int:
         '''
         Estimate the sample size required to confirm the contest at its risk limit.
         
@@ -1111,11 +1167,6 @@ class Contest:
             quantile of sample size to report for simulations
         seed: int
             seed for Mersenne Twister PRNG for simulations
-        kwargs: dict
-            error_rate_1: float
-                assumed rate of 1-vote overstatements, for comparison audits
-            error_rate_2: float
-                assumed rate of 2-vote overstatements, for comparison audits
         
         Returns
         -------
@@ -1134,7 +1185,7 @@ class Contest:
             raise NotImplementedError('sample size estimate cannot yet use data')
 
             self.sample_size = max(self.sample_size, 
-                                   a.find_sample_size(x=x, rate=rate, reps=reps, quantile=quantile, seed=seed))
+                                   a.find_sample_size(x=x, rate=audit.error_rate_1, reps=reps, quantile=quantile, seed=seed))
         return self.sample_size                   
                             
     def find_margins_from_tally(self):
@@ -1180,5 +1231,6 @@ class Contest:
         contests = {}
         for di, v in d.items():
             contests[di] = cls.from_dict(v)
+            contests[di].id = di
         return contests
     
