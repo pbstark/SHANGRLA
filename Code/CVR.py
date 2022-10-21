@@ -237,6 +237,32 @@ class CVR:
         return CVR.merge_cvrs(cvr_list)
 
     @classmethod
+    def from_raire_file(cls, cvr_file: str=None):
+        '''
+        Read CVR data from a file; construct list of CVR objects from the data
+        
+        Parameters
+        ----------
+        cvr_file : str
+            filename 
+            
+        Returns
+        -------
+        cvrs: list of CVR objects
+        cvrs_read: int
+            number of CVRs read
+        unique_ids: int
+            number of distinct CVR identifiers read
+        '''
+        cvr_in = []
+        with open(cvr_file) as f:
+            cvr_reader = csv.reader(f, delimiter=',', quotechar='"')
+            for row in cvr_reader:
+                cvr_in.append(row)
+        cvrs = CVR.from_raire(cvr_in)
+        return cvrs, len(cvr_in), len(cvrs)
+        
+    @classmethod
     def merge_cvrs(cls, cvr_list):
         '''
         Takes a list of CVRs that might contain duplicated ballot ids and merges the votes
