@@ -34,7 +34,8 @@ class Dominion:
         Returns:
         --------
         manifest: dataframe
-            original manifest with additional column for cumulative cards and, if needed, an additional batch for any phantom cards   
+            original manifest with additional column for cumulative cards and, if needed, an additional 
+            batch for any phantom cards   
         manifest_cards: int
             the total number of cards in the manifest
         phantoms: int
@@ -48,7 +49,8 @@ class Dominion:
         phantoms = 0
         if manifest_cards < max_cards:
             phantoms = max_cards-manifest_cards
-            warnings.warn(f'manifest does not account for every card; appending batch of {phantoms} phantom cards to the manifest')
+            warnings.warn(f'manifest does not account for every card; appending batch of {phantoms} '
+                          + f'phantom cards to the manifest')
             r = {'Tray #': None, 'Tabulator Number': 'phantom', 'Batch Number': 1, \
                  'Total Ballots': phantoms, 'VBMCart.Cart number': None}
             manifest = manifest.append(r, ignore_index = True)
@@ -193,7 +195,7 @@ class Dominion:
         sample_order = {}
         cvr_sample = []
         mvr_phantoms = []
-        for i,s in enumerate(sample-1):
+        for i, s in enumerate(sample):
             cvr_sample.append(cvr_list[s])
             cvr_id = cvr_list[s].id
             tab, batch, card_num = cvr_id.split("-")

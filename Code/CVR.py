@@ -516,13 +516,17 @@ class CVR:
 
         Returns
         -------
-        only side effects: cvr_list is ordered by sample_num
+        True
+        
+        Side effects
+        ------------
+        cvr_list is sorted by sample_num
         '''
         cvr_list.sort(key = lambda x: x.sample_num)
         return True
 
     @classmethod
-    def consistent_sampling(cls, cvr_list: list, contests: dict,  sampled_cvr_indices: list=None) -> list:
+    def consistent_sampling(cls, cvr_list: list=None, contests: dict=None, sampled_cvr_indices: list=None) -> list:
         '''
         Sample CVR ids for contests to attain sample sizes in sample_size_dict
 
@@ -541,7 +545,7 @@ class CVR:
         Returns
         -------
         sampled_cvr_indices: list
-            locations of CVRs to sample
+            indices of CVRs to sample (0-indexed)
         '''
         current_sizes = defaultdict(int)
         contest_in_progress = lambda c: (current_sizes[c.id] < c.sample_size)
