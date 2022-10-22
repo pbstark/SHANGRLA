@@ -170,7 +170,7 @@ class TestCVR:
                     CVR(id="6", votes={"measure_1": {"no": 1}}, phantom=False)
                 ]
         prng = SHA256(1234567890)
-        CVR.assign_sample_nums(cvrs,prng)
+        CVR.assign_sample_nums(cvrs, prng)
         assert cvrs[0].sample_num == 100208482908198438057700745423243738999845662853049614266130533283921761365671
         assert cvrs[5].sample_num == 93838330019164869717966768063938259297046489853954854934402443181124696542865
 
@@ -535,19 +535,11 @@ class TestAssertion:
 
     def test_assorter_sample_size(self):
         # Test Assorter.sample_size using the Kaplan-Wald risk function
-        rate = 0.01
         N = int(10**4)
-        margin = 0.1
-        upper_bound = 1
-        u = 2/(2-margin/upper_bound)
-        m = (1 - rate*upper_bound/margin)/(2*upper_bound/margin - 1)
-        one_over = 1/3.8 # 0.5/(2-margin)
-        clean = 1/1.9    # 1/(2-margin)
-
         AvB = Contest.from_dict({'id': 'AvB',
                              'name': 'AvB',
                              'risk_limit': 0.05,
-                             'cards': 10**4,
+                             'cards': N,
                              'choice_function': Audit.SOCIAL_CHOICE_FUNCTION.PLURALITY,
                              'n_winners': 1,
                              'candidates': ['Alice','Bob', 'Carol'],
@@ -563,22 +555,27 @@ class TestAssertion:
         AvB.find_margins_from_tally()
         for a_id, a in AvB.assertions.items():
             # first test
+            rate=0.01
             sam_size1 = a.find_sample_size(data=np.ones(10), prefix=True, rate=rate, reps=None, quantile=0.5, seed=1234567890)
             # Kaplan-Markov martingale is \prod (t+g)/(x+g). For x = [1, 1, ...], sample size should be:
             ss1 = math.ceil(np.log(AvB.risk_limit)/np.log((a.test.t+a.test.g)/(1+a.test.g)))
-            print(f'{sam_size1} {ss1}')
             assert sam_size1 == ss1
             #
             # second test
-            # For "clean", the term is (1/2+g)/(clean+g); for one_over it is (1/2+g)/(one_over+g). 
-            sam_size2 = a.find_sample_size(data=None, prefix=True, rate=rate, reps=10**3, quantile=0.5, seed=1234567890)
+            # For "clean", the term is (1/2+g)/(clean+g); for a one-vote overstatement, it is (1/2+g)/(one_over+g). 
+            sam_size2 = a.find_sample_size(data=None, prefix=True, rate=rate, reps=10**2, quantile=0.5, seed=1234567890)
             clean = 1/(2-a.margin/a.assorter.upper_bound)
             over = clean/2 # corresponds to an overstatement of upper_bound/2, i.e., 1 vote.
             c = (a.test.t+a.test.g)/(clean+a.test.g)
             o = (a.test.t+a.test.g)/(clean/2+a.test.g)
             # the following calculation assumes the audit will terminate before the second overstatement error
-            ss2 = 1+math.ceil(np.log(AvB.risk_limit/o)/np.log(c)) 
+            ss2 = math.ceil(np.log(AvB.risk_limit/o)/np.log(c))+1
             assert sam_size2 == ss2    
+            #
+            # third test
+            rate = 0.1
+            sam_size3 = a.find_sample_size(data=None, prefix=True, rate=rate, reps=10**2, quantile=0.99, seed=1234567890)
+            assert sam_size3 > sam_size2
  
     def test_margin_from_tally(self):
         AvB = Contest.from_dict({'id': 'AvB',
@@ -650,7 +647,7 @@ class TestContests:
             assert c.__dict__.get('id') == i
             for att in atts:
                 if att != 'id':
-                    assert c.__dict__.get(att) == contest_dict.get(att)
+                    assert c.__dict__.get(att) == contest_dict[i].get(att)
         
 
 ##########################################################################################

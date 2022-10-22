@@ -26,7 +26,6 @@ class Stratum:
                   test:  callable=None,
                   estimator:  callable=None,
                   test_kwargs: dict=None):
-
         self.id = id
         self.max_cards = max_cards
         self.use_style = use_style
@@ -43,16 +42,55 @@ class Stratum:
         return s
 
 ##########################################################################################    
+class NpEncoder(json.JSONEncoder):
+    '''
+    for json dumps of Audit, Assertion, Contest
+    '''
+    def default(self, obj):
+        if isinstance(obj, np.integer):
+            return int(obj)
+        if isinstance(obj, np.floating):
+            return float(obj)
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        if isinstance(obj, Assertion):
+            return obj.__str__()
+        if isinstance(obj, Audit):
+            return obj.__str__()
+        if isinstance(obj, Contest):
+            return obj.__str__()
+        return super(NpEncoder, self).default(obj)
+    
+    @classmethod
+    def trim_ints(cls, x):
+        '''
+        turn int64 into an int
+
+        Parameters
+        ----------
+        x: int64
+
+        Returns
+        -------
+        int(x): int
+       '''
+        if isinstance(x, np.int64):
+            return int(x)
+        else:
+            raise TypeError
+
+
+##########################################################################################    
 class Audit:
     '''
-    Primarily a holding place for various constants that specify what kind of contests are audited
-    and how to audit them.
-    
+    Various constants that specify what kind of contests are audited and how to audit them.    
     Methods to estimate the sample size to audit every contest.
+    Methods for logging and checking parameters.
     '''
     
-    ATTRIBUTES = ('seed', 'sim_seed', 'cvr_file', 'manifest_file', 'sample_file', 'mvr_file', 'log_file',
-                  'quantile', 'error_rate_1', 'error_rate_2', 'reps', 'max_cards', 'strata') 
+    ATTRIBUTES = ('seed', 'sim_seed', 'cvr_file', 'manifest_file', 'sample_file', 'mvr_file', 
+                  'log_file', 'quantile', 'error_rate_1', 'error_rate_2', 'reps', 'max_cards', 
+                  'strata') 
 
     class SOCIAL_CHOICE_FUNCTION:
         '''
@@ -96,7 +134,7 @@ class Audit:
                  quantile: float=0.9,
                  error_rate_1: float=0.001,
                  error_rate_2: float=0.0001,
-                 reps: int=200,
+                 reps: int=None,
                  max_cards: int=None,
                  strata: dict=None):
         self.seed = seed
@@ -134,12 +172,13 @@ class Audit:
         -------
         new_size: int
             new sample size
-        new_sizes: dict
-            sample sizes by contest
+            
+        Side effects
+        ------------
+        sets c.sample_size for each Contest in contests
         '''
         # set dict of old sample sizes for each contest
         old_sizes = {c:0 for c in contests.keys()}
-        new_sizes = {c:0 for c in contests.keys()}
         # use style information? Currently, only unstratified audits are supported
         if len(self.strata) > 1:
             raise NotImplementedError('only unstratified audits are currently supported')
@@ -156,21 +195,116 @@ class Audit:
                     cvr.p=0
             for i, c in contests.items():
                 old_sizes[i] = np.sum(np.array([cvr.sampled for cvr in cvrs if cvr.has_contest(i)]))
-                new_sizes[i] = 0
+                new_size = 0
                 for j, a in c.assertions.items():
                     if not a.proved:
-                        new_sizes[i] = max(new_sizes[i], 
-                                           a.find_sample_size(data=data, rate=self.error_rate_1, reps=None, 
-                                                      quantile=self.quantile, seed=self.sim_seed))
+                        new_size = max(new_size, a.find_sample_size(data=data, rate=self.error_rate_1, 
+                                                                    reps=self.reps, quantile=self.quantile,
+                                                                    seed=self.sim_seed))
+                c.sample_size = new_size
         if cvrs:
             for cvr in cvrs:
                 for i, c in contests.items():
                     if cvr.has_contest(i) and not cvr.sampled:
-                        cvr.p = np.max(new_sizes[i] / (c.cards - old_sizes[i]), cvr.p)
+                        cvr.p = np.max(c.sample_size/(c.cards - old_sizes[i]), cvr.p)
             total_size = math.ceil(np.sum([x.p for x in cvrs]))
         else:
-            total_size = np.max(np.array(new_sizes.values))
-        return total_size, new_sizes
+            total_size = np.max(np.array([c.sample_size for c in contests.values()]))
+        return total_size
+    
+    def check_audit_parameters(self, contests: dict=None):
+        '''
+        Check whether the audit parameters are valid; complain if not.
+
+        Parameters
+        ----------
+        contests: dict of Contests
+            contest-specific information for the audit
+
+        Returns
+        -------
+        
+        Side effects
+        ------------
+        raises exceptions if Audit parameters or contest parameters fail tests
+        '''
+        assert self.error_rate_1 >= 0, 'expected rate of 1-vote errors must be nonnegative'
+        assert self.error_rate_2 >= 0, 'expected rate of 2-vote errors must be nonnegative'
+        for i, c in contests.items():
+            assert c.risk_limit > 0, f'risk limit {c.risk_limit} negative in contest {c}'
+            assert c.risk_limit <= 1/2, f'risk limit {c.risk_limit} exceeds 1/2 in contest {c}'
+            assert c.choice_function in Audit.SOCIAL_CHOICE_FUNCTION.SOCIAL_CHOICE_FUNCTIONS, \
+                      f'unsupported choice function {c.choice_function} in contest {i}'
+            assert c.n_winners <= len(c.candidates), f'more winners than candidates in contest {i}'
+            assert len(c.winner) == c.n_winners, \
+                f'number of reported winners does not equal n_winners in contest {i}'
+            for w in c.winner:
+                assert w in c.candidates, f'reported winner {w} is not a candidate in contest {i}'
+            if c.choice_function in [Audit.SOCIAL_CHOICE_FUNCTION.IRV, 
+                                     Audit.SOCIAL_CHOICE_FUNCTION.SUPERMAJORITY]:
+                assert c.n_winners == 1, f'{c.choice_function} can have only 1 winner in contest {i}'
+            if c.choice_function == Audit.SOCIAL_CHOICE_FUNCTION.IRV:
+                assert c.assertion_file, f'IRV contest {i} requires an assertion file'
+
+
+    def write_audit_parameters(self, contests: dict=None):
+        '''
+        Write audit parameters as a json structure
+
+        Parameters:
+        ---------
+        audit: Audit
+            general information about the audit
+
+        contests: dict of dicts
+            contest-specific information for the audit
+
+        Returns:
+        --------
+        no return value
+        '''
+        log_file = self.log_file
+        out = {'Audit': self,
+               'contests': contests
+              }
+        with open(log_file, 'w') as f:
+            f.write(json.dumps(out, cls=NpEncoder))
+            
+    def summarize_status(self, contests: dict=None):
+        '''
+        Determine whether the audit of individual assertions, contests, and the whole election are finished.
+
+        Prints a summary.
+
+        Parameters:
+        -----------
+        audit: Audit
+            general information about the audit
+        contests: dict of Contest objects
+            dict of contest information
+
+        Returns:
+        --------
+        done: boolean
+            is the audit finished?
+        '''
+        done = True
+        for c, con in contests.items():
+            print(f'\np-values for assertions in contest {c}')
+            cpmax = 0
+            for i, a in con.assertions.items():
+                cpmax = np.max([cpmax, a.p_value])
+                print(f'\t{i}: {a.p_value}')
+            if cpmax <= contests[c].risk_limit:
+                print(f'\ncontest {c} AUDIT COMPLETE at risk limit {con.risk_limit}. Attained risk {cpmax}')
+            else:
+                done = False
+                print(f'\ncontest {c} audit INCOMPLETE at risk limit {con.risk_limit}. Attained risk {cpmax}')
+                print("assertions remaining to be proved:")
+                for i, a in con.assertions.items():
+                    if a.p_value > con.risk_limit:
+                        print(f'\t{a}: current risk {a.p_value}')
+        return done
     
     @classmethod
     def from_dict(cls, d: dict=None):
@@ -409,7 +543,7 @@ class Assertion:
             overstatement = self.assorter.assort(cvr) \
                             - (self.assorter.assort(mvr) if not mvr.phantom else 0)
         elif use_style:
-            if cvr.has_contest(self.contest.id):    # make_phantoms() assigns contests but not votes to phantom CVRs
+            if cvr.has_contest(self.contest.id):  # make_phantoms() assigns contests but not votes to phantom CVRs
                 if cvr.phantom:
                     cvr_assort = 1/2
                 else:
@@ -621,10 +755,14 @@ class Assertion:
         if data is not None:  # use the data provided
             sample_size = self.test.sample_size(data, alpha=self.contest.risk_limit, reps=reps, 
                                                 prefix=prefix, quantile=quantile, seed=seed)
-        else:     # construct data. 
-                  # For POLLING, values are 0 and u. 
-                  # For BALLOT_COMPARISON, values are overstatement assorter values corresponding to overstatements of u or 0
-            big = self.test.u if self.contest.audit_type == Audit.AUDIT_TYPE.POLLING else self.make_overstatement(overs=0)
+        else:     
+            '''Construct data.
+               For POLLING, values are 0 and u. 
+               For BALLOT_COMPARISON, values are overstatement assorter values corresponding to 
+                 overstatements of u or 0.
+            '''
+            big = self.test.u if self.contest.audit_type == Audit.AUDIT_TYPE.POLLING \
+                              else self.make_overstatement(overs=0)
             small = 0 if self.contest.audit_type == Audit.AUDIT_TYPE.POLLING else self.make_overstatement(overs=1/2) 
             small_rate = (rate if self.contest.audit_type == Audit.AUDIT_TYPE.BALLOT_COMPARISON 
                           else (rate if rate is not None else (1-self.margin)/2))   # rate of small values
@@ -937,10 +1075,10 @@ class Assertion:
                 upper_bound = asrt.assorter.upper_bound
                 if contests[c].audit_type == Audit.AUDIT_TYPE.BALLOT_COMPARISON:
                     d = [asrt.overstatement_assorter(mvr_sample[i], cvr_sample[i],
-                                margin, use_style=use_style) for i in range(len(mvr_sample)) 
+                                use_style=use_style) for i in range(len(mvr_sample)) 
                                 if ((not use_style) or cvr_sample[i].has_contest(c))]
                     u = 2/(2-margin/upper_bound)
-                elif contests[c].audit_type == Audit.AUDIT_TYPE.POLLING:  # polling audit. Assume style information is irrelevant
+                elif contests[c].audit_type == Audit.AUDIT_TYPE.POLLING:  # Assume style information is irrelevant
                     d = [asrt.assort(mvr_sample[i]) for i in range(len(mvr_sample))]
                     u = upper_bound
                 else:
@@ -1186,4 +1324,13 @@ class Contest:
             contests[di] = cls.from_dict(v)
             contests[di].id = di
         return contests
-    
+
+    @classmethod
+    def print_margins(cls, contests: dict=None):
+        '''
+        print all assorter margins
+        '''
+        for c, con in contests.items():
+            print(f'margins in contest {c}:')
+            for a, m in con.margins.items():
+                print(f'\tassertion {a}: {m}')
