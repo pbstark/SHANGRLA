@@ -9,7 +9,6 @@ from numpy import testing
 from collections import OrderedDict, defaultdict
 from CVR import CVR
 from NonnegMean import NonnegMean
-import Utils
 
 ##########################################################################################    
 class Stratum:
@@ -52,7 +51,7 @@ class Audit:
     Methods to estimate the sample size to audit every contest.
     '''
     
-    ATTRIBUTES = ('seed', 'cvr_file', 'manifest_file', 'sample_file', 'mvr_file', 'log_file',
+    ATTRIBUTES = ('seed', 'sim_seed', 'cvr_file', 'manifest_file', 'sample_file', 'mvr_file', 'log_file',
                   'quantile', 'error_rate_1', 'error_rate_2', 'reps', 'max_cards', 'strata') 
 
     class SOCIAL_CHOICE_FUNCTION:
@@ -88,6 +87,7 @@ class Audit:
     def __init__(
                  self,
                  seed: object=None,
+                 sim_seed: int=123456789,
                  cvr_file: str=None,
                  manifest_file: str=None,
                  sample_file: str=None,
@@ -100,6 +100,7 @@ class Audit:
                  max_cards: int=None,
                  strata: dict=None):
         self.seed = seed
+        self.sim_seed = sim_seed
         self.cvr_file = cvr_file,
         self.manifest_file = manifest_file
         self.sample_file = sample_file
@@ -115,7 +116,62 @@ class Audit:
     def __str__(self):
         return str(self.__dict__)
         
-        
+    def find_sample_size(self, contests: dict=None, cvrs: list=None, mvr_sample: list=None) -> tuple[int, dict]:
+        '''
+        Estimate sample size for each contest and overall to allow the audit to complete.
+        Uses simulations. For speed, uses the numpy.random Mersenne Twister instead of cryptorandom.
+
+        Parameters
+        ----------
+        contests: dict of dicts
+            the contest data structure. outer keys are contest identifiers; inner keys are assertions
+        cvrs: list of CVR objects
+            the full set of CVRs
+        mvr_sample: list of CVR objects
+            manually ascertained votes           
+
+        Returns
+        -------
+        new_size: int
+            new sample size
+        new_sizes: dict
+            sample sizes by contest
+        '''
+        # set dict of old sample sizes for each contest
+        old_sizes = {c:0 for c in contests.keys()}
+        new_sizes = {c:0 for c in contests.keys()}
+        # use style information? Currently, only unstratified audits are supported
+        if len(self.strata) > 1:
+            raise NotImplementedError('only unstratified audits are currently supported')
+        stratum = next(iter(self.strata.values()))
+        use_style = stratum.use_style
+        if use_style and cvrs is None:
+            raise ValueError("use_style==True but cvrs was not provided.")
+        data=None # TO DO change to use data 
+        if use_style:
+            for cvr in cvrs:
+                if cvr.sampled:
+                    cvr.p=1
+                else:
+                    cvr.p=0
+            for i, c in contests.items():
+                old_sizes[i] = np.sum(np.array([cvr.sampled for cvr in cvrs if cvr.has_contest(i)]))
+                new_sizes[i] = 0
+                for j, a in c.assertions.items():
+                    if not a.proved:
+                        new_sizes[i] = max(new_sizes[i], 
+                                           a.find_sample_size(data=data, rate=self.error_rate_1, reps=None, 
+                                                      quantile=self.quantile, seed=self.sim_seed))
+        if cvrs:
+            for cvr in cvrs:
+                for i, c in contests.items():
+                    if cvr.has_contest(i) and not cvr.sampled:
+                        cvr.p = np.max(new_sizes[i] / (c.cards - old_sizes[i]), cvr.p)
+            total_size = math.ceil(np.sum([x.p for x in cvrs]))
+        else:
+            total_size = np.max(np.array(new_sizes.values))
+        return total_size, new_sizes
+    
     @classmethod
     def from_dict(cls, d: dict=None):
         '''
@@ -132,98 +188,6 @@ class Audit:
         a.__dict__.update(d)
         return a
                
-    @classmethod
-    def find_sample_size(
-                        cls, audit: object=None, contests: dict=None, mvr_sample: list=None, cvr_sample: list=None, 
-                        cvr_list: list=None, rate: float=0, quantile: float=0.5, reps: int=200, 
-                        seed: int=1234567890) -> tuple[int, dict]:
-        '''
-        Estimate sample size for each contest and overall to allow the audit to complete.
-        Uses simulations. For speed, uses the numpy.random Mersenne Twister instead of cryptorandom.
-
-        Parameters
-        ----------
-        contests: dict of dicts
-            the contest data structure. outer keys are contest identifiers; inner keys are assertions
-
-        mvr_sample: list of CVR objects
-            the manually ascertained voter intent from sheets, including entries for phantoms
-
-        cvr_sample: list of CVR objects
-            the cvrs for the same sheets. 
-        
-        cvr_list: list of CVR objects
-            entire list of CVRs, for comparison audits
-            
-        rate: float
-            assumed rate of 1-vote overstatement errors for simulations
-
-        quantile: float
-            estimated quantile of the sample size to return
-
-        reps: int
-            number of replications to use to estimate the quantile
-
-        seed: int
-            seed for the Mersenne Twister prng for simulating sample sizes
-
-        Returns
-        -------
-        new_size: int
-            new sample size
-        sams: array of ints
-            array of all sizes found in the simulation
-        '''
-        prng = np.random.RandomState(seed=seed)
-        sample_sizes = {c:np.zeros(reps) for c in contests.keys()}
-        # set dict of old sample sizes for each contest
-        old_sizes = {c:0 for c in contests.keys()}
-        # use style information? Currently, only unstratified audits are supported
-        if len(audits.strata > 1):
-            raise NotImplementedError('only unstratified audits are currently supported')
-        stratum = next(iter(audit.strata.values()))
-        use_style = stratum.use_style
-        if use_style and cvr_list is None:
-            raise ValueError("use_style==True but cvr_list was not provided.")
-        for i, c in contests.items():
-            if use_style:
-                for cvr in cvr_list:
-                    if cvr.in_sample():
-                        cvr.p=1
-                    else:
-                        cvr.p=0
-            old_sizes[i] = np.sum(np.array([cvr.in_sample() for cvr in cvr_list if cvr.has_contest(i)]))
-        for r in range(reps):
-            for c in contests:
-                new_size = 0
-                for a in contests[c].assertions:
-                    if not contests[c].assertions[a].proved:
-                        p = contests[c].assertions[a].p_value
-                        margin = contests[c].assertions[a].margin
-                        upper_bound = contests[c].assertions[a].assorter.upper_bound
-                        u = upper_bound if polling else 2/(2-margin/upper_bound)
-                        if cvr_sample:
-                            d = [contests[c].assertions[a].overstatement_assorter(mvr_sample[i], cvr_sample[i],\
-                                contests[c].assertions[a].margin, use_style=use_style) for i in range(len(mvr_sample))]
-                        else:
-                            d = [contests[c].assertions[a].assort(mvr_sample[i], use_style=use_style) \
-                                 for i in range(len(mvr_sample))]
-                        while p > contests[c].risk_limit and new_size < cards:
-                            one_more = sample_by_index(len(d), 1, prng=prng)[0]
-                            d.append(d[one_more-1])
-                            p = test.test(d)
-                        new_size = np.max([new_size, len(d)])
-                sample_sizes[c][r] = new_size
-        new_sample_size_quantiles = {c:int(np.quantile(sample_sizes[c], quantile) - old_sizes[c]) for c in sample_sizes.keys()}
-        if cvr_list:
-            for cvr in cvr_list:
-                for c in contests:
-                    if cvr.has_contest(c) and not cvr.in_sample():
-                        cvr.p = np.max(new_sample_size_quantiles[c] / (contests[c].cards - old_sizes[c]), cvr.p)
-            total_sample_size = np.round(np.sum(np.array([x.p for x in cvr_list])))
-        else:
-            total_sample_size = np.max(np.array(new_sample_size_quantiles.values))
-        return total_sample_size, new_sample_size_quantiles
     
 ##########################################################################################    
 class Assertion:
@@ -609,9 +573,9 @@ class Assertion:
             2. Sample randomly from a set of such values
         The rate of small values is `rate` if `rate is not None`. If `rate is None`, for POLLING audits, gets
         the rate of small values from the margin. 
-        For POLLING audits, the small values are 0 and the large values are `u`.
-        For BALLOT_COMPARISON audits, the small values are the overstatement assorter for an overstatement
-        of `u` and the large values are the overstatement assorter for an overstatement of 0.
+        For Audit.AUDIT_TYPE.POLLING audits, the small values are 0 and the large values are `u`.
+        For Audit.AUDIT_TYPE.BALLOT_COMPARISON audits, the small values are the overstatement assorter for an 
+        overstatement of `u/2` and the large values are the overstatement assorter for an overstatement of 0.
 
         This function is for a single assorter.
         
@@ -667,8 +631,6 @@ class Assertion:
             x = big*np.ones(self.test.N)
             for k in range(self.test.N):
                 x[k] = (small if (small_rate > 0 and k % int(1/small_rate) == 0) else x[k])
-                
-            print(f'{x[0:10]=}')
             sample_size = self.test.sample_size(x, alpha=self.contest.risk_limit, reps=reps, 
                                                 prefix=prefix, quantile=quantile, seed=seed)            
         self.sample_size = sample_size
@@ -1143,8 +1105,7 @@ class Contest:
                           
 
     def find_sample_size(
-                         self, audit: object=None, cvrs: list=None, mvrs: list=None, reps: int=None, 
-                         quantile: float=0.5, seed: int=1234567890, **kwargs) -> int:
+                         self, audit: object=None, cvrs: list=None, mvrs: list=None, **kwargs) -> int:
         '''
         Estimate the sample size required to confirm the contest at its risk limit.
         
@@ -1160,13 +1121,6 @@ class Contest:
             data (or simulated data) to base the sample size estimates on
         mvrs: list of MVRs (CVR objects)
             manually read votes to base the sample size estimates on, if data are available.
-        reps: int
-            number of replications for simulations.
-            if `reps is None` uses a deterministic method
-        quantile: float
-            quantile of sample size to report for simulations
-        seed: int
-            seed for Mersenne Twister PRNG for simulations
         
         Returns
         -------
@@ -1178,14 +1132,13 @@ class Contest:
         
         '''
         self.sample_size = 0
-        for a in self.assertions:
+        for a in self.assertions.values():
             x = None
             if cvrs is not None:  # process the CVRs to get data appropriate to each assertion, to pass to find_sample_size
-                pass # if self.
-            raise NotImplementedError('sample size estimate cannot yet use data')
-
+                raise NotImplementedError('sample size estimate cannot yet use data')
             self.sample_size = max(self.sample_size, 
-                                   a.find_sample_size(x=x, rate=audit.error_rate_1, reps=reps, quantile=quantile, seed=seed))
+                                   a.find_sample_size(x=x, rate=audit.error_rate_1, reps=audit.reps, 
+                                                      quantile=audit.quantile, seed=audit.sim_seed))
         return self.sample_size                   
                             
     def find_margins_from_tally(self):

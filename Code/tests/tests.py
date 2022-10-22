@@ -12,7 +12,7 @@ from cryptorandom.sample import random_permutation
 from cryptorandom.sample import sample_by_index
 
 from CVR import CVR
-from Audit import Audit, Assertion, Assorter, Contest
+from Audit import Audit, Assertion, Assorter, Contest, Stratum
 from NonnegMean import NonnegMean
 from Dominion import Dominion
 import pandas as pd
@@ -650,7 +650,7 @@ class TestContests:
             assert c.__dict__.get('id') == i
             for att in atts:
                 if att != 'id':
-                    assert c.__dict__.get(att) == c.get(att)
+                    assert c.__dict__.get(att) == contest_dict.get(att)
         
 
 ##########################################################################################
