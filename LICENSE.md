@@ -22,5 +22,5 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 MANUSCRIPT:
-Other than the software and documentation of the software, other documents in this repository, including the manuscript, are licensed CC-BY 4.0.
-https://creativecommons.org/licenses/by/4.0/
+Other than the software and documentation of the software, other documents in this repository, including the manuscript, are licensed CC-BY-ND 2.0.
+https://creativecommons.org/licenses/by-nd/2.0/

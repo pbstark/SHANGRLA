@@ -1,6 +1,7 @@
 # Sets of Half-Average Nulls Generate Risk-Limiting Audits (SHANGRLA)
 
-by Michelle Blom, Andrew Conway, Philip B. Stark, Peter J. Stuckey and Vanessa Teague. 
+initial code by Michelle Blom, Andrew Conway, Philip B. Stark, Peter J. Stuckey and Vanessa Teague.   
+additional development by Amanda Glazer and Jake Spertus
 
 Risk-limiting audits (RLAs) offer a statistical guarantee: if a full manual tally of the paper ballots would show that the reported election outcome is wrong, an RLA has a known minimum chance of leading to a full manual tally.
 RLAs generally rely on random samples.
