@@ -11,8 +11,7 @@ from cryptorandom.cryptorandom import SHA256, random, int_from_hash
 from cryptorandom.sample import random_permutation
 from cryptorandom.sample import sample_by_index
 
-from CVR import CVR
-from Audit import Audit, Assertion, Assorter, Contest, Stratum
+from Audit import Audit, Assertion, Assorter, Contest, CVR, Stratum
 from NonnegMean import NonnegMean
 from Dominion import Dominion
 from Hart import Hart
@@ -222,7 +221,12 @@ class TestCVR:
                 CVR(id="8", votes={"measure_1": {"no": 1}, "measure_2": {"yes": 1}}, phantom=False),
                 CVR(id="9", votes={"measure_1": {"no": 1}, "measure_3": {"yes": 1}}, phantom=False),
             ]
-        assert len(CVR.tabulate_styles(cvrs)) == 6
+        t = CVR.tabulate_styles(cvrs)
+        assert len(t) == 6
+        assert t[frozenset(['measure_1','measure_3'])] == 1
+        assert t[frozenset(['city_council','measure_1'])] == 3
+        assert t[frozenset(['city_council','measure_1','measure_2'])] == 1
+        
          
     def test_count_votes(self):
         cvrs = [CVR(id="1", votes={"city_council": {"Alice": 1}, "measure_1": {"yes": 1}}, phantom=False), 
