@@ -14,8 +14,7 @@ import xml.etree.ElementTree as ET
 import xml.dom.minidom
 
 from zipfile import ZipFile, Path
-from CVR import CVR
-from Audit import Audit, Assertion, Assorter, Contest, Stratum
+from Audit import Audit, Assertion, Assorter, Contest, CVR, Stratum
 from NonnegMean import NonnegMean
 
 class Hart:
