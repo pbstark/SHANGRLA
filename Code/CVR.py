@@ -540,7 +540,7 @@ class CVR:
         # iterate through and find all the unique styles
         style_counts = defaultdict(int)
         for cvr in cvr_list:
-            style_counts[set(cvr.votes.keys())] += 1
+            style_counts[frozenset(cvr.votes.keys())] += 1
         return style_counts
 
     @classmethod
