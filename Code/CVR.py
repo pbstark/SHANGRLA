@@ -69,7 +69,6 @@ class CVR:
          create dict of CVRs from a list of dicts
     from_raire:
          create CVRs from the RAIRE representation
-    get_vote_from_cvr: class method to get a vote for a candidate from a cvr object
     '''
 
     def __init__(self, id = None, votes = {}, phantom=False, sample_num=None, p=None, sampled=False):
@@ -319,50 +318,6 @@ class CVR:
     def as_rank(cls, v):
         return int(v)
 
-    @classmethod
-    def get_vote_from_votes(cls, contest_id, candidate, votes):
-        '''
-        Returns the vote for a candidate if the dict of votes contains a vote for that candidate
-        in that contest; otherwise returns False
-
-        Parameters:
-        -----------
-        contest_id: string
-            identifier for the contest
-        candidate: string
-            identifier for candidate
-
-        votes: dict
-            a dict of votes
-
-        Returns:
-        --------
-        vote
-        '''
-        return False if (contest_id not in votes or candidate not in votes[contest_id])\
-               else votes[contest_id][candidate]
-
-    @classmethod
-    def get_vote_from_cvr(cls, contest_id, candidate, cvr):
-        '''
-        Returns the vote for a candidate if the cvr contains a vote for that candidate;
-        otherwise returns False
-
-        Parameters:
-        -----------
-        contest_id: string
-            identifier for contest
-        candidate: string
-            identifier for candidate
-
-        cvr: a CVR object
-
-        Returns:
-        --------
-        vote: bool or int
-        '''
-        return False if (contest_id not in cvr.votes or candidate not in cvr.votes[contest_id])\
-               else cvr.votes[contest_id][candidate]
 
     @classmethod
     def make_phantoms(cls, audit: None, contests: dict=None, cvr_list: list=None, prefix: str='phantom-'):
@@ -568,3 +523,46 @@ class CVR:
             if i in sampled_cvr_indices:
                 cvr_list[i].sampled = True
         return sampled_cvr_indices
+
+    @classmethod
+    def tabulate_styles(cls, cvr_list: list=None):
+        '''
+        tabulate unique CVR styles in cvr_list
+
+        Parameters
+        ----------
+        cvr_list: a list of CVR objects
+
+        Returns
+        -------
+        a dict of styles and the counts of those styles 
+        '''
+        # iterate through and find all the unique styles
+        style_counts = defaultdict(int)
+        for cvr in cvr_list:
+            style_counts[frozenset(cvr.votes.keys())] += 1
+        return style_counts
+
+    @classmethod
+    def count_votes(cls, cvr_list: list=None):
+        """
+        tabulate total votes for each candidate in each contest in cvr_list.
+        For plurality, supermajority, and approval. Not useful for ranked-choice voting
+
+        Parameters
+        ----------
+        cvr_list: list of CVR objects 
+
+        Returns
+        -------
+        dict of dicts:
+            main key is contest
+            sub key is the candidate in the contest
+            value is the number of votes for that candidate in that contest
+        """
+        d = defaultdict(lambda: defaultdict(int))
+        for c in cvr_list:
+            for con, votes in c.votes.items():
+                for cand in votes:
+                    d[con][cand] += CVR.as_vote(c.get_vote_for(con, cand))
+        return d

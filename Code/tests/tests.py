@@ -15,9 +15,11 @@ from CVR import CVR
 from Audit import Audit, Assertion, Assorter, Contest, Stratum
 from NonnegMean import NonnegMean
 from Dominion import Dominion
+from Hart import Hart
 import pandas as pd
 
 #######################################################################################################
+
 class TestCVR:
     
     def test_rcv_lfunc_wo(self):
@@ -208,7 +210,40 @@ class TestCVR:
         sample_cvr_indices = CVR.consistent_sampling(cvrs, con_tests)
         assert sample_cvr_indices == [4, 3, 5, 0, 1]
 
+    def test_tabulate_styles(self):
+        cvrs = [CVR(id="1", votes={"city_council": {"Alice": 1}, "measure_1": {"yes": 1}}, phantom=False), 
+                CVR(id="2", votes={"city_council": {"Bob": 1}, "measure_1": {"yes": 1}}, phantom=False), 
+                CVR(id="3", votes={"city_council": {"Bob": 1}, "measure_1": {"no": 1}}, phantom=False), 
+                CVR(id="4", votes={"city_council": {"Charlie": 1}}, phantom=False), 
+                CVR(id="5", votes={"city_council": {"Doug": 1}}, phantom=False), 
+                CVR(id="6", votes={"measure_1": {"no": 1}}, phantom=False),
+                CVR(id="7", votes={"city_council": {"Alice": 1}, "measure_1": {"yes": 1}, "measure_2": {"no":1}},
+                          phantom=False), 
+                CVR(id="8", votes={"measure_1": {"no": 1}, "measure_2": {"yes": 1}}, phantom=False),
+                CVR(id="9", votes={"measure_1": {"no": 1}, "measure_3": {"yes": 1}}, phantom=False),
+            ]
+        assert len(CVR.tabulate_styles(cvrs)) == 6
+         
+    def test_count_votes(self):
+        cvrs = [CVR(id="1", votes={"city_council": {"Alice": 1}, "measure_1": {"yes": 1}}, phantom=False), 
+                CVR(id="2", votes={"city_council": {"Bob": 1}, "measure_1": {"yes": 1}}, phantom=False), 
+                CVR(id="3", votes={"city_council": {"Bob": 1}, "measure_1": {"no": 1}}, phantom=False), 
+                CVR(id="4", votes={"city_council": {"Charlie": 1}}, phantom=False), 
+                CVR(id="5", votes={"city_council": {"Doug": 1}}, phantom=False), 
+                CVR(id="6", votes={"measure_1": {"no": 1}}, phantom=False),
+                CVR(id="7", votes={"city_council": {"Alice": 1}, "measure_1": {"yes": 1}, "measure_2": {"no":1}},
+                          phantom=False), 
+                CVR(id="8", votes={"measure_1": {"no": 1}, "measure_2": {"yes": 1}}, phantom=False),
+                CVR(id="9", votes={"measure_1": {"no": 1}, "measure_3": {"yes": 1}}, phantom=False),
+            ]
+        d = CVR.count_votes(cvrs)
+        assert d['city_council']['Alice'] == 2
+        assert d['city_council']['Bob'] == 2
+        assert d['city_council']['Doug'] == 1
+        assert d['measure_1']['no'] == 4
+            
 ######################################################################################
+
 class TestAudit:
     
     def test_from_dict(self):
@@ -603,6 +638,7 @@ class TestAssertion:
         
 ###################################################################################################
 class TestContests:
+    
     def test_contests_from_dict_of_dicts(self):
         ids = ['1','2']
         choice_functions = [Audit.SOCIAL_CHOICE_FUNCTION.PLURALITY, Audit.SOCIAL_CHOICE_FUNCTION.SUPERMAJORITY]
