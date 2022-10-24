@@ -228,7 +228,7 @@ class TestCVR:
         assert t[frozenset(['city_council','measure_1','measure_2'])] == 1
         
          
-    def test_count_votes(self):
+    def test_tabulate_votes(self):
         cvrs = [CVR(id="1", votes={"city_council": {"Alice": 1}, "measure_1": {"yes": 1}}, phantom=False), 
                 CVR(id="2", votes={"city_council": {"Bob": 1}, "measure_1": {"yes": 1}}, phantom=False), 
                 CVR(id="3", votes={"city_council": {"Bob": 1}, "measure_1": {"no": 1}}, phantom=False), 
@@ -240,7 +240,7 @@ class TestCVR:
                 CVR(id="8", votes={"measure_1": {"no": 1}, "measure_2": {"yes": 1}}, phantom=False),
                 CVR(id="9", votes={"measure_1": {"no": 1}, "measure_3": {"yes": 1}}, phantom=False),
             ]
-        d = CVR.count_votes(cvrs)
+        d = CVR.tabulate_votes(cvrs)
         assert d['city_council']['Alice'] == 2
         assert d['city_council']['Bob'] == 2
         assert d['city_council']['Doug'] == 1
@@ -285,7 +285,7 @@ class TestAssertion:
                  'name': 'AvB',
                  'risk_limit': 0.05,
                  'cards': 10**4,
-                 'choice_function': Audit.SOCIAL_CHOICE_FUNCTION.SUPERMAJORITY,
+                 'choice_function': Contest.SOCIAL_CHOICE_FUNCTION.SUPERMAJORITY,
                  'n_winners': 1,
                  'candidates': 3,
                  'candidates': ['Alice','Bob','Candy'],
@@ -329,7 +329,7 @@ class TestAssertion:
         assn = Assertion.make_supermajority_assertion(contest=self.con_test, winner="Alice", 
                                                       loser=loser)
 
-        label = 'Alice v ' + Audit.CANDIDATES.ALL_OTHERS
+        label = 'Alice v ' + Contest.CANDIDATES.ALL_OTHERS
         votes = CVR.from_vote({"Alice": 1})
         assert assn[label].assorter.assort(votes) == 3/4, "wrong value for vote for winner"
 
@@ -354,7 +354,7 @@ class TestAssertion:
                      'name': 'AvB',
                      'risk_limit': 0.05,
                      'cards': 10**4,
-                     'choice_function': Audit.SOCIAL_CHOICE_FUNCTION.IRV,
+                     'choice_function': Contest.SOCIAL_CHOICE_FUNCTION.IRV,
                      'n_winners': 1,
                      'test': NonnegMean.alpha_mart,
                      'use_style': True
@@ -579,7 +579,7 @@ class TestAssertion:
                              'name': 'AvB',
                              'risk_limit': 0.05,
                              'cards': N,
-                             'choice_function': Audit.SOCIAL_CHOICE_FUNCTION.PLURALITY,
+                             'choice_function': Contest.SOCIAL_CHOICE_FUNCTION.PLURALITY,
                              'n_winners': 1,
                              'candidates': ['Alice','Bob', 'Carol'],
                              'winner': ['Alice'],
@@ -621,7 +621,7 @@ class TestAssertion:
                      'name': 'AvB',
                      'risk_limit': 0.05,
                      'cards': 10**4,
-                     'choice_function': Audit.SOCIAL_CHOICE_FUNCTION.PLURALITY,
+                     'choice_function': Contest.SOCIAL_CHOICE_FUNCTION.PLURALITY,
                      'n_winners': 1,
                      'candidates': ['Alice','Bob','Carol'],
                      'winner': ['Alice'],
@@ -645,7 +645,7 @@ class TestContests:
     
     def test_contests_from_dict_of_dicts(self):
         ids = ['1','2']
-        choice_functions = [Audit.SOCIAL_CHOICE_FUNCTION.PLURALITY, Audit.SOCIAL_CHOICE_FUNCTION.SUPERMAJORITY]
+        choice_functions = [Contest.SOCIAL_CHOICE_FUNCTION.PLURALITY, Contest.SOCIAL_CHOICE_FUNCTION.SUPERMAJORITY]
         risk_limit = 0.05
         cards = [10000, 20000]
         n_winners = [2, 1]
@@ -659,7 +659,7 @@ class TestContests:
                  'name': 'contest_1',
                  'risk_limit': 0.05,
                  'cards': 10**4,
-                 'choice_function': Audit.SOCIAL_CHOICE_FUNCTION.PLURALITY,
+                 'choice_function': Contest.SOCIAL_CHOICE_FUNCTION.PLURALITY,
                  'n_winners': 2,
                  'candidates': 5,
                  'candidates': ['alice','bob','carol','dave','erin'],
@@ -672,7 +672,7 @@ class TestContests:
                  'name': 'contest_2',
                  'risk_limit': 0.05,
                  'cards': 10**4,
-                 'choice_function': Audit.SOCIAL_CHOICE_FUNCTION.SUPERMAJORITY,
+                 'choice_function': Contest.SOCIAL_CHOICE_FUNCTION.SUPERMAJORITY,
                  'n_winners': 1,
                  'candidates': 4,
                  'candidates': ['alice','bob','carol','dave',],
