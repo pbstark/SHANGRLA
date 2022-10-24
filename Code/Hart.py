@@ -68,7 +68,7 @@ class Hart:
 
 
     @classmethod
-    def read_hart_cvr(cls, cvr_string: str=None) -> CVR:
+    def read_cvr(cls, cvr_string: str=None) -> CVR:
         """
         read a single Hart CVR from XML into python
 
@@ -147,7 +147,7 @@ class Hart:
 
         Returns:
         --------
-        cvr_list: list of CVRs as returned by read_hart_CVR()
+        cvr_list: list of CVRs as returned by read_CVR()
         """
         cvr_files = os.listdir(cvr_directory)
         cvr_list = []
@@ -155,11 +155,11 @@ class Hart:
             cvr_path = cvr_directory + "/" + file
             with open(cvr_path, 'r', encoding='latin-1') as xml_file:
                 raw_string = xml_file.read()
-            cvr_list.append(read_hart_cvr(raw_string))
+            cvr_list.append(read_cvr(raw_string))
 
         return cvr_list
 
-    #add new function to wrap read_hart_cvr that reads from ZIPs instead of from a directory
+    #add new function to wrap read_cvr that reads from ZIPs instead of from a directory
     @classmethod
     def read_cvrs_zip(cls, cvr_zip, size = None):
         """
@@ -172,7 +172,7 @@ class Hart:
 
         Returns:
         --------
-        cvr_list: list of CVRs as returned by read_hart_CVR()
+        cvr_list: list of CVRs as returned by read_CVR()
         """
         cvr_list = []
         with ZipFile(cvr_zip, 'r') as data:
@@ -182,7 +182,7 @@ class Hart:
             for cvr in file_list[0:size]:
                 with data.open(cvr) as xml_file:
                     raw_string = xml_file.read().decode()
-                    cvr_list.append(read_hart_cvr(raw_string))
+                    cvr_list.append(read_cvr(raw_string))
         return cvr_list
 
 
@@ -284,5 +284,3 @@ class Hart:
         # sort by id
         cards.sort(key = lambda x: x[3])
         return cards, sample_order, cvr_sample, mvr_phantoms
-
-

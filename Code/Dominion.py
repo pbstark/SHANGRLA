@@ -165,7 +165,7 @@ class Dominion:
         return cards, sample_order, mvr_phantoms
 
     @classmethod
-    def sample_from_cvrs(cls,cvr_list: list, manifest: list, sample: np.array):
+    def sample_from_cvrs(cls, cvr_list: list, manifest: list, sample: np.array):
         """
         Sample from a list of CVRs: return info to find the cards, CVRs, & mvrs for sampled phantom cards
 
