@@ -432,7 +432,7 @@ class NonnegMean:
             hypothesized rate of two-vote overstatements 
         '''
         # set the parameters
-        p2 = getattr(self, 'rate_error_2', 1e-4) # rate of 2-vote overstatement errors
+        p2 = getattr(self, 'rate_error_2', 1e-4) # rate of 2-vote overstatement errors  TO DO: double check where rate_error_2 is set
         return (1-self.u*(1-p2))/(2-2*self.u) + self.u*(1-p2) - 1/2
                      
     def sample_size(

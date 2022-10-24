@@ -556,7 +556,7 @@ class CVR:
     @classmethod
     def consistent_sampling(cls, cvr_list: list=None, contests: dict=None, sampled_cvr_indices: list=None) -> list:
         '''
-        Sample CVR ids for contests to attain sample sizes in sample_size_dict
+        Sample CVR ids for contests to attain sample sizes in contests, a dict of Contest objects
 
         Assumes that phantoms have already been generated and sample_num has been assigned
         to every CVR, including phantoms
@@ -617,10 +617,10 @@ class CVR:
         return style_counts
 
     @classmethod
-    def count_votes(cls, cvr_list: list=None):
+    def tabulate_votes(cls, cvr_list: list=None):
         """
         tabulate total votes for each candidate in each contest in cvr_list.
-        For plurality, supermajority, and approval. Not useful for ranked-choice voting
+        For plurality, supermajority, and approval. Not useful for ranked-choice voting.
 
         Parameters
         ----------
@@ -652,14 +652,6 @@ class Audit:
                   'log_file', 'quantile', 'error_rate_1', 'error_rate_2', 'reps', 'max_cards', 
                   'strata') 
 
-    class SOCIAL_CHOICE_FUNCTION:
-        '''
-        social choice functions
-        '''
-        SOCIAL_CHOICE_FUNCTIONS = (APPROVAL:= 'APPROVAL',
-                                   PLURALITY:= 'PLURALITY',
-                                   SUPERMAJORITY:= 'SUPERMAJORITY',
-                                   IRV:= 'IRV')
     
     class AUDIT_TYPE:
         '''
@@ -670,17 +662,6 @@ class Audit:
                       ) 
         # TO DO: BATCH_COMPARISON, STRATIFIED, HYBRID, ...
 
-    class CANDIDATES:
-        '''
-        constants for referring to candidates and candidate groups.
-        
-        For example, in a supermajority contest where no candidate is reported to have won,
-        the winner is Audit.CANDIDATES.NO_CANDIDATE, and in a supermajority contest in which one
-        candidate is reported to have won, the loser (for the assorter) is Audit.CANDIDATES.ALL_OTHERS
-        '''
-        CANDIDATES = (ALL:= 'ALL',
-                      ALL_OTHERS:= 'ALL_OTHERS',
-                      NO_CANDIDATE:= 'NO_CANDIDATE')
     
     def __init__(
                  self,
@@ -737,36 +718,34 @@ class Audit:
         ------------
         sets c.sample_size for each Contest in contests
         '''
-        # set dict of old sample sizes for each contest
-        old_sizes = {c:0 for c in contests.keys()}
-        # use style information? Currently, only unstratified audits are supported
+        # Currently, only unstratified audits are supported
         if len(self.strata) > 1:
             raise NotImplementedError('only unstratified audits are currently supported')
-        stratum = next(iter(self.strata.values()))
-        use_style = stratum.use_style
-        if use_style and cvrs is None:
-            raise ValueError("use_style==True but cvrs was not provided.")
-        data=None # TO DO change to use data 
-        if use_style:
+        stratum = next(iter(self.strata.values())) # the only stratum
+        if stratum.use_style and cvrs is None:
+            raise ValueError("stratum.use_style==True but cvrs was not provided.")
+        # unless style information is being used, the sample size is the same for every contest.
+        old = 0 if stratum.use_style else len(mvr_sample)
+        old_sizes = {c:old for c in contests.keys()}
+        for i, c in contests.items():
+            if stratum.use_style:
+                old_sizes[i] = np.sum(np.array([cvr.sampled for cvr in cvrs if cvr.has_contest(i)]))
+            new_size = 0
+            for j, a in c.assertions.items():
+                data=None # TO DO change to use data 
+                if not a.proved:
+                    new_size = max(new_size, a.find_sample_size(data=data, rate=self.error_rate_1, 
+                                                                reps=self.reps, quantile=self.quantile,
+                                                                seed=self.sim_seed))
+            c.sample_size = new_size
+        if stratum.use_style:
             for cvr in cvrs:
                 if cvr.sampled:
                     cvr.p=1
-                else:
-                    cvr.p=0
-            for i, c in contests.items():
-                old_sizes[i] = np.sum(np.array([cvr.sampled for cvr in cvrs if cvr.has_contest(i)]))
-                new_size = 0
-                for j, a in c.assertions.items():
-                    if not a.proved:
-                        new_size = max(new_size, a.find_sample_size(data=data, rate=self.error_rate_1, 
-                                                                    reps=self.reps, quantile=self.quantile,
-                                                                    seed=self.sim_seed))
-                c.sample_size = new_size
-        if cvrs:
-            for cvr in cvrs:
-                for i, c in contests.items():
-                    if cvr.has_contest(i) and not cvr.sampled:
-                        cvr.p = np.max(c.sample_size/(c.cards - old_sizes[i]), cvr.p)
+                else:    
+                    for i, c in contests.items():
+                        if cvr.has_contest(i) and not cvr.sampled:
+                            cvr.p = np.max(c.sample_size/(c.cards - old_sizes[i]), cvr.p)
             total_size = math.ceil(np.sum([x.p for x in cvrs]))
         else:
             total_size = np.max(np.array([c.sample_size for c in contests.values()]))
@@ -793,17 +772,17 @@ class Audit:
         for i, c in contests.items():
             assert c.risk_limit > 0, f'risk limit {c.risk_limit} negative in contest {c}'
             assert c.risk_limit <= 1/2, f'risk limit {c.risk_limit} exceeds 1/2 in contest {c}'
-            assert c.choice_function in Audit.SOCIAL_CHOICE_FUNCTION.SOCIAL_CHOICE_FUNCTIONS, \
+            assert c.choice_function in Contest.SOCIAL_CHOICE_FUNCTION.SOCIAL_CHOICE_FUNCTIONS, \
                       f'unsupported choice function {c.choice_function} in contest {i}'
             assert c.n_winners <= len(c.candidates), f'more winners than candidates in contest {i}'
             assert len(c.winner) == c.n_winners, \
                 f'number of reported winners does not equal n_winners in contest {i}'
             for w in c.winner:
                 assert w in c.candidates, f'reported winner {w} is not a candidate in contest {i}'
-            if c.choice_function in [Audit.SOCIAL_CHOICE_FUNCTION.IRV, 
-                                     Audit.SOCIAL_CHOICE_FUNCTION.SUPERMAJORITY]:
+            if c.choice_function in [Contest.SOCIAL_CHOICE_FUNCTION.IRV, 
+                                     Contest.SOCIAL_CHOICE_FUNCTION.SUPERMAJORITY]:
                 assert c.n_winners == 1, f'{c.choice_function} can have only 1 winner in contest {i}'
-            if c.choice_function == Audit.SOCIAL_CHOICE_FUNCTION.IRV:
+            if c.choice_function == Contest.SOCIAL_CHOICE_FUNCTION.IRV:
                 assert c.assertion_file, f'IRV contest {i} requires an assertion file'
 
 
@@ -918,13 +897,13 @@ class Assertion:
             contest to which the assorter is relevant
         winner: str
             identifier for the nominal "winner" for this assertion. Can be an element of self.contest.candidates, 
-            an element of Audit.CANDIDATES, or an arbitrary label.
-            Using an element of self.contest.candidates or an element of Audit.CANDIDATES can be useful for 
+            an element of Contest.CANDIDATES, or an arbitrary label.
+            Using an element of self.contest.candidates or an element of Contest.CANDIDATES can be useful for 
             setting the margin in approval, plurality, and supermajority contests.
         loser: str
             identifier for the nominal "loser" for this assertion. Can be an element of self.contest.candidates, 
-            an element of Audit.CANDIDATES, or an arbitrary label.
-            Using an element of self.contest.candidates or an element of Audit.CANDIDATES can be useful for 
+            an element of Contest.CANDIDATES, or an arbitrary label.
+            Using an element of self.contest.candidates or an element of Contest.CANDIDATES can be useful for 
             setting the margin in approval, plurality, and supermajority contests.
         assorter: callable
             the assorter for the assertion
@@ -1210,11 +1189,11 @@ class Assertion:
         
         '''
         tally = tally if tally else self.contest.tally
-        if self.contest.choice_function == Audit.SOCIAL_CHOICE_FUNCTION.PLURALITY \
-             or self.contest.choice_function == Audit.SOCIAL_CHOICE_FUNCTION.APPROVAL:
+        if self.contest.choice_function == Contest.SOCIAL_CHOICE_FUNCTION.PLURALITY \
+             or self.contest.choice_function == Contest.SOCIAL_CHOICE_FUNCTION.APPROVAL:
             self.margin = (tally[self.winner]-tally[self.loser])/self.contest.cards
-        elif self.contest.choice_function == Audit.SOCIAL_CHOICE_FUNCTION.SUPERMAJORITY:
-            if self.winner == Audit.CANDIDATES.NO_CANDIDATE or self.loser != Audit.CANDIDATES.ALL_OTHERS:
+        elif self.contest.choice_function == Contest.SOCIAL_CHOICE_FUNCTION.SUPERMAJORITY:
+            if self.winner == Contest.CANDIDATES.NO_CANDIDATE or self.loser != Contest.CANDIDATES.ALL_OTHERS:
                 raise NotImplementedError(f'TO DO: currently only support super-majority with a winner')
             else:
                 q = np.sum([tally[c] for c in self.contest.candidates])/self.contest.cards
@@ -1321,7 +1300,7 @@ class Assertion:
                For BALLOT_COMPARISON, values are overstatement assorter values corresponding to 
                  overstatements of u or 0.
             '''
-            big = self.test.u if self.contest.audit_type == Audit.AUDIT_TYPE.POLLING \
+            big = self.assorter.upper_bound if self.contest.audit_type == Audit.AUDIT_TYPE.POLLING \
                               else self.make_overstatement(overs=0)
             small = 0 if self.contest.audit_type == Audit.AUDIT_TYPE.POLLING else self.make_overstatement(overs=1/2) 
             small_rate = (rate if self.contest.audit_type == Audit.AUDIT_TYPE.BALLOT_COMPARISON 
@@ -1418,11 +1397,11 @@ class Assertion:
 
         '''
         assertions = {}
-        wl_pair = winner + ' v ' + Audit.CANDIDATES.ALL_OTHERS
+        wl_pair = winner + ' v ' + Contest.CANDIDATES.ALL_OTHERS
         cands = loser.copy()
         cands.append(winner)
         _test = NonnegMean(test=test, estim=estim, u=1/(2*contest.share_to_win), N=contest.cards, t=1/2, random_order=True)
-        assertions[wl_pair] = Assertion(contest, winner=winner, loser=Audit.CANDIDATES.ALL_OTHERS,
+        assertions[wl_pair] = Assertion(contest, winner=winner, loser=Contest.CANDIDATES.ALL_OTHERS,
                                  assorter=Assorter(contest_id=contest.id, 
                                           assort = lambda c, contest_id=contest.id: 
                                                 CVR.as_vote(c.get_vote_for(contest.id, winner))/(2*contest.share_to_win) 
@@ -1522,14 +1501,14 @@ class Assertion:
             losrs = list(set(con.candidates) - set(winrs))
             test = con.test  
             estim = con.estim
-            if scf == Audit.SOCIAL_CHOICE_FUNCTION.PLURALITY:
+            if scf == Contest.SOCIAL_CHOICE_FUNCTION.PLURALITY:
                 contests[c].assertions = Assertion.make_plurality_assertions(contest=con, winner=winrs, loser=losrs, 
                                                                                 test=test, estim=estim)
-            elif scf == Audit.SOCIAL_CHOICE_FUNCTION.SUPERMAJORITY:
+            elif scf == Contest.SOCIAL_CHOICE_FUNCTION.SUPERMAJORITY:
                 contests[c].assertions = Assertion.make_supermajority_assertion(contest=con, winner=winrs[0], 
                                                     loser=losrs, share_to_win=con.share_to_win, 
                                                     test=test, estim=estim)
-            elif scf == Audit.SOCIAL_CHOICE_FUNCTION.IRV:
+            elif scf == Contest.SOCIAL_CHOICE_FUNCTION.IRV:
                 # Assumption: contests[c].assertion_json yields list assertions in JSON format.
                 contests[c].assertions = Assertion.make_assertions_from_json(contest=con, 
                                                     candidates=con.candidates,
@@ -1738,6 +1717,25 @@ class Contest:
     Objects and methods for contests. 
     '''
     
+    class SOCIAL_CHOICE_FUNCTION:
+        '''
+        social choice functions
+        '''
+        SOCIAL_CHOICE_FUNCTIONS = (APPROVAL:= 'APPROVAL',
+                                   PLURALITY:= 'PLURALITY',
+                                   SUPERMAJORITY:= 'SUPERMAJORITY',
+                                   IRV:= 'IRV')
+    class CANDIDATES:
+        '''
+        constants for referring to candidates and candidate groups.
+        
+        For example, in a supermajority contest where no candidate is reported to have won,
+        the winner is Contest.CANDIDATES.NO_CANDIDATE, and in a supermajority contest in which one
+        candidate is reported to have won, the loser (for the assorter) is Contest.CANDIDATES.ALL_OTHERS
+        '''
+        CANDIDATES = (ALL:= 'ALL',
+                      ALL_OTHERS:= 'ALL_OTHERS',
+                      NO_CANDIDATE:= 'NO_CANDIDATE')
     ATTRIBUTES = (
                   'id',
                   'name',
@@ -1765,7 +1763,7 @@ class Contest:
                  name: str=None, 
                  risk_limit: float=0.05, 
                  cards: int=0, 
-                 choice_function: str=Audit.SOCIAL_CHOICE_FUNCTION.PLURALITY, 
+                 choice_function: str=SOCIAL_CHOICE_FUNCTION.PLURALITY, 
                  n_winners: int=1, 
                  share_to_win: float=None, 
                  candidates: list=None, 
@@ -1844,9 +1842,9 @@ class Contest:
         Use the `Contest.tally` attribute to set the margins of the contest's assorters.
         
         Appropriate only for the social choice functions
-                Audit.SOCIAL_CHOICE_FUNCTION.PLURALITY, 
-                Audit.SOCIAL_CHOICE_FUNCTION.SUPERMAJORITY,
-                Audit.SOCIAL_CHOICE_FUNCTION.APPROVAL
+                Contest.SOCIAL_CHOICE_FUNCTION.PLURALITY, 
+                Contest.SOCIAL_CHOICE_FUNCTION.SUPERMAJORITY,
+                Contest.SOCIAL_CHOICE_FUNCTION.APPROVAL
         
         
         Parameters
