@@ -12,7 +12,7 @@ from cryptorandom.sample import random_permutation
 from cryptorandom.sample import sample_by_index
 from NonnegMean import NonnegMean
 
-##########################################################################################    
+##########################################################################################
 class Stratum:
     '''
     stratum attributes
@@ -43,7 +43,7 @@ class Stratum:
         s.__dict__.update(d)
         return s
 
-##########################################################################################    
+##########################################################################################
 class NpEncoder(json.JSONEncoder):
     '''
     for json dumps of Audit, Assertion, Contest
@@ -62,7 +62,7 @@ class NpEncoder(json.JSONEncoder):
         if isinstance(obj, Contest):
             return obj.__str__()
         return super(NpEncoder, self).default(obj)
-    
+
     @classmethod
     def trim_ints(cls, x):
         '''
@@ -82,7 +82,7 @@ class NpEncoder(json.JSONEncoder):
             raise TypeError
 
 
-##########################################################################################    
+##########################################################################################
 
 class CVR:
     '''
@@ -130,7 +130,7 @@ class CVR:
     Methods:
     --------
 
-    get_vote_for: 
+    get_vote_for:
          get_vote_for(candidate, contest_id) returns the value in the votes dict for the key `candidate`, or
          False if the candidate did not get a vote or the contest_id is not in the CVR
     has_contest: returns bool
@@ -312,12 +312,12 @@ class CVR:
     def from_raire_file(cls, cvr_file: str=None):
         '''
         Read CVR data from a file; construct list of CVR objects from the data
-        
+
         Parameters
         ----------
         cvr_file : str
-            filename 
-            
+            filename
+
         Returns
         -------
         cvrs: list of CVR objects
@@ -333,7 +333,7 @@ class CVR:
                 cvr_in.append(row)
         cvrs = CVR.from_raire(cvr_in)
         return cvrs, len(cvr_in), len(cvrs)
-        
+
     @classmethod
     def merge_cvrs(cls, cvr_list):
         '''
@@ -398,8 +398,8 @@ class CVR:
         Make phantom CVRs as needed for phantom cards; set contest parameters `cards` (if not set) and `cvrs`
 
         **Currently only works for unstratified audits.**
-        If `audit.strata[s]['use_style']`, phantoms are "per contest": each contest needs enough to account for the 
-        difference between the number of cards that might contain the contest and the number of CVRs that contain 
+        If `audit.strata[s]['use_style']`, phantoms are "per contest": each contest needs enough to account for the
+        difference between the number of cards that might contain the contest and the number of CVRs that contain
         the contest. This can result in having more cards in all (manifest and phantoms) than max_cards, the maximum cast.
 
         If `not use_style`, phantoms are for the election as a whole: need enough to account for the difference
@@ -545,7 +545,7 @@ class CVR:
         Returns
         -------
         True
-        
+
         Side effects
         ------------
         cvr_list is sorted by sample_num
@@ -586,7 +586,7 @@ class CVR:
         sorted_cvr_indices = [i for i, cv in sorted(enumerate(cvr_list), key = lambda x: x[1].sample_num)]
         inx = len(sampled_cvr_indices)
         while any([contest_in_progress(v) for c, v in contests.items()]):
-            if any([(contest_in_progress(v) and cvr_list[sorted_cvr_indices[inx]].has_contest(v.id)) 
+            if any([(contest_in_progress(v) and cvr_list[sorted_cvr_indices[inx]].has_contest(v.id))
                      for c, v in contests.items()]):
                 sampled_cvr_indices.append(sorted_cvr_indices[inx])
                 for c, v in contests.items():
@@ -608,7 +608,7 @@ class CVR:
 
         Returns
         -------
-        a dict of styles and the counts of those styles 
+        a dict of styles and the counts of those styles
         '''
         # iterate through and find all the unique styles
         style_counts = defaultdict(int)
@@ -624,7 +624,7 @@ class CVR:
 
         Parameters
         ----------
-        cvr_list: list of CVR objects 
+        cvr_list: list of CVR objects
 
         Returns
         -------
@@ -639,30 +639,30 @@ class CVR:
                 for cand in votes:
                     d[con][cand] += CVR.as_vote(c.get_vote_for(con, cand))
         return d
-    
-##########################################################################################    
+
+##########################################################################################
 class Audit:
     '''
-    Various constants that specify what kind of contests are audited and how to audit them.    
+    Various constants that specify what kind of contests are audited and how to audit them.
     Methods to estimate the sample size to audit every contest.
     Methods for logging and checking parameters.
     '''
-    
-    ATTRIBUTES = ('seed', 'sim_seed', 'cvr_file', 'manifest_file', 'sample_file', 'mvr_file', 
-                  'log_file', 'quantile', 'error_rate_1', 'error_rate_2', 'reps', 'max_cards', 
-                  'strata') 
 
-    
+    ATTRIBUTES = ('seed', 'sim_seed', 'cvr_file', 'manifest_file', 'sample_file', 'mvr_file',
+                  'log_file', 'quantile', 'error_rate_1', 'error_rate_2', 'reps', 'max_cards',
+                  'strata')
+
+
     class AUDIT_TYPE:
         '''
         types of audit
         '''
         AUDIT_TYPES = (POLLING:= 'POLLING',
                        BALLOT_COMPARISON:= 'BALLOT_COMPARISON'
-                      ) 
+                      )
         # TO DO: BATCH_COMPARISON, STRATIFIED, HYBRID, ...
 
-    
+
     def __init__(
                  self,
                  seed: object=None,
@@ -694,7 +694,7 @@ class Audit:
 
     def __str__(self):
         return str(self.__dict__)
-        
+
     def find_sample_size(self, contests: dict=None, cvrs: list=None, mvr_sample: list=None) -> tuple[int, dict]:
         '''
         Estimate sample size for each contest and overall to allow the audit to complete.
@@ -707,13 +707,13 @@ class Audit:
         cvrs: list of CVR objects
             the full set of CVRs
         mvr_sample: list of CVR objects
-            manually ascertained votes           
+            manually ascertained votes
 
         Returns
         -------
         new_size: int
             new sample size
-            
+
         Side effects
         ------------
         sets c.sample_size for each Contest in contests
@@ -732,9 +732,9 @@ class Audit:
                 old_sizes[i] = np.sum(np.array([cvr.sampled for cvr in cvrs if cvr.has_contest(i)]))
             new_size = 0
             for j, a in c.assertions.items():
-                data=None # TO DO change to use data 
+                data=None # TO DO change to use data
                 if not a.proved:
-                    new_size = max(new_size, a.find_sample_size(data=data, rate=self.error_rate_1, 
+                    new_size = max(new_size, a.find_sample_size(data=data, rate=self.error_rate_1,
                                                                 reps=self.reps, quantile=self.quantile,
                                                                 seed=self.sim_seed))
             c.sample_size = new_size
@@ -742,7 +742,7 @@ class Audit:
             for cvr in cvrs:
                 if cvr.sampled:
                     cvr.p=1
-                else:    
+                else:
                     for i, c in contests.items():
                         if cvr.has_contest(i) and not cvr.sampled:
                             cvr.p = np.max(c.sample_size/(c.cards - old_sizes[i]), cvr.p)
@@ -750,7 +750,7 @@ class Audit:
         else:
             total_size = np.max(np.array([c.sample_size for c in contests.values()]))
         return total_size
-    
+
     def check_audit_parameters(self, contests: dict=None):
         '''
         Check whether the audit parameters are valid; complain if not.
@@ -762,7 +762,7 @@ class Audit:
 
         Returns
         -------
-        
+
         Side effects
         ------------
         raises exceptions if Audit parameters or contest parameters fail tests
@@ -779,7 +779,7 @@ class Audit:
                 f'number of reported winners does not equal n_winners in contest {i}'
             for w in c.winner:
                 assert w in c.candidates, f'reported winner {w} is not a candidate in contest {i}'
-            if c.choice_function in [Contest.SOCIAL_CHOICE_FUNCTION.IRV, 
+            if c.choice_function in [Contest.SOCIAL_CHOICE_FUNCTION.IRV,
                                      Contest.SOCIAL_CHOICE_FUNCTION.SUPERMAJORITY]:
                 assert c.n_winners == 1, f'{c.choice_function} can have only 1 winner in contest {i}'
             if c.choice_function == Contest.SOCIAL_CHOICE_FUNCTION.IRV:
@@ -808,7 +808,7 @@ class Audit:
               }
         with open(log_file, 'w') as f:
             f.write(json.dumps(out, cls=NpEncoder))
-            
+
     def summarize_status(self, contests: dict=None):
         '''
         Determine whether the audit of individual assertions, contests, and the whole election are finished.
@@ -844,7 +844,7 @@ class Audit:
                     if a.p_value > con.risk_limit:
                         print(f'\t{a}: current risk {a.p_value}')
         return done
-    
+
     @classmethod
     def from_dict(cls, d: dict=None):
         '''
@@ -860,9 +860,9 @@ class Audit:
         d['strata'] = strat_obj
         a.__dict__.update(d)
         return a
-               
-    
-##########################################################################################    
+
+
+##########################################################################################
 class Assertion:
     '''
     Objects and methods for SHANGRLA assertions about election outcomes
@@ -872,20 +872,20 @@ class Assertion:
     An _assorter_ maps votes to nonnegative numbers not exceeding some upper bound, `upper_bound`
     '''
     # supported json assertion types for imported assertions
-    JSON_ASSERTION_TYPES = (WINNER_ONLY:= "WINNER_ONLY", 
-                            IRV_ELIMINATION:= "IRV_ELIMINATION") 
-    
+    JSON_ASSERTION_TYPES = (WINNER_ONLY:= "WINNER_ONLY",
+                            IRV_ELIMINATION:= "IRV_ELIMINATION")
+
     def __init__(
-                 self, 
+                 self,
                  contest: object=None,
                  assorter: callable=None,
                  winner: str=None,
                  loser: str=None,
-                 margin: float=None, 
-                 test: object=None, 
-                 p_value: float=1, 
-                 p_history: list=[], 
-                 proved: bool=False, 
+                 margin: float=None,
+                 test: object=None,
+                 p_value: float=1,
+                 p_history: list=[],
+                 proved: bool=False,
                  sample_size: int=None):
         '''
         assorter() should produce a float in [0, upper_bound]
@@ -896,14 +896,14 @@ class Assertion:
         contest: Contest instance
             contest to which the assorter is relevant
         winner: str
-            identifier for the nominal "winner" for this assertion. Can be an element of self.contest.candidates, 
+            identifier for the nominal "winner" for this assertion. Can be an element of self.contest.candidates,
             an element of Contest.CANDIDATES, or an arbitrary label.
-            Using an element of self.contest.candidates or an element of Contest.CANDIDATES can be useful for 
+            Using an element of self.contest.candidates or an element of Contest.CANDIDATES can be useful for
             setting the margin in approval, plurality, and supermajority contests.
         loser: str
-            identifier for the nominal "loser" for this assertion. Can be an element of self.contest.candidates, 
+            identifier for the nominal "loser" for this assertion. Can be an element of self.contest.candidates,
             an element of Contest.CANDIDATES, or an arbitrary label.
-            Using an element of self.contest.candidates or an element of Contest.CANDIDATES can be useful for 
+            Using an element of self.contest.candidates or an element of Contest.CANDIDATES can be useful for
             setting the margin in approval, plurality, and supermajority contests.
         assorter: callable
             the assorter for the assertion
@@ -911,7 +911,7 @@ class Assertion:
             the assorter margin. Generally this will not be known when the assertion is created, but will be set
             later.
         test: instance of class NonnegMean
-            the function to find the p-value of the hypothesis that the assertion is true, i.e., that the 
+            the function to find the p-value of the hypothesis that the assertion is true, i.e., that the
             assorter mean is <=1/2
         p_value: float
             the current p-value for the complementary null hypothesis that the assertion is false
@@ -1012,13 +1012,13 @@ class Assertion:
         margin: float
         '''
         return 2*self.assorter_mean(cvr_list, use_style=use_style)-1
-    
+
     def overstatement_assorter_margin(self, error_rate_1: float=0, error_rate_2: float=0) -> float:
         '''
         find the overstatement assorter margin corresponding to an assumed rate of 1-vote and 2-vote overstatements
-        
+
         Parameters
-        ----------        
+        ----------
         error_rate_1: float
             the assumed rate of one-vote overstatement errors in the CVRs
         error_rate_2: float
@@ -1030,26 +1030,26 @@ class Assertion:
         '''
         return (1 - (error_rate_2 + error_rate_1/2)*self.assorter.upper_bound/self.margin) \
                 /(2*self.assorter.upper_bound/assorter_margin-1)
-    
+
     def overstatement_assorter_mean(self, error_rate_1: float=0, error_rate_2: float=0) -> float:
         '''
         find the overstatement assorter mean corresponding to assumed rates of 1-vote and 2-vote overstatements
-        
+
         Parameters
         ----------
         error_rate_1: float
             the assumed rate of one-vote overstatement errors in the CVRs
         error_rate_2: float
             the assumed rate of two-vote overstatement errors in the CVRs
-            
-        
+
+
         Returns
         -------
         overstatement assorter mean implied by the assorter mean and the assumed error rates
-        
+
         '''
         return (1-error_rate_1/2 - error_rate_2)/(2-aself.margin/self.assorter.upper_bound)
-    
+
 
     def overstatement(self, mvr, cvr, use_style=True):
         '''
@@ -1112,7 +1112,7 @@ class Assertion:
         mvr: Cvr
             the manual interpretation of voter intent
         cvr: Cvr
-            the machine-reported cast vote record. 
+            the machine-reported cast vote record.
 
         Returns
         --------
@@ -1123,26 +1123,26 @@ class Assertion:
                 v is the assorter margin
         '''
         return (1-self.overstatement(mvr, cvr, use_style)/self.assorter.upper_bound)/(2-self.margin/self.assorter.upper_bound)
-    
+
     def find_margin_from_cvrs(self, audit: object=None, cvr_list: list=None):
         '''
         find assorter margin from cvrs and store it
-        
+
         Parameters
         ----------
         cvr_list: list
             cvrs from which the sample will be drawn
         use_style: bool
             is the sample drawn only from ballots that should contain the contest?
-            
+
         Returns
         -------
         nothing
-        
+
         Side effects
         ------------
         sets assorter.margin
-        
+
         '''
         if len(audit.strata) > 1:
             raise NotImplementedError('stratified audits not yet supported')
@@ -1162,31 +1162,31 @@ class Assertion:
     def find_margin_from_tally(self, tally: dict=None):
         '''
         find the assorter margin between implied by a tally.
-        
+
         Generally useful only for approval, plurality, and supermajority contests.
-        
+
         Assumes the number of cards containing the contest has been set.
-        
+
         Parameters
         ----------
         tally: dict
             dict of tallies for the candidates in the contest. Keys are candidates as listed
             in Contest.candidates. If `tally is None` tries to use the contest.tally.
-            
+
         The margin for a supermajority contest with a winner is (see SHANRGLA section 2.3)
               2(pq/(2f) + (1 − q)/2 - 1/2) = q(p/f-1), where:
                      q is the fraction of cards that have valid votes
                      p is the fraction of cards that have votes for the winner
                      f is the fraction of valid votes required to win.
-            
+
         Returns
         -------
         nothing
-        
+
         Side effects
         ------------
         sets self.margin
-        
+
         '''
         tally = tally if tally else self.contest.tally
         if self.contest.choice_function == Contest.SOCIAL_CHOICE_FUNCTION.PLURALITY \
@@ -1202,13 +1202,13 @@ class Assertion:
         else:
             raise NotImplementedError(f'social choice function {self.contest.choice_function} not supported')
 
-                
+
     def make_overstatement(self, overs: float, cvr_list: list=None, use_style: bool=False) -> float:
         '''
         return the numerical value corresponding to an overstatement of `overs` times the assorter upper bound `u`
-        
+
         **Assumes that the margin has been set.**
-        
+
         Parameters
         ----------
         overs: float
@@ -1217,41 +1217,41 @@ class Assertion:
             the cvrs. Only used if the assorter margin has not been set
         use_style: bool
             flag to use style information. Only used if the assorter margin has not been set
-        
+
         Returns
         -------
         the numerical value corresponding to an overstatement of that multiple
-        
+
         '''
         return (1-overs/self.assorter.upper_bound)/(2-self.margin/self.assorter.upper_bound)
-                
+
 
     def find_sample_size(
-                    self, data: np.array=None, prefix: bool=True, rate: float=None, 
+                    self, data: np.array=None, prefix: bool=True, rate: float=None,
                     reps: int=None, quantile: float=0.5, seed: int=1234567890) -> int:
         '''
         Estimate sample size needed to reject the null hypothesis that the assorter mean is <=1/2,
-        for the specified risk function, given the margin and--for comparison audits--assumptions 
+        for the specified risk function, given the margin and--for comparison audits--assumptions
         about the rate of overstatement errors.
-        
+
         If `data is not None`, uses data to make the estimate. There are three strategies:
             1. if `reps is None`, tile the data to make a list of length N
-            2. if `reps is not None and not prefix`, sample from the data with replacement to make `reps` lists of 
+            2. if `reps is not None and not prefix`, sample from the data with replacement to make `reps` lists of
                length N
-            3. if `reps is not None and prefix`, start with `data`, then draw N-len(data) times from data with 
+            3. if `reps is not None and prefix`, start with `data`, then draw N-len(data) times from data with
                replacement to make `reps` lists of length N
-        
+
         If `data is None`, constructs values from scratch. There are two strategies:
             1. Systematically interleave small and large values, starting with a small value (`reps is None`)
             2. Sample randomly from a set of such values
         The rate of small values is `rate` if `rate is not None`. If `rate is None`, for POLLING audits, gets
-        the rate of small values from the margin. 
+        the rate of small values from the margin.
         For Audit.AUDIT_TYPE.POLLING audits, the small values are 0 and the large values are `u`.
-        For Audit.AUDIT_TYPE.BALLOT_COMPARISON audits, the small values are the overstatement assorter for an 
+        For Audit.AUDIT_TYPE.BALLOT_COMPARISON audits, the small values are the overstatement assorter for an
         overstatement of `u/2` and the large values are the overstatement assorter for an overstatement of 0.
 
         This function is for a single assorter.
-        
+
         **The function assumes that self.test.u has been set appropriately for the audit type (polling or comparison).**
         In turn, that means that for comparison audits, the assorter margin should have been set.
 
@@ -1260,7 +1260,7 @@ class Assertion:
         data: np.array
             observations on which to base the calculation. If `data is not None`, uses them in a bootstrap
             approach, rather than simulating errors.
-            If `self.contest.audit_type==Audit.POLLING`, the data should be (simulated or actual) values of 
+            If `self.contest.audit_type==Audit.POLLING`, the data should be (simulated or actual) values of
             the raw assorter.
             If `self.contest.audit_type==Audit.BALLOT_COMPARISON`, the data should be (simulated or actual)
             values of the overstatement assorter.
@@ -1268,13 +1268,13 @@ class Assertion:
             prefix the data, then sample or tile to produce the remaining values
         rate: float
             assumed rate of "small" values for simulations. Ignored if `data is not None`
-            If `rate is None and self.contest.audit_type==Audit.POLLING` the rate of small values is inferred 
-            from the margin 
+            If `rate is None and self.contest.audit_type==Audit.POLLING` the rate of small values is inferred
+            from the margin
         reps: int
             if `reps is None`, builds the data systematically
             if `reps is not None`, performs `reps` simulations to estimate the `quantile` quantile of sample size.
         quantile: float
-            if `reps is not None`, quantile of the distribution of sample sizes to return 
+            if `reps is not None`, quantile of the distribution of sample sizes to return
             if `reps is None`, ignored
         seed: int
             if `reps is not None`, use `seed` as the seed in numpy.random to estimate the quantile
@@ -1284,32 +1284,32 @@ class Assertion:
         sample_size: int
             sample size estimated to be sufficient to confirm the outcome if data are generated according to
             the assumptions
-        
+
         Side effects
         ------------
         sets the sample_size attribute of the assertion
-        
+
         '''
-        assert self.margin > 0, f'Margin {self.margin} is nonpositive'        
+        assert self.margin > 0, f'Margin {self.margin} is nonpositive'
         if data is not None:  # use the data provided
-            sample_size = self.test.sample_size(data, alpha=self.contest.risk_limit, reps=reps, 
+            sample_size = self.test.sample_size(data, alpha=self.contest.risk_limit, reps=reps,
                                                 prefix=prefix, quantile=quantile, seed=seed)
-        else:     
+        else:
             '''Construct data.
-               For POLLING, values are 0 and u. 
-               For BALLOT_COMPARISON, values are overstatement assorter values corresponding to 
+               For POLLING, values are 0 and u.
+               For BALLOT_COMPARISON, values are overstatement assorter values corresponding to
                  overstatements of u or 0.
             '''
             big = self.assorter.upper_bound if self.contest.audit_type == Audit.AUDIT_TYPE.POLLING \
                               else self.make_overstatement(overs=0)
-            small = 0 if self.contest.audit_type == Audit.AUDIT_TYPE.POLLING else self.make_overstatement(overs=1/2) 
-            small_rate = (rate if self.contest.audit_type == Audit.AUDIT_TYPE.BALLOT_COMPARISON 
+            small = 0 if self.contest.audit_type == Audit.AUDIT_TYPE.POLLING else self.make_overstatement(overs=1/2)
+            small_rate = (rate if self.contest.audit_type == Audit.AUDIT_TYPE.BALLOT_COMPARISON
                           else (rate if rate is not None else (1-self.margin)/2))   # rate of small values
             x = big*np.ones(self.test.N)
             for k in range(self.test.N):
                 x[k] = (small if (small_rate > 0 and k % int(1/small_rate) == 0) else x[k])
-            sample_size = self.test.sample_size(x, alpha=self.contest.risk_limit, reps=reps, 
-                                                prefix=prefix, quantile=quantile, seed=seed)            
+            sample_size = self.test.sample_size(x, alpha=self.contest.risk_limit, reps=reps,
+                                                prefix=prefix, quantile=quantile, seed=seed)
         self.sample_size = sample_size
         return sample_size
 
@@ -1318,7 +1318,7 @@ class Assertion:
                                   cls, contest: object=None, winner: list=None, loser: list=None):
         '''
         Construct assertions that imply the winner(s) got more votes than the loser(s).
-        
+
         The assertions are that every winner beat every loser: there are
         len(winner)*len(loser) pairwise assertions in all.
 
@@ -1342,19 +1342,19 @@ class Assertion:
                 wl_pair = winr + ' v ' + losr
                 _test = NonnegMean(test=contest.test, estim=contest.estim, g=contest.g, u=1, N=contest.cards,
                                        t=1/2, random_order=True)
-                assertions[wl_pair] = Assertion(contest, winner=winr, loser=losr, 
-                                         assorter=Assorter(contest_id=contest.id, 
+                assertions[wl_pair] = Assertion(contest, winner=winr, loser=losr,
+                                         assorter=Assorter(contest_id=contest.id,
                                              assort = lambda c, contest_id=contest.id, winr=winr, losr=losr:
                                                  (CVR.as_vote(c.get_vote_for(contest.id, winr))
                                                  - CVR.as_vote(c.get_vote_for(contest.id, losr))
-                                                  + 1)/2, 
-                                            upper_bound=1), 
+                                                  + 1)/2,
+                                            upper_bound=1),
                                          test=_test)
         return assertions
 
     @classmethod
     def make_supermajority_assertion(
-                                     cls, contest, winner: str=None, loser: list=None, 
+                                     cls, contest, winner: str=None, loser: list=None,
                                      test: callable=None, estim: callable=None):
         '''
         Construct assertion that winner got >= share_to_win \in (0,1) of the valid votes
@@ -1378,7 +1378,7 @@ class Assertion:
 
         Parameters
         -----------
-        contest: 
+        contest:
             contest object instance to which the assertion applies
         winner:
             identifier of winning candidate
@@ -1402,17 +1402,17 @@ class Assertion:
         cands.append(winner)
         _test = NonnegMean(test=test, estim=estim, u=1/(2*contest.share_to_win), N=contest.cards, t=1/2, random_order=True)
         assertions[wl_pair] = Assertion(contest, winner=winner, loser=Contest.CANDIDATES.ALL_OTHERS,
-                                 assorter=Assorter(contest_id=contest.id, 
-                                          assort = lambda c, contest_id=contest.id: 
-                                                CVR.as_vote(c.get_vote_for(contest.id, winner))/(2*contest.share_to_win) 
+                                 assorter=Assorter(contest_id=contest.id,
+                                          assort = lambda c, contest_id=contest.id:
+                                                CVR.as_vote(c.get_vote_for(contest.id, winner))/(2*contest.share_to_win)
                                                 if c.has_one_vote(contest.id, cands) else 1/2,
                                           upper_bound=1/(2*contest.share_to_win)), test=_test)
         return assertions
 
     @classmethod
     def make_assertions_from_json(
-                                  cls, contest: object=None, candidates: list=None, 
-                                  json_assertions: dict=None, test: callable=None, 
+                                  cls, contest: object=None, candidates: list=None,
+                                  json_assertions: dict=None, test: callable=None,
                                   estim: callable=None):
         '''
         dict of Assertion objects from a RAIRE-style json representations of assertions.
@@ -1453,9 +1453,9 @@ class Assertion:
                              v.rcv_lfunc_wo(contest_id, winr, losr)
 
                 wl_pair = winr + ' v ' + losr
-                _test = NonnegMean(test=test, estim=estim, u=1, N=contest.cards, t=1/2, random_order=True)               
-                assertions[wl_pair] = Assertion(contest, 
-                                                Assorter(contest_id=contest.id, winner=winner_func, 
+                _test = NonnegMean(test=test, estim=estim, u=1, N=contest.cards, t=1/2, random_order=True)
+                assertions[wl_pair] = Assertion(contest,
+                                                Assorter(contest_id=contest.id, winner=winner_func,
                                                    loser=loser_func, upper_bound=1), test=_test)
 
             elif assrtn['assertion_type'] == cls.IRV_ELIMINATION:
@@ -1465,8 +1465,8 @@ class Assertion:
                 remn = [c for c in candidates if c not in elim]
                 # Identifier for tracking which assertions have been proved
                 wl_given = winr + ' v ' + losr + ' elim ' + ' '.join(elim)
-                _test = NonnegMean(test=test, estim=estim, u=1, N=contest.cards, t=1/2, random_order=True)               
-                assertions[wl_given] = Assertion(contest, Assorter(contest_id=contest.id, 
+                _test = NonnegMean(test=test, estim=estim, u=1, N=contest.cards, t=1/2, random_order=True)
+                assertions[wl_given] = Assertion(contest, Assorter(contest_id=contest.id,
                                        assort = lambda v, contest_id=contest.id, winner=winr, loser=losr, remn=remn:
                                        ( v.rcv_votefor_cand(contest.id, winner, remn)
                                        - v.rcv_votefor_cand(contest.id, loser, remn) +1)/2,
@@ -1491,7 +1491,7 @@ class Assertion:
 
         Side Effects
         ------------
-        creates assertions and adds the dict of assertions relevant to each contest to the contest 
+        creates assertions and adds the dict of assertions relevant to each contest to the contest
         object's `assertions` attribute
 
         '''
@@ -1499,21 +1499,21 @@ class Assertion:
             scf = con.choice_function
             winrs = con.winner
             losrs = list(set(con.candidates) - set(winrs))
-            test = con.test  
+            test = con.test
             estim = con.estim
             if scf == Contest.SOCIAL_CHOICE_FUNCTION.PLURALITY:
-                contests[c].assertions = Assertion.make_plurality_assertions(contest=con, winner=winrs, loser=losrs, 
-                                                                                test=test, estim=estim)
+                contests[c].assertions = Assertion.make_plurality_assertions(contest=con, winner=winrs, loser=losrs,
+                                                                                estim=estim)
             elif scf == Contest.SOCIAL_CHOICE_FUNCTION.SUPERMAJORITY:
-                contests[c].assertions = Assertion.make_supermajority_assertion(contest=con, winner=winrs[0], 
-                                                    loser=losrs, share_to_win=con.share_to_win, 
-                                                    test=test, estim=estim)
+                contests[c].assertions = Assertion.make_supermajority_assertion(contest=con, winner=winrs[0],
+                                                    loser=losrs, share_to_win=con.share_to_win,
+                                                    estim=estim)
             elif scf == Contest.SOCIAL_CHOICE_FUNCTION.IRV:
                 # Assumption: contests[c].assertion_json yields list assertions in JSON format.
-                contests[c].assertions = Assertion.make_assertions_from_json(contest=con, 
+                contests[c].assertions = Assertion.make_assertions_from_json(contest=con,
                                                     candidates=con.candidates,
-                                                    json_assertions=con.assertion_json, 
-                                                    test=test, estim=estim)
+                                                    json_assertions=con.assertion_json,
+                                                    estim=estim)
             else:
                 raise NotImplementedError(f'Social choice function {scf} is not implemented.')
         return True
@@ -1540,11 +1540,11 @@ class Assertion:
         -------
         min_margin: float
             smallest margin in the audit
-            
+
         Side effects
         ------------
         sets the margin of every assertion
-        sets the assertion.test.u for every assertion, according to whether 
+        sets the assertion.test.u for every assertion, according to whether
            `assertion.contest.audit_type==Audit.AUDIT_TYPE.POLLING`
            or `assertion.contest.audit_type==Audit.AUDIT_TYPE.BALLOT_COMPARISON`
         '''
@@ -1564,7 +1564,7 @@ class Assertion:
                 contests[c].assertions[a].test.u = u
                 min_margin = min(min_margin, margin)
         return min_margin
-    
+
 
     @classmethod
     def set_p_values(cls, contests: dict, mvr_sample: list, cvr_sample: list=None) -> float :
@@ -1595,7 +1595,7 @@ class Assertion:
         Side-effects
         ------------
         Sets u for every test for every assertion, according to whether the corresponding audit method
-        is Audit.BALLOT_COMPARISON or Audit.POLLING.       
+        is Audit.BALLOT_COMPARISON or Audit.POLLING.
         Sets contest max_p to be the largest P-value of any assertion for that contest
         Updates p_value, p_history, and proved for every assertion
 
@@ -1614,7 +1614,7 @@ class Assertion:
                 upper_bound = asrt.assorter.upper_bound
                 if contests[c].audit_type == Audit.AUDIT_TYPE.BALLOT_COMPARISON:
                     d = [asrt.overstatement_assorter(mvr_sample[i], cvr_sample[i],
-                                use_style=use_style) for i in range(len(mvr_sample)) 
+                                use_style=use_style) for i in range(len(mvr_sample))
                                 if ((not use_style) or cvr_sample[i].has_contest(c))]
                     u = 2/(2-margin/upper_bound)
                 elif contests[c].audit_type == Audit.AUDIT_TYPE.POLLING:  # Assume style information is irrelevant
@@ -1626,7 +1626,7 @@ class Assertion:
                 contests[c].assertions[a].p_value, contests[c].assertions[a].p_history = \
                                                 asrt.test.test(d)
                 contests[c].assertions[a].proved = ((
-                                                contests[c].assertions[a].p_value <= contests[c].risk_limit) 
+                                                contests[c].assertions[a].p_value <= contests[c].risk_limit)
                                                 or contests[c].assertions[a].proved)
                 contests[c].p_values.update({a: contests[c].assertions[a].p_value})
                 contests[c].proved.update({a: int(contests[c].assertions[a].proved)})
@@ -1636,7 +1636,7 @@ class Assertion:
         return p_max
 
 
-##########################################################################################    
+##########################################################################################
 class Assorter:
     '''
     Class for generic Assorter.
@@ -1669,7 +1669,7 @@ class Assorter:
     '''
 
     def __init__(
-                 self, contest_id: object=None, assort: callable=None, winner: str=None, 
+                 self, contest_id: object=None, assort: callable=None, winner: str=None,
                  loser: str=None, upper_bound: float=1):
         '''
         Constructs an Assorter.
@@ -1700,7 +1700,7 @@ class Assorter:
             assert callable(winner), "winner must be callable if assort is None"
             assert callable(loser),  "loser must be callable if assort is None"
             self.assort = lambda cvr: (self.winner(cvr) - self.loser(cvr) + 1)/2
-            
+
     def __str__(self):
         '''
         string representation
@@ -1708,15 +1708,15 @@ class Assorter:
         return f'contest_id: {self.contest_id}\nupper bound: {self.upper_bound}, ' +\
                f'winner defined: {callable(self.winner)}, loser defined: {callable(self.loser)}, ' +\
                f'assort defined: {callable(self.assort)}'
-        
-        
 
-##########################################################################################    
+
+
+##########################################################################################
 class Contest:
     '''
-    Objects and methods for contests. 
+    Objects and methods for contests.
     '''
-    
+
     class SOCIAL_CHOICE_FUNCTION:
         '''
         social choice functions
@@ -1728,7 +1728,7 @@ class Contest:
     class CANDIDATES:
         '''
         constants for referring to candidates and candidate groups.
-        
+
         For example, in a supermajority contest where no candidate is reported to have won,
         the winner is Contest.CANDIDATES.NO_CANDIDATE, and in a supermajority contest in which one
         candidate is reported to have won, the loser (for the assorter) is Contest.CANDIDATES.ALL_OTHERS
@@ -1756,24 +1756,24 @@ class Contest:
                   'sample_size'
                  )
 
-    
+
     def __init__(
-                 self, 
-                 id: object=None, 
-                 name: str=None, 
-                 risk_limit: float=0.05, 
-                 cards: int=0, 
-                 choice_function: str=SOCIAL_CHOICE_FUNCTION.PLURALITY, 
-                 n_winners: int=1, 
-                 share_to_win: float=None, 
-                 candidates: list=None, 
+                 self,
+                 id: object=None,
+                 name: str=None,
+                 risk_limit: float=0.05,
+                 cards: int=0,
+                 choice_function: str=SOCIAL_CHOICE_FUNCTION.PLURALITY,
+                 n_winners: int=1,
+                 share_to_win: float=None,
+                 candidates: list=None,
                  winner: list=None,
-                 assertion_file: str=None, 
+                 assertion_file: str=None,
                  audit_type: str=Audit.AUDIT_TYPE.BALLOT_COMPARISON,
-                 test: callable=None, 
+                 test: callable=None,
                  g: float=0.1,
-                 estim: callable=None, 
-                 use_style: bool=True, 
+                 estim: callable=None,
+                 use_style: bool=True,
                  assertions: dict=None,
                  tally: dict=None,
                  sample_size: int=None):
@@ -1796,72 +1796,72 @@ class Contest:
         self.tally = tally
         self.sample_size = sample_size
 
-    def __str__(self): 
+    def __str__(self):
         return str(self.__dict__)
-                          
+
 
     def find_sample_size(
                          self, audit: object=None, cvrs: list=None, mvrs: list=None, **kwargs) -> int:
         '''
         Estimate the sample size required to confirm the contest at its risk limit.
-        
+
         This function can be used with or without data, for Audit.AUDIT_TYPE.POLLING and Audit.AUDIT_TYPE.BALLOT_COMPARISON
         audits.
-        
+
         The simulations in this implementation are inefficient because the randomization happens separately
         for every assorter, rather than in parallel.
-        
+
         Parameters
         ----------
         cvrs: list of CVRs
             data (or simulated data) to base the sample size estimates on
         mvrs: list of MVRs (CVR objects)
             manually read votes to base the sample size estimates on, if data are available.
-        
+
         Returns
         -------
         estimated sample size
-        
+
         Side effects
         ------------
         sets self.sample_size to the estimated sample size
-        
+
         '''
         self.sample_size = 0
         for a in self.assertions.values():
             x = None
             if cvrs is not None:  # process the CVRs to get data appropriate to each assertion, to pass to find_sample_size
                 raise NotImplementedError('sample size estimate cannot yet use data')
-            self.sample_size = max(self.sample_size, 
-                                   a.find_sample_size(x=x, rate=audit.error_rate_1, reps=audit.reps, 
+            self.sample_size = max(self.sample_size,
+                                   a.find_sample_size(x=x, rate=audit.error_rate_1, reps=audit.reps,
                                                       quantile=audit.quantile, seed=audit.sim_seed))
-        return self.sample_size                   
-                            
+        return self.sample_size
+
     def find_margins_from_tally(self):
         '''
         Use the `Contest.tally` attribute to set the margins of the contest's assorters.
-        
+
         Appropriate only for the social choice functions
-                Contest.SOCIAL_CHOICE_FUNCTION.PLURALITY, 
+                Contest.SOCIAL_CHOICE_FUNCTION.PLURALITY,
                 Contest.SOCIAL_CHOICE_FUNCTION.SUPERMAJORITY,
                 Contest.SOCIAL_CHOICE_FUNCTION.APPROVAL
-        
-        
+
+
         Parameters
         ----------
         None
-        
+
         Returns
         -------
         None
-        
+
         Side effects
         ------------
         sets Assertion.margin for all Assertions in the Contest
         '''
         for a, assn in self.assertions.items():
             assn.find_margin_from_tally()
-  
+
 
     @classmethod
     def from_dict(cls, d: dict) -> dict:
@@ -1871,7 +1871,7 @@ class Contest:
         c = Contest()
         c.__dict__.update(d)
         return c
-    
+
     @classmethod
     def from_dict_of_dicts(cls, d: dict) -> dict:
         '''
