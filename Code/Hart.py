@@ -18,7 +18,7 @@ from Audit import Audit, Assertion, Assorter, Contest, CVR, Stratum
 from NonnegMean import NonnegMean
 
 class Hart:
-    
+
     @classmethod
     def prep_manifest(cls,manifest, max_cards, n_cvrs):
         """
@@ -42,7 +42,7 @@ class Hart:
         Returns:
         --------
         manifest: dataframe
-            original manifest with additional column for cumulative cards and, if needed, an additional batch 
+            original manifest with additional column for cumulative cards and, if needed, an additional batch
             for any phantom cards
         manifest_cards: int
             the total number of cards in the manifest
@@ -155,7 +155,7 @@ class Hart:
             cvr_path = cvr_directory + "/" + file
             with open(cvr_path, 'r', encoding='latin-1') as xml_file:
                 raw_string = xml_file.read()
-            cvr_list.append(read_cvr(raw_string))
+            cvr_list.append(Hart.read_cvr(raw_string))
 
         return cvr_list
 
@@ -182,7 +182,7 @@ class Hart:
             for cvr in file_list[0:size]:
                 with data.open(cvr) as xml_file:
                     raw_string = xml_file.read().decode()
-                    cvr_list.append(read_cvr(raw_string))
+                    cvr_list.append(Hart.read_cvr(raw_string))
         return cvr_list
 
 
