@@ -1502,18 +1502,17 @@ class Assertion:
             test = con.test
             estim = con.estim
             if scf == Contest.SOCIAL_CHOICE_FUNCTION.PLURALITY:
-                contests[c].assertions = Assertion.make_plurality_assertions(contest=con, winner=winrs, loser=losrs,
-                                                                                estim=estim)
+                contests[c].assertions = Assertion.make_plurality_assertions(contest=con, winner=winrs, loser=losrs)
             elif scf == Contest.SOCIAL_CHOICE_FUNCTION.SUPERMAJORITY:
                 contests[c].assertions = Assertion.make_supermajority_assertion(contest=con, winner=winrs[0],
                                                     loser=losrs, share_to_win=con.share_to_win,
-                                                    estim=estim)
+                                                    test=test, estim=estim)
             elif scf == Contest.SOCIAL_CHOICE_FUNCTION.IRV:
                 # Assumption: contests[c].assertion_json yields list assertions in JSON format.
                 contests[c].assertions = Assertion.make_assertions_from_json(contest=con,
                                                     candidates=con.candidates,
                                                     json_assertions=con.assertion_json,
-                                                    estim=estim)
+                                                    test=test, estim=estim)
             else:
                 raise NotImplementedError(f'Social choice function {scf} is not implemented.')
         return True
