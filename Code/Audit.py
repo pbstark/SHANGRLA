@@ -1005,51 +1005,6 @@ class Assertion:
         return (1-error_rate_1/2 - error_rate_2)/(2-self.margin/self.assorter.upper_bound)
     
 
-    def overstatement(self, mvr, cvr, use_style=True):
-        '''
-        overstatement error for a CVR compared to the human reading of the ballot
-
-        If use_style, then if the CVR contains the contest but the MVR does
-        not, treat the MVR as having a vote for the loser (assort()=0)
-
-        If not use_style, then if the CVR contains the contest but the MVR does not,
-        the MVR is considered to be a non-vote in the contest (assort()=1/2).
-
-        Phantom CVRs and MVRs are treated specially:
-            A phantom CVR is considered a non-vote in every contest (assort()=1/2).
-            A phantom MVR is considered a vote for the loser (i.e., assort()=0) in every
-            contest.
-
-        Parameters
-        ----------
-        mvr: Cvr
-            the manual interpretation of voter intent
-        cvr: Cvr
-            the machine-reported cast vote record
-
-        Returns
-        -------
-        overstatement: float
-            the overstatement error
-        '''
-        if not use_style:
-            overstatement = self.assorter.assort(cvr) \
-                            - (self.assorter.assort(mvr) if not mvr.phantom else 0)
-        elif use_style:
-            if cvr.has_contest(self.contest.id):  # make_phantoms() assigns contests but not votes to phantom CVRs
-                if cvr.phantom:
-                    cvr_assort = 1/2
-                else:
-                    cvr_assort = self.assorter.assort(cvr)
-                if mvr.phantom or not mvr.has_contest(self.contest.id):
-                    mvr_assort = 0
-                else:
-                    mvr_assort = self.assorter.assort(mvr)
-                overstatement = cvr_assort - mvr_assort
-            else:
-                raise ValueError("Assertion.overstatement: use_style==True but CVR does not contain the contest")
-        return overstatement
-
     def overstatement_assorter(self, mvr: list=None, cvr: list=None, use_style=True) -> float:
         '''
         assorter that corresponds to normalized overstatement error for an assertion
@@ -1076,7 +1031,8 @@ class Assertion:
                 u is the upper bound on the value the assorter assigns to any ballot
                 v is the assorter margin
         '''
-        return (1-self.overstatement(mvr, cvr, use_style)/self.assorter.upper_bound)/(2-self.margin/self.assorter.upper_bound)
+        return (1-self.assorter.overstatement(mvr, cvr, use_style) 
+                / self.assorter.upper_bound)/(2-self.margin/self.assorter.upper_bound)
     
     def find_margin_from_cvrs(self, audit: object=None, cvr_list: list=None):
         '''
@@ -1712,6 +1668,51 @@ class Assorter:
         else:
             filtr = lambda c: True
         return np.sum([self.assort(c) for c in cvr_list if filtr(c)])
+
+    def overstatement(self, mvr, cvr, use_style=True):
+        '''
+        overstatement error for a CVR compared to the human reading of the ballot
+
+        If use_style, then if the CVR contains the contest but the MVR does
+        not, treat the MVR as having a vote for the loser (assort()=0)
+
+        If not use_style, then if the CVR contains the contest but the MVR does not,
+        the MVR is considered to be a non-vote in the contest (assort()=1/2).
+
+        Phantom CVRs and MVRs are treated specially:
+            A phantom CVR is considered a non-vote in every contest (assort()=1/2).
+            A phantom MVR is considered a vote for the loser (i.e., assort()=0) in every
+            contest.
+
+        Parameters
+        ----------
+        mvr: Cvr
+            the manual interpretation of voter intent
+        cvr: Cvr
+            the machine-reported cast vote record
+
+        Returns
+        -------
+        overstatement: float
+            the overstatement error
+        '''
+        if not use_style:
+            overstatement = self.assort(cvr) \
+                            - (self.assort(mvr) if not mvr.phantom else 0)
+        elif use_style:
+            if cvr.has_contest(self.contest.id):  # make_phantoms() assigns contests but not votes to phantom CVRs
+                if cvr.phantom:
+                    cvr_assort = 1/2
+                else:
+                    cvr_assort = self.assort(cvr)
+                if mvr.phantom or not mvr.has_contest(self.contest.id):
+                    mvr_assort = 0
+                else:
+                    mvr_assort = self.assort(mvr)
+                overstatement = cvr_assort - mvr_assort
+            else:
+                raise ValueError("Assertion.overstatement: use_style==True but CVR does not contain the contest")
+        return overstatement
 
 ##########################################################################################    
 class Contest:
