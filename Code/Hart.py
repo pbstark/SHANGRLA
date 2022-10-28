@@ -155,7 +155,7 @@ class Hart:
             cvr_path = cvr_directory + "/" + file
             with open(cvr_path, 'r', encoding='latin-1') as xml_file:
                 raw_string = xml_file.read()
-            cvr_list.append(read_cvr(raw_string))
+            cvr_list.append(cls.read_cvr(raw_string))
 
         return cvr_list
 
@@ -182,7 +182,7 @@ class Hart:
             for cvr in file_list[0:size]:
                 with data.open(cvr) as xml_file:
                     raw_string = xml_file.read().decode()
-                    cvr_list.append(read_cvr(raw_string))
+                    cvr_list.append(cls.read_cvr(raw_string))
         return cvr_list
 
 
