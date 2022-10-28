@@ -5,6 +5,8 @@ import json
 import csv
 import warnings
 import typing
+import sys
+import pytest
 from numpy import testing
 from collections import OrderedDict, defaultdict
 from cryptorandom.cryptorandom import SHA256, random, int_from_hash
@@ -496,42 +498,42 @@ class TestAssertion:
                         ( CVR.as_vote(c.get_vote_for("AvB", winr)) 
                         - CVR.as_vote(c.get_vote_for("AvB", losr)) 
                         + 1)/2), upper_bound=1))
-        assert aVb.overstatement(mvrs[0], cvrs[0], use_style=True) == 0
-        assert aVb.overstatement(mvrs[0], cvrs[0], use_style=False) == 0
+        assert aVb.assorter.overstatement(mvrs[0], cvrs[0], use_style=True) == 0
+        assert aVb.assorter.overstatement(mvrs[0], cvrs[0], use_style=False) == 0
 
-        assert aVb.overstatement(mvrs[0], cvrs[1], use_style=True) == -1
-        assert aVb.overstatement(mvrs[0], cvrs[1], use_style=False) == -1
+        assert aVb.assorter.overstatement(mvrs[0], cvrs[1], use_style=True) == -1
+        assert aVb.assorter.overstatement(mvrs[0], cvrs[1], use_style=False) == -1
 
-        assert aVb.overstatement(mvrs[2], cvrs[0], use_style=True) == 1/2
-        assert aVb.overstatement(mvrs[2], cvrs[0], use_style=False) == 1/2
+        assert aVb.assorter.overstatement(mvrs[2], cvrs[0], use_style=True) == 1/2
+        assert aVb.assorter.overstatement(mvrs[2], cvrs[0], use_style=False) == 1/2
 
-        assert aVb.overstatement(mvrs[2], cvrs[1], use_style=True) == -1/2
-        assert aVb.overstatement(mvrs[2], cvrs[1], use_style=False) == -1/2
+        assert aVb.assorter.overstatement(mvrs[2], cvrs[1], use_style=True) == -1/2
+        assert aVb.assorter.overstatement(mvrs[2], cvrs[1], use_style=False) == -1/2
 
 
-        assert aVb.overstatement(mvrs[1], cvrs[0], use_style=True) == 1
-        assert aVb.overstatement(mvrs[1], cvrs[0], use_style=False) == 1
+        assert aVb.assorter.overstatement(mvrs[1], cvrs[0], use_style=True) == 1
+        assert aVb.assorter.overstatement(mvrs[1], cvrs[0], use_style=False) == 1
 
-        assert aVb.overstatement(mvrs[2], cvrs[0], use_style=True) == 1/2
-        assert aVb.overstatement(mvrs[2], cvrs[0], use_style=False) == 1/2
+        assert aVb.assorter.overstatement(mvrs[2], cvrs[0], use_style=True) == 1/2
+        assert aVb.assorter.overstatement(mvrs[2], cvrs[0], use_style=False) == 1/2
 
-        assert aVb.overstatement(mvrs[3], cvrs[0], use_style=True) == 1
-        assert aVb.overstatement(mvrs[3], cvrs[0], use_style=False) == 1/2
+        assert aVb.assorter.overstatement(mvrs[3], cvrs[0], use_style=True) == 1
+        assert aVb.assorter.overstatement(mvrs[3], cvrs[0], use_style=False) == 1/2
 
         try:
-            tst = aVb.overstatement(mvrs[3], cvrs[3], use_style=True)
+            tst = aVb.assorter.overstatement(mvrs[3], cvrs[3], use_style=True)
             raise AssertionError('aVb is not contained in the mvr or cvr')
         except ValueError:
             pass
-        assert aVb.overstatement(mvrs[3], cvrs[3], use_style=False) == 0
+        assert aVb.assorter.overstatement(mvrs[3], cvrs[3], use_style=False) == 0
 
-        assert aVb.overstatement(mvrs[4], cvrs[4], use_style=True) == 1/2
-        assert aVb.overstatement(mvrs[4], cvrs[4], use_style=False) == 1/2
-        assert aVb.overstatement(mvrs[4], cvrs[4], use_style=False) == 1/2
-        assert aVb.overstatement(mvrs[4], cvrs[0], use_style=True) == 1
-        assert aVb.overstatement(mvrs[4], cvrs[0], use_style=False) == 1
-        assert aVb.overstatement(mvrs[4], cvrs[1], use_style=True) == 0
-        assert aVb.overstatement(mvrs[4], cvrs[1], use_style=False) == 0
+        assert aVb.assorter.overstatement(mvrs[4], cvrs[4], use_style=True) == 1/2
+        assert aVb.assorter.overstatement(mvrs[4], cvrs[4], use_style=False) == 1/2
+        assert aVb.assorter.overstatement(mvrs[4], cvrs[4], use_style=False) == 1/2
+        assert aVb.assorter.overstatement(mvrs[4], cvrs[0], use_style=True) == 1
+        assert aVb.assorter.overstatement(mvrs[4], cvrs[0], use_style=False) == 1
+        assert aVb.assorter.overstatement(mvrs[4], cvrs[1], use_style=True) == 0
+        assert aVb.assorter.overstatement(mvrs[4], cvrs[1], use_style=False) == 0
 
 
     def test_overstatement_assorter(self):

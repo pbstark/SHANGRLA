@@ -1060,7 +1060,7 @@ class Assertion:
         use_style = stratum.use_style
         amean =self.assorter.mean(cvr_list, use_style=use_style)
         if amean < 1/2:
-            warnings.warn(f"assertion {a} not satisfied by CVRs: mean value is {amean}")
+            warnings.warn(f"assertion {self} not satisfied by CVRs: mean value is {amean}")
         self.margin = 2*amean-1
         if self.contest.audit_type == Audit.AUDIT_TYPE.POLLING:
             self.test.u = self.assorter.upper_bound
@@ -1107,7 +1107,7 @@ class Assertion:
                 raise NotImplementedError(f'TO DO: currently only support super-majority with a winner')
             else:
                 q = np.sum([tally[c] for c in self.contest.candidates])/self.contest.cards
-                p = tally[winner]/self.contest.cards
+                p = tally[self.winner]/self.contest.cards
                 self.margin = q*(p/self.contest.share_to_win - 1)
         else:
             raise NotImplementedError(f'social choice function {self.contest.choice_function} not supported')
@@ -1385,7 +1385,7 @@ class Assertion:
                                        - v.rcv_votefor_cand(contest.id, loser, remn) +1)/2,
                                        upper_bound=1), test=_test)
             else:
-                raise NotImplemented(f'JSON assertion type {assertn["assertion_type"]} not implemented.')
+                raise NotImplemented(f'JSON assertion type {assrtn["assertion_type"]} not implemented.')
         return assertions
 
     @classmethod

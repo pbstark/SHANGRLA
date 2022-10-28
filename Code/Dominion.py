@@ -12,7 +12,7 @@ from Audit import CVR
 class Dominion:
     
     @classmethod
-    def prep_manifest(cls,manifest, max_cards, n_cvrs):
+    def prep_manifest(cls, manifest, max_cards, n_cvrs):
         """
         Prepare a Dominion Excel ballot manifest (read as a pandas dataframe) for sampling.
         The manifest may have cards that do not contain the contest, but every listed CVR
