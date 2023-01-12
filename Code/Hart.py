@@ -63,7 +63,7 @@ class Hart:
             manifest = manifest.append(r, ignore_index = True)
         manifest['cum_cards'] = manifest['Number of Ballots'].cumsum()
         for c in ['Container', 'Tabulator', 'Batch Name', 'Number of Ballots']:
-            manifest[c] = manifest[c].astype(str)
+            manifest[c] = manifest[c].astype(str) #<- why is this a str instead of a float? weird behavior when e.g. summing to get total ballots
         return manifest, manifest_cards, phantoms
 
 
@@ -265,16 +265,18 @@ class Hart:
         sample_order = {}
         cvr_sample = []
         mvr_phantoms = []
-        for i,s in enumerate(sample-1):
+        for i,s in enumerate(sample):
             cvr_sample.append(cvr_list[s])
             cvr_id = cvr_list[s].id
-            batch, card_num = cvr_id.split("_")
-            card_id = f'{batch}_{card_num}'
             if not cvr_list[s].phantom:
+                batch, card_num = cvr_id.split("_")
+                card_id = f'{batch}_{card_num}'
                 manifest_row = manifest[(manifest['Batch Name'] == str(batch))].iloc[0]
                 card = [manifest_row['Tabulator']]\
                         + [batch, card_num, card_id]
             else:
+                word, batch, card_num = cvr_id.split("-")
+                card_id = f'phantom-{batch}-{card_num}'
                 card = ["","", batch, card_num, card_id]
                 mvr_phantoms.append(CVR(id=cvr_id, votes = {}, phantom=True))
             cards.append(card)
