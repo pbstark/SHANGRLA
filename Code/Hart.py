@@ -271,7 +271,7 @@ class Hart:
             if not cvr_list[s].phantom:
                 batch, card_num = cvr_id.split("_")
                 card_id = f'{batch}_{card_num}'
-                manifest_row = manifest[(manifest['Batch Name'] == str(batch))].iloc[0]
+                manifest_row = manifest[(manifest['Batch Name'] == str(batch))].iloc[0] 
                 card = [manifest_row['Tabulator']]\
                         + [batch, card_num, card_id]
             else:

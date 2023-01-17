@@ -640,6 +640,8 @@ class CVR:
                     d[con][cand] += CVR.as_vote(c.get_vote_for(con, cand))
         return d
 
+
+
 ##########################################################################################
 class Audit:
     '''
@@ -741,11 +743,12 @@ class Audit:
         if stratum.use_style:
             for cvr in cvrs:
                 if cvr.sampled:
-                    cvr.p=1
+                    cvr.p = 1
                 else:
+                    cvr.p = 0
                     for i, c in contests.items():
                         if cvr.has_contest(i) and not cvr.sampled:
-                            cvr.p = np.max(c.sample_size/(c.cards - old_sizes[i]), cvr.p)
+                            cvr.p = max(c.sample_size/(c.cards - old_sizes[i]), cvr.p)
             total_size = math.ceil(np.sum([x.p for x in cvrs]))
         else:
             total_size = np.max(np.array([c.sample_size for c in contests.values()]))
@@ -1148,9 +1151,9 @@ class Assertion:
             raise NotImplementedError('stratified audits not yet supported')
         stratum = next(iter(audit.strata.values()))
         use_style = stratum.use_style
-        amean =self.assorter_mean(cvr_list, use_style=use_style)
+        amean = self.assorter_mean(cvr_list, use_style=use_style)
         if amean < 1/2:
-            warnings.warn(f"assertion {a} not satisfied by CVRs: mean value is {amean}")
+            warnings.warn(f"assertion {self} not satisfied by CVRs: mean value is {amean}")
         self.margin = 2*amean-1
         if self.contest.audit_type == Audit.AUDIT_TYPE.POLLING:
             self.test.u = self.assorter.upper_bound
@@ -1881,6 +1884,42 @@ class Contest:
             contests[di] = cls.from_dict(v)
             contests[di].id = di
         return contests
+
+    @classmethod
+    def from_cvr_list(cls, cvr_list: list=None) -> dict:
+        """
+        Create a contest dict containing all contests in a cvr_list.
+        Every contest is single-winner plurality by default, audited by ballot comparison
+        """
+        contest_dict = {}
+        for key in votes:
+            contests_name = str(key)
+            cards_with_contest = np.sum(list(votes[key].values()))
+            options = np.array(votes[key].keys())
+            tallies = np.array(votes[key].values())
+            invalid_index = np.where(options == "NA")
+
+            contest_options = np.delete(options, invalid_index)
+            contest_valid_votes = np.delete(votes, invalid_index)
+            reported_winner = contest_options[np.argmax(contest_valid_votes)]
+
+            contest_dict[contests_name] = {
+                "name" : contests_name,
+                "cards" : cards_with_contest,
+                'choice_function': Contest.SOCIAL_CHOICE_FUNCTION.PLURALITY,
+                'n_winners': 1,
+                "risk_limit" : 0.05,
+                "candidates" : list(contest_options),
+                "winner" : list(reported_winner),
+                'assertion_file': None,
+                'audit_type': Audit.AUDIT_TYPE.BALLOT_COMPARISON,
+                'test': NonnegMean.alpha_mart,
+                'estim': NonnegMean.optimal_comparison
+            }
+        contests = Contest.from_dict_of_dicts(contest_dict)
+        return contests
+
+
 
     @classmethod
     def print_margins(cls, contests: dict=None):
