@@ -17,7 +17,11 @@ from zipfile import ZipFile, Path
 from Audit import Audit, Assertion, Assorter, Contest, CVR, Stratum
 from NonnegMean import NonnegMean
 
+
 class Hart:
+
+    WRITE_IN = "WRITE_IN"
+    NO_CANDIDATE = "NO_CANDIDATE"
 
     @classmethod
     def prep_manifest(cls,manifest, max_cards, n_cvrs):
@@ -74,19 +78,12 @@ class Hart:
 
         Parameters:
         -----------
-        cvr_path: string
-            file path of a single CVR XML file
+        cvr_string: string
+            the raw string of a Hart XML CVL
 
         Returns:
         --------
-        CVR object
-            votes: a dict with keys as names of contests and values as the votes in that contest
-            undervotes: a list of length len(votes), tabulating the number of undervotes in each contest
-            batch_sequence: a string with the batch sequence
-            sheet_number: a string with the sheet number of the ballot card
-            precinct_name: a string with the precinct name
-            precinct_ID: a string with the precinct ID
-            cvr_guid: a string of CvrGuide
+        CVR object with unique identifier, contests, and votes
         """
         namespaces = {'xsi': "http://www.w3.org/2001/XMLSchema-instance",
                   "xsd": "http://www.w3.org/2001/XMLSchema",
@@ -106,33 +103,41 @@ class Hart:
         #contests are contained in "Contests", the first element of cvr_root, loop through each contest
         for contest in cvr_root[0]:
             #record the name of the contest
-            contests.append(contest.findall("xmlns:Name", namespaces)[0].text)
-            #check if there are any undervotes. If so, record how many. If not, record 0.
-            if contest.findall("xmlns:Undervotes", namespaces):
-                undervotes.append(contest.findall("xmlns:Undervotes", namespaces)[0].text)
-            else:
-                undervotes.append('0')
-            #check if there are any valid votes in the contest. If so, record them. If not (only undervotes), record NA.
-            if contest.findall("xmlns:Options", namespaces)[0]:
+            con = contest.findall("xmlns:Name", namespaces)[0].text
+            votes[con] = {}
+            options = contest.find("xmlns:Options", namespaces).findall("xmlns:Option", namespaces)
+            #if options:=contest.find("xmlns:Options", namespaces):
                 #initialize dict value as a list, then append the options to it
-                if contest.findall("xmlns:Name", namespaces)[0].text not in votes:
-                    votes[contest.findall("xmlns:Name", namespaces)[0].text] = []
-                for options in contest.findall("xmlns:Options", namespaces)[0]:
-                    #this is for catching write ins, which do not have a "Name" node.
-                    try:
-                        votes[contest.findall("xmlns:Name", namespaces)[0].text].append(
-                                 options.findall("xmlns:Name", namespaces)[0].text)
-                    except IndexError:
-                        votes[contest.findall("xmlns:Name", namespaces)[0].text].append("WriteIn")
+                #if contest.findall("xmlns:Name", namespaces)[0].text not in votes:
+                #    votes[contest.findall("xmlns:Name", namespaces)[0].text] = []
+            for candidate in options:
+                #for child in candidate:
+                #    print(child.tag, child.text)
+                #this is for catching write ins, which do not have a "Name" node. [TODO: CHECK THIS]
+                #print(candidate.find("xmlns:Name", namespaces))
+                #print(bool(candidate.find("xmlns:Name", namespaces)))
+                if candidate.find("xmlns:Name", namespaces) is not None:
+                    cand = candidate.find("xmlns:Name", namespaces).text
+                elif candidate.find("xmlns:WriteInData", namespaces) is not None:
+                    cand = Contest.CANDIDATES.WRITE_IN
+                else:
+                    #NOTE: this seems to catch undervotes as NO_CANDIDATE
+                    raise Warning("Option with no candidate name or write in:\n" + con)
+                    cand = Contest.CANDIDATES.NO_CANDIDATE
+                votes[con][cand] = candidate.findall("xmlns:Value", namespaces)[0].text
+                    #    votes[contest.findall("xmlns:Name", namespaces)[0].text].append("WriteIn")
 
-            else:
-                votes[contest.findall("xmlns:Name", namespaces)[0].text] = ["NA"]
+            #else:
+            #    votes[contest.findall("xmlns:Name", namespaces)[0].text] = {}
             # reformat votes to be proper CVR format
-            vote_dict = {}
-            for key in votes.keys():
-                vote_dict[key] = {candidate: True for candidate in votes[key]}
+            #vote_dict = {}
+            #for key in votes.keys():
+            #    if votes[key] is None:
+            #        vote_dict[key] = None
+            #    else:
+            #        vote_dict[key] = {candidate: True for candidate in votes[key]} #<- should this just be True? or should it record more info about vote, e.g. for RCV
 
-        return CVR(id=batch_sequence + "_" + sheet_number, votes=vote_dict)
+        return CVR(id=batch_sequence + "_" + sheet_number, votes=votes)
 
 
     @classmethod
@@ -142,7 +147,7 @@ class Hart:
 
         Parameters:
         -----------
-        cvr_folder: string
+        cvr_directory: string
             name of folder containing CVRs as XML files
 
         Returns:
@@ -156,6 +161,7 @@ class Hart:
             with open(cvr_path, 'r', encoding='latin-1') as xml_file:
                 raw_string = xml_file.read()
             cvr_list.append(Hart.read_cvr(raw_string))
+
 
         return cvr_list
 
@@ -271,7 +277,7 @@ class Hart:
             if not cvr_list[s].phantom:
                 batch, card_num = cvr_id.split("_")
                 card_id = f'{batch}_{card_num}'
-                manifest_row = manifest[(manifest['Batch Name'] == str(batch))].iloc[0] 
+                manifest_row = manifest[(manifest['Batch Name'] == str(batch))].iloc[0]
                 card = [manifest_row['Tabulator']]\
                         + [batch, card_num, card_id]
             else:
