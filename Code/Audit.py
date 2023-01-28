@@ -640,7 +640,26 @@ class CVR:
                     d[con][cand] += CVR.as_vote(c.get_vote_for(con, cand))
         return d
 
+        @classmethod
+        def tabulate_cards_contests(cls, cvr_list: list=None):
+            """
+            Tabulate the number of cards containing each contest
 
+            Parameters
+            ----------
+            cvr_list: list of CVR objects
+
+            Returns
+            -------
+            dict:
+                main key is contest
+                value is the number of cards containing that contest
+            """
+            d = defaultdict(int)
+            for c in cvr_list:
+                for con in c.votes:
+                    d[con] += 1
+            return d
 
 ##########################################################################################
 class Audit:
@@ -1737,6 +1756,7 @@ class Contest:
         '''
         CANDIDATES = (ALL:= 'ALL',
                       ALL_OTHERS:= 'ALL_OTHERS',
+                      WRITE_IN:= 'WRITE_IN',
                       NO_CANDIDATE:= 'NO_CANDIDATE')
     ATTRIBUTES = (
                   'id',
@@ -1893,24 +1913,21 @@ class Contest:
         """
         contest_dict = {}
         for key in votes:
-            contests_name = str(key)
-            cards_with_contest = np.sum(list(votes[key].values()))
-            options = np.array(votes[key].keys())
-            tallies = np.array(votes[key].values())
-            invalid_index = np.where(options == "NA")
+            contest_name = str(key)
+            cards_with_contest = cards[key]
+            options = np.array(list(votes[key].keys()), dtype = 'str')
+            tallies = np.array(list(votes[key].values()))
 
-            contest_options = np.delete(options, invalid_index)
-            contest_valid_votes = np.delete(votes, invalid_index)
-            reported_winner = contest_options[np.argmax(contest_valid_votes)]
+            reported_winner = options[np.argmax(tallies)]
 
-            contest_dict[contests_name] = {
-                "name" : contests_name,
+            contest_dict[contest_name] = {
+                "name" : contest_name,
                 "cards" : cards_with_contest,
                 'choice_function': Contest.SOCIAL_CHOICE_FUNCTION.PLURALITY,
                 'n_winners': 1,
                 "risk_limit" : 0.05,
-                "candidates" : list(contest_options),
-                "winner" : list(reported_winner),
+                "candidates" : list(options),
+                "winner" : [reported_winner],
                 'assertion_file': None,
                 'audit_type': Audit.AUDIT_TYPE.BALLOT_COMPARISON,
                 'test': NonnegMean.alpha_mart,
