@@ -1,0 +1,124 @@
+{
+    "Overall Expected Polls (#)": "35",
+    "Ballots involved in audit (#)": "146662",
+    "parameters": {
+        "risk_limit": "0.050000000000000003"
+    },
+    "audits": [
+        {
+            "contest": "339",
+            "winner": "15",
+            "eliminated": [
+                "16",
+                "17",
+                "18"
+            ],
+            "Expected Polls (#)": "35",
+            "Expected Polls (%)": "1",
+            "assertions": [
+                {
+                    "winner": "15",
+                    "loser": "18",
+                    "already_eliminated": [
+                        "16",
+                        "17"
+                    ],
+                    "assertion_type": "IRV_ELIMINATION",
+                    "explanation": "Rules out outcomes with tail [... 15 18]"
+                },
+                {
+                    "winner": "18",
+                    "loser": "17",
+                    "already_eliminated": [
+                        "15",
+                        "16"
+                    ],
+                    "assertion_type": "IRV_ELIMINATION",
+                    "explanation": "Rules out outcomes with tail [... 18 17]"
+                },
+                {
+                    "winner": "17",
+                    "loser": "16",
+                    "already_eliminated": [
+                        "15"
+                    ],
+                    "assertion_type": "IRV_ELIMINATION",
+                    "explanation": "Rules out outcomes with tail [... 17 16 18]"
+                },
+                {
+                    "winner": "15",
+                    "loser": "17",
+                    "already_eliminated": [
+                        "16"
+                    ],
+                    "assertion_type": "IRV_ELIMINATION",
+                    "explanation": "Rules out outcomes with tail [... 15 17 18]"
+                },
+                {
+                    "winner": "18",
+                    "loser": "16",
+                    "already_eliminated": [
+                        "15",
+                        "17"
+                    ],
+                    "assertion_type": "IRV_ELIMINATION",
+                    "explanation": "Rules out outcomes with tail [... 18 16]"
+                },
+                {
+                    "winner": "15",
+                    "loser": "17",
+                    "already_eliminated": [
+                        "16",
+                        "18"
+                    ],
+                    "assertion_type": "IRV_ELIMINATION",
+                    "explanation": "Rules out outcomes with tail [... 15 17]"
+                },
+                {
+                    "winner": "15",
+                    "loser": "16",
+                    "already_eliminated": [
+                        "17"
+                    ],
+                    "assertion_type": "IRV_ELIMINATION",
+                    "explanation": "Rules out outcomes with tail [... 15 16 18]"
+                },
+                {
+                    "winner": "15",
+                    "loser": "16",
+                    "already_eliminated": [
+                        "17",
+                        "18"
+                    ],
+                    "assertion_type": "IRV_ELIMINATION",
+                    "explanation": "Rules out outcomes with tail [... 15 16]"
+                },
+                {
+                    "winner": "15",
+                    "loser": "16",
+                    "already_eliminated": "",
+                    "assertion_type": "IRV_ELIMINATION",
+                    "explanation": "Rules out outcomes with tail [... 15 16 17 18]"
+                },
+                {
+                    "winner": "18",
+                    "loser": "16",
+                    "already_eliminated": [
+                        "15"
+                    ],
+                    "assertion_type": "IRV_ELIMINATION",
+                    "explanation": "Rules out outcomes with tail [... 18 17 16]"
+                },
+                {
+                    "winner": "15",
+                    "loser": "16",
+                    "already_eliminated": [
+                        "18"
+                    ],
+                    "assertion_type": "IRV_ELIMINATION",
+                    "explanation": "Rules out outcomes with tail [... 15 17 16]"
+                }
+            ]
+        }
+    ]
+}
