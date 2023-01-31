@@ -640,26 +640,26 @@ class CVR:
                     d[con][cand] += CVR.as_vote(c.get_vote_for(con, cand))
         return d
 
-        @classmethod
-        def tabulate_cards_contests(cls, cvr_list: list=None):
-            """
-            Tabulate the number of cards containing each contest
+    @classmethod
+    def tabulate_cards_contests(cls, cvr_list: list=None):
+        """
+        Tabulate the number of cards containing each contest
 
-            Parameters
-            ----------
-            cvr_list: list of CVR objects
+        Parameters
+        ----------
+        cvr_list: list of CVR objects
 
-            Returns
-            -------
-            dict:
-                main key is contest
-                value is the number of cards containing that contest
-            """
-            d = defaultdict(int)
-            for c in cvr_list:
-                for con in c.votes:
-                    d[con] += 1
-            return d
+        Returns
+        -------
+        dict:
+            main key is contest
+            value is the number of cards containing that contest
+        """
+        d = defaultdict(int)
+        for c in cvr_list:
+            for con in c.votes:
+                d[con] += 1
+        return d
 
 ##########################################################################################
 class Audit:
@@ -1906,7 +1906,7 @@ class Contest:
         return contests
 
     @classmethod
-    def from_cvr_list(cls, cvr_list: list=None) -> dict:
+    def from_cvr_list(cls, votes, cards, cvr_list: list=None) -> dict:
         """
         Create a contest dict containing all contests in a cvr_list.
         Every contest is single-winner plurality by default, audited by ballot comparison

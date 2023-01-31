@@ -106,36 +106,19 @@ class Hart:
             con = contest.findall("xmlns:Name", namespaces)[0].text
             votes[con] = {}
             options = contest.find("xmlns:Options", namespaces).findall("xmlns:Option", namespaces)
-            #if options:=contest.find("xmlns:Options", namespaces):
-                #initialize dict value as a list, then append the options to it
-                #if contest.findall("xmlns:Name", namespaces)[0].text not in votes:
-                #    votes[contest.findall("xmlns:Name", namespaces)[0].text] = []
             for candidate in options:
-                #for child in candidate:
-                #    print(child.tag, child.text)
-                #this is for catching write ins, which do not have a "Name" node. [TODO: CHECK THIS]
-                #print(candidate.find("xmlns:Name", namespaces))
-                #print(bool(candidate.find("xmlns:Name", namespaces)))
-                if candidate.find("xmlns:Name", namespaces) is not None:
-                    cand = candidate.find("xmlns:Name", namespaces).text
-                elif candidate.find("xmlns:WriteInData", namespaces) is not None:
+                #look for write-ins before name; sometimes write-ins have empty nametags
+                if candidate.find("xmlns:WriteInData", namespaces) is not None:
                     cand = Contest.CANDIDATES.WRITE_IN
+                elif candidate.find("xmlns:Name", namespaces) is not None:
+                        cand = candidate.find("xmlns:Name", namespaces).text
                 else:
-                    #NOTE: this seems to catch undervotes as NO_CANDIDATE
                     raise Warning("Option with no candidate name or write in:\n" + con)
                     cand = Contest.CANDIDATES.NO_CANDIDATE
-                votes[con][cand] = candidate.findall("xmlns:Value", namespaces)[0].text
-                    #    votes[contest.findall("xmlns:Name", namespaces)[0].text].append("WriteIn")
-
-            #else:
-            #    votes[contest.findall("xmlns:Name", namespaces)[0].text] = {}
-            # reformat votes to be proper CVR format
-            #vote_dict = {}
-            #for key in votes.keys():
-            #    if votes[key] is None:
-            #        vote_dict[key] = None
-            #    else:
-            #        vote_dict[key] = {candidate: True for candidate in votes[key]} #<- should this just be True? or should it record more info about vote, e.g. for RCV
+                #if cand is None:
+                #    print(cvr_string)
+                #    return False
+                votes[con][cand] = candidate.find("xmlns:Value", namespaces).text
 
         return CVR(id=batch_sequence + "_" + sheet_number, votes=votes)
 
@@ -188,7 +171,12 @@ class Hart:
             for cvr in file_list[0:size]:
                 with data.open(cvr) as xml_file:
                     raw_string = xml_file.read().decode()
-                    cvr_list.append(Hart.read_cvr(raw_string))
+                    cvr_object = Hart.read_cvr(raw_string)
+                    cvr_list.append(cvr_object)
+                    #if cvr_object:
+                    #    cvr_list.append(cvr_object)
+                    #else:
+                    #    return False
         return cvr_list
 
 
