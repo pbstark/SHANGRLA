@@ -15,10 +15,10 @@ from cryptorandom.cryptorandom import SHA256, random, int_from_hash
 from cryptorandom.sample import random_permutation
 from cryptorandom.sample import sample_by_index
 
-from Code/Audit import Audit, Assertion, Assorter, Contest, CVR, Stratum
-from Code/NonnegMean import NonnegMean
-from Code/Dominion import Dominion
-from Code/Hart import Hart
+from Code.Audit import Audit, Assertion, Assorter, Contest, CVR, Stratum
+from Code.NonnegMean import NonnegMean
+from Code.Dominion import Dominion
+from Code.Hart import Hart
 
 #######################################################################################################
 
