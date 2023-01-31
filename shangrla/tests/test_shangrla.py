@@ -351,7 +351,7 @@ class TestAssertion:
 
     def test_rcv_assorter(self):
         import json
-        with open('../Data/334_361_vbm.json') as fid:
+        with open('./Data/334_361_vbm.json') as fid:
             data = json.load(fid)
             AvB = Contest.from_dict({'id': 'AvB',
                      'name': 'AvB',
