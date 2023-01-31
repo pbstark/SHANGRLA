@@ -112,7 +112,7 @@ class Hart:
                 undervotes.append(contest.findall("xmlns:Undervotes", namespaces)[0].text)
             else:
                 undervotes.append('0')
-            #check if there are any valid votes in the contest. If so, record them. If not (only undervotes), record NA.
+            # check if there are any valid votes in the contest. If so, record them. If not (only undervotes), record NA.
             if contest.findall("xmlns:Options", namespaces)[0]:
                 #initialize dict value as a list, then append the options to it
                 if contest.findall("xmlns:Name", namespaces)[0].text not in votes:

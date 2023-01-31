@@ -217,7 +217,6 @@ class Dominion:
         cards.sort(key = lambda x: x[5])
         return cards, sample_order, cvr_sample, mvr_phantoms
 
-
     @classmethod
     def write_cards_sampled(cls, sample_file: str, cards: list, print_phantoms: bool=True):
         """

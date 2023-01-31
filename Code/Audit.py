@@ -636,6 +636,7 @@ class CVR:
         d = defaultdict(lambda: defaultdict(int))
         for c in cvr_list:
             for con, votes in c.votes.items():
+                d[con]['__cards__'] += 1
                 for cand in votes:
                     d[con][cand] += CVR.as_vote(c.get_vote_for(con, cand))
         return d
