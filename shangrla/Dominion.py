@@ -7,7 +7,7 @@ import csv
 import pandas as pd
 import warnings
 import copy
-from Audit import CVR
+from .Audit import CVR
 
 class Dominion:
     
