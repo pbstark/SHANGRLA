@@ -173,9 +173,9 @@ class Hart:
                     raw_string = xml_file.read().decode()
                     cvr_object = Hart.read_cvr(raw_string)
                     cvr_list.append(cvr_object)
-                    #if cvr_object:
+                    # if cvr_object:
                     #    cvr_list.append(cvr_object)
-                    #else:
+                    # else:
                     #    return False
         return cvr_list
 
