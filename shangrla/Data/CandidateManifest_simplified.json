@@ -1,0 +1,53 @@
+{
+    "contests": [{
+        "description": "ALASKA DNC PRIMARY",
+        "id": 1
+    }],
+    "candidates": [
+        {
+            "description": "Joseph R. Biden",
+            "id": 1,
+            "type": "Regular"
+        },
+        {
+            "description": "Tom Steyer",
+            "id": 3,
+            "type": "Regular"
+        },
+        {
+            "description": "Bernie Sanders",
+            "id": 4,
+            "type": "Regular"
+        },
+        {
+            "description": "Amy Klobuchar",
+            "id": 5,
+            "type": "Regular"
+        },
+        {
+            "description": "Tulsi Gabbard",
+            "id": 7,
+            "type": "Regular"
+        },
+        {
+            "description": "Elizabeth Warren",
+            "id": 8,
+            "type": "Regular"
+        },
+        {
+            "description": "Michael R. Bloomberg",
+            "id": 9,
+            "type": "Regular"
+        },
+        {
+            "description": "Pete Buttigieg",
+            "id": 11,
+            "type": "Regular"
+        },
+        {
+            "description": "(undeclared)",
+            "id": 12,
+            "type": "Regular"
+        }
+    ]
+}
