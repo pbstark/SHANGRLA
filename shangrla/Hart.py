@@ -24,7 +24,7 @@ class Hart:
     NO_CANDIDATE = "NO_CANDIDATE"
 
     @classmethod
-    def prep_manifest(cls,manifest, max_cards, n_cvrs):
+    def prep_manifest(cls, manifest, max_cards, n_cvrs):
         """
         Prepare a HART Excel ballot manifest (read as a pandas dataframe) for sampling.
         The manifest may have cards that do not contain the contest, but every listed CVR
@@ -115,9 +115,6 @@ class Hart:
                 else:
                     raise Warning("Option with no candidate name or write in:\n" + con)
                     cand = Contest.CANDIDATES.NO_CANDIDATE
-                #if cand is None:
-                #    print(cvr_string)
-                #    return False
                 votes[con][cand] = candidate.find("xmlns:Value", namespaces).text
 
         return CVR(id=batch_sequence + "_" + sheet_number, votes=votes)
@@ -137,11 +134,10 @@ class Hart:
         --------
         cvr_list: list of CVRs as returned by read_CVR()
         """
-        cvr_files = os.listdir(cvr_directory)
         cvr_list = []
-        for file in cvr_files:
+        for file in [f for f in os.listdir(cvr_directory) if f.endswith('.xml')]:
             cvr_path = cvr_directory + "/" + file
-            with open(cvr_path, 'r', encoding='latin-1') as xml_file:
+            with open(cvr_path, 'r', encoding='latin-1') as xml_file: #latin-1 encoding?
                 raw_string = xml_file.read()
             cvr_list.append(Hart.read_cvr(raw_string))
 
@@ -169,14 +165,11 @@ class Hart:
             if(size is None):
                 size = len(file_list)
             for cvr in file_list[0:size]:
-                with data.open(cvr) as xml_file:
-                    raw_string = xml_file.read().decode()
-                    cvr_object = Hart.read_cvr(raw_string)
-                    cvr_list.append(cvr_object)
-                    # if cvr_object:
-                    #    cvr_list.append(cvr_object)
-                    # else:
-                    #    return False
+                if cvr.endswith(".xml"):
+                    with data.open(cvr) as xml_file:
+                        raw_string = xml_file.read().decode()
+                        cvr_object = Hart.read_cvr(raw_string)
+                        cvr_list.append(cvr_object)
         return cvr_list
 
 
@@ -211,13 +204,14 @@ class Hart:
         sample_order = {}
         mvr_phantoms = []
         lookup = np.array([0] + list(manifest['cum_cards']))
-        for i,s in enumerate(sample-1):
+        #TODO: Fix this, doesn't work
+        for i,s in enumerate(sample - 1):
             batch_num = int(np.searchsorted(lookup, s, side='left'))
-            card_in_batch = int(s-lookup[batch_num-1])
-            tab = manifest.iloc[batch_num-1]['Tabulator']
-            batch = manifest.iloc[batch_num-1]['Batch Name']
+            card_in_batch = int(s-lookup[batch_num - 1])
+            tab = manifest.iloc[batch_num - 1]['Tabulator']
+            batch = manifest.iloc[batch_num - 1]['Batch Name']
             card_id = f'{tab}-{batch}-{card_in_batch}'
-            card = list(manifest.iloc[batch_num-1][['Container']]) \
+            card = list(manifest.iloc[batch_num - 1][['Container']]) \
                     + [tab, batch, card_in_batch, card_id]
             cards.append(card)
             if tab == 'phantom':
