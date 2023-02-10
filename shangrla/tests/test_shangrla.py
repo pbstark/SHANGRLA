@@ -892,7 +892,7 @@ class TestHart:
     #TODO: tests for prep_manifest, sample_from_manifest, sample_from_CVRs
     def test_prep_manifest(self):
         #without phantoms
-        manifest = pd.read_excel("tests/Data/Hart_manifest.xlsx")
+        manifest = pd.read_excel(I)
         max_cards = 1141765
         n_cvrs = 1141765
         manifest, manifest_cards, phantoms = Hart.prep_manifest(manifest, max_cards, n_cvrs)

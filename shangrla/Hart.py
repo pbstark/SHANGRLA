@@ -205,8 +205,8 @@ class Hart:
         mvr_phantoms = []
         lookup = np.array([0] + list(manifest['cum_cards']))
         #TODO: Fix this, doesn't work
-        for i,s in enumerate(sample - 1):
-            batch_num = int(np.searchsorted(lookup, s, side='left'))
+        for i, s in enumerate(sample):
+            batch_num = int(np.searchsorted(lookup, s, side='right')) # switch from left to right
             card_in_batch = int(s-lookup[batch_num - 1])
             tab = manifest.iloc[batch_num - 1]['Tabulator']
             batch = manifest.iloc[batch_num - 1]['Batch Name']
@@ -219,7 +219,7 @@ class Hart:
             sample_order[card_id] = {}
             sample_order[card_id]["selection_order"] = i
             sample_order[card_id]["serial"] = s+1
-        cards.sort(key=lambda x: x[-2])
+        cards.sort(key=lambda x: x[-2]) # Check this
         return cards, sample_order, mvr_phantoms
 
 
