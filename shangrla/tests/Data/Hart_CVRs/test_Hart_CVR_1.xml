@@ -1,0 +1,45 @@
+<?xml version="1.0"?>
+<Cvr xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://tempuri.org/CVRDesign.xsd">
+  <Contests>
+    <Contest>
+      <Name>PRESIDENT</Name>
+      <Id>5f6639a9-f989-45f9-810d-16611468ae7a</Id>
+      <Options>
+        <Option>
+          <Name>George Washington</Name>
+          <Id>6563ae4b-9af7-413d-8c05-82a9b8537089</Id>
+          <Value>1</Value>
+        </Option>
+      </Options>
+    </Contest>
+    <Contest>
+      <Name>GOVERNOR</Name>
+      <Id>076d687a-e4a0-4c89-b49b-8f752b2e928f</Id>
+      <Options/>
+      <Undervotes>1</Undervotes>
+    </Contest>
+    <Contest>
+      <Name>MAYOR</Name>
+      <Id>5f6639a9-f989-45f9-810d-16611468ae7a</Id>
+      <Options>
+        <Option>
+          <Id>07fe246b-171c-40fe-809a-eaa129226960</Id>
+          <Value>1</Value>
+          <WriteInData>
+            <Text/>
+            <ImageId>0f1957ea-f086-4a17-ba2e-25413ae9068d</ImageId>
+            <WriteInDataStatus>Unresolved</WriteInDataStatus>
+          </WriteInData>
+        </Option>
+      </Options>
+    </Contest>
+  </Contests>
+  <BatchSequence>1</BatchSequence>
+  <SheetNumber>2</SheetNumber>
+  <PrecinctSplit>
+    <Name>68059</Name>
+    <Id>ad8a1f06-4e1d-4c91-aa68-3b2cd81840f1</Id>
+  </PrecinctSplit>
+  <BatchNumber>2280</BatchNumber>
+  <CvrGuid>0a7EqyblZ6CMFQbkN0kkRykS5w40Wg8q</CvrGuid>
+</Cvr>

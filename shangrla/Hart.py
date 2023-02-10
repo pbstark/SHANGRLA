@@ -17,10 +17,14 @@ from zipfile import ZipFile, Path
 from .Audit import Audit, Assertion, Assorter, Contest, CVR, Stratum
 from .NonnegMean import NonnegMean
 
+
 class Hart:
-    
+
+    WRITE_IN = "WRITE_IN"
+    NO_CANDIDATE = "NO_CANDIDATE"
+
     @classmethod
-    def prep_manifest(cls,manifest, max_cards, n_cvrs):
+    def prep_manifest(cls, manifest, max_cards, n_cvrs):
         """
         Prepare a HART Excel ballot manifest (read as a pandas dataframe) for sampling.
         The manifest may have cards that do not contain the contest, but every listed CVR
@@ -42,7 +46,7 @@ class Hart:
         Returns:
         --------
         manifest: dataframe
-            original manifest with additional column for cumulative cards and, if needed, an additional batch 
+            original manifest with additional column for cumulative cards and, if needed, an additional batch
             for any phantom cards
         manifest_cards: int
             the total number of cards in the manifest
@@ -63,7 +67,7 @@ class Hart:
             manifest = manifest.append(r, ignore_index = True)
         manifest['cum_cards'] = manifest['Number of Ballots'].cumsum()
         for c in ['Container', 'Tabulator', 'Batch Name', 'Number of Ballots']:
-            manifest[c] = manifest[c].astype(str)
+            manifest[c] = manifest[c].astype(str) #<- why is this a str instead of a float? weird behavior when e.g. summing to get total ballots
         return manifest, manifest_cards, phantoms
 
 
@@ -74,19 +78,12 @@ class Hart:
 
         Parameters:
         -----------
-        cvr_path: string
-            file path of a single CVR XML file
+        cvr_string: string
+            the raw string of a Hart XML CVL
 
         Returns:
         --------
-        CVR object
-            votes: a dict with keys as names of contests and values as the votes in that contest
-            undervotes: a list of length len(votes), tabulating the number of undervotes in each contest
-            batch_sequence: a string with the batch sequence
-            sheet_number: a string with the sheet number of the ballot card
-            precinct_name: a string with the precinct name
-            precinct_ID: a string with the precinct ID
-            cvr_guid: a string of CvrGuide
+        CVR object with unique identifier, contests, and votes
         """
         namespaces = {'xsi': "http://www.w3.org/2001/XMLSchema-instance",
                   "xsd": "http://www.w3.org/2001/XMLSchema",
@@ -106,33 +103,21 @@ class Hart:
         #contests are contained in "Contests", the first element of cvr_root, loop through each contest
         for contest in cvr_root[0]:
             #record the name of the contest
-            contests.append(contest.findall("xmlns:Name", namespaces)[0].text)
-            #check if there are any undervotes. If so, record how many. If not, record 0.
-            if contest.findall("xmlns:Undervotes", namespaces):
-                undervotes.append(contest.findall("xmlns:Undervotes", namespaces)[0].text)
-            else:
-                undervotes.append('0')
-            # check if there are any valid votes in the contest. If so, record them. If not (only undervotes), record NA.
-            if contest.findall("xmlns:Options", namespaces)[0]:
-                #initialize dict value as a list, then append the options to it
-                if contest.findall("xmlns:Name", namespaces)[0].text not in votes:
-                    votes[contest.findall("xmlns:Name", namespaces)[0].text] = []
-                for options in contest.findall("xmlns:Options", namespaces)[0]:
-                    #this is for catching write ins, which do not have a "Name" node.
-                    try:
-                        votes[contest.findall("xmlns:Name", namespaces)[0].text].append(
-                                 options.findall("xmlns:Name", namespaces)[0].text)
-                    except IndexError:
-                        votes[contest.findall("xmlns:Name", namespaces)[0].text].append("WriteIn")
+            con = contest.findall("xmlns:Name", namespaces)[0].text
+            votes[con] = {}
+            options = contest.find("xmlns:Options", namespaces).findall("xmlns:Option", namespaces)
+            for candidate in options:
+                #look for write-ins before name; sometimes write-ins have empty nametags
+                if candidate.find("xmlns:WriteInData", namespaces) is not None:
+                    cand = Contest.CANDIDATES.WRITE_IN
+                elif candidate.find("xmlns:Name", namespaces) is not None:
+                        cand = candidate.find("xmlns:Name", namespaces).text
+                else:
+                    raise Warning("Option with no candidate name or write in:\n" + con)
+                    cand = Contest.CANDIDATES.NO_CANDIDATE
+                votes[con][cand] = candidate.find("xmlns:Value", namespaces).text
 
-            else:
-                votes[contest.findall("xmlns:Name", namespaces)[0].text] = ["NA"]
-            # reformat votes to be proper CVR format
-            vote_dict = {}
-            for key in votes.keys():
-                vote_dict[key] = {candidate: True for candidate in votes[key]}
-
-        return CVR(id=batch_sequence + "_" + sheet_number, votes=vote_dict)
+        return CVR(id=batch_sequence + "_" + sheet_number, votes=votes)
 
 
     @classmethod
@@ -142,18 +127,17 @@ class Hart:
 
         Parameters:
         -----------
-        cvr_folder: string
+        cvr_directory: string
             name of folder containing CVRs as XML files
 
         Returns:
         --------
         cvr_list: list of CVRs as returned by read_CVR()
         """
-        cvr_files = os.listdir(cvr_directory)
         cvr_list = []
-        for file in cvr_files:
+        for file in [f for f in os.listdir(cvr_directory) if f.endswith('.xml')]:
             cvr_path = cvr_directory + "/" + file
-            with open(cvr_path, 'r', encoding='latin-1') as xml_file:
+            with open(cvr_path, 'r', encoding='latin-1') as xml_file: #latin-1 encoding?
                 raw_string = xml_file.read()
             cvr_list.append(cls.read_cvr(raw_string))
 
@@ -180,9 +164,11 @@ class Hart:
             if(size is None):
                 size = len(file_list)
             for cvr in file_list[0:size]:
-                with data.open(cvr) as xml_file:
-                    raw_string = xml_file.read().decode()
-                    cvr_list.append(cls.read_cvr(raw_string))
+                if cvr.endswith(".xml"):
+                    with data.open(cvr) as xml_file:
+                        raw_string = xml_file.read().decode()
+                        cvr_object = cls.read_cvr(raw_string)
+                        cvr_list.append(cvr_object)
         return cvr_list
 
 
@@ -217,13 +203,14 @@ class Hart:
         sample_order = {}
         mvr_phantoms = []
         lookup = np.array([0] + list(manifest['cum_cards']))
-        for i,s in enumerate(sample-1):
-            batch_num = int(np.searchsorted(lookup, s, side='left'))
-            card_in_batch = int(s-lookup[batch_num-1])
-            tab = manifest.iloc[batch_num-1]['Tabulator']
-            batch = manifest.iloc[batch_num-1]['Batch Name']
+        #TODO: Fix this, doesn't work
+        for i, s in enumerate(sample):
+            batch_num = int(np.searchsorted(lookup, s, side='right')) # switch from left to right
+            card_in_batch = int(s-lookup[batch_num - 1])
+            tab = manifest.iloc[batch_num - 1]['Tabulator']
+            batch = manifest.iloc[batch_num - 1]['Batch Name']
             card_id = f'{tab}-{batch}-{card_in_batch}'
-            card = list(manifest.iloc[batch_num-1][['Container']]) \
+            card = list(manifest.iloc[batch_num - 1][['Container']]) \
                     + [tab, batch, card_in_batch, card_id]
             cards.append(card)
             if tab == 'phantom':
@@ -231,7 +218,7 @@ class Hart:
             sample_order[card_id] = {}
             sample_order[card_id]["selection_order"] = i
             sample_order[card_id]["serial"] = s+1
-        cards.sort(key=lambda x: x[-2])
+        cards.sort(key=lambda x: x[-2]) # Check this
         return cards, sample_order, mvr_phantoms
 
 
@@ -265,16 +252,18 @@ class Hart:
         sample_order = {}
         cvr_sample = []
         mvr_phantoms = []
-        for i,s in enumerate(sample-1):
+        for i,s in enumerate(sample):
             cvr_sample.append(cvr_list[s])
             cvr_id = cvr_list[s].id
-            batch, card_num = cvr_id.split("_")
-            card_id = f'{batch}_{card_num}'
             if not cvr_list[s].phantom:
+                batch, card_num = cvr_id.split("_")
+                card_id = f'{batch}_{card_num}'
                 manifest_row = manifest[(manifest['Batch Name'] == str(batch))].iloc[0]
                 card = [manifest_row['Tabulator']]\
                         + [batch, card_num, card_id]
             else:
+                word, batch, card_num = cvr_id.split("-")
+                card_id = f'phantom-{batch}-{card_num}'
                 card = ["","", batch, card_num, card_id]
                 mvr_phantoms.append(CVR(id=cvr_id, votes = {}, phantom=True))
             cards.append(card)

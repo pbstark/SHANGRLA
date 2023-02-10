@@ -638,6 +638,27 @@ class CVR:
                     d[con][cand] += CVR.as_vote(c.get_vote_for(con, cand))
         return d
 
+    @classmethod
+    def tabulate_cards_contests(cls, cvr_list: list=None):
+        """
+        Tabulate the number of cards containing each contest
+
+        Parameters
+        ----------
+        cvr_list: list of CVR objects
+
+        Returns
+        -------
+        dict:
+            main key is contest
+            value is the number of cards containing that contest
+        """
+        d = defaultdict(int)
+        for c in cvr_list:
+            for con in c.votes:
+                d[con] += 1
+        return d
+
 ##########################################################################################
 class Audit:
     '''
@@ -998,7 +1019,6 @@ class Assertion:
         Returns
         -------
         overstatement assorter mean implied by the assorter mean and the assumed error rates
-
         '''
         return (1-error_rate_1/2 - error_rate_2)/(2-self.margin/self.assorter.upper_bound)
 
@@ -1736,6 +1756,7 @@ class Contest:
         '''
         CANDIDATES = (ALL:= 'ALL',
                       ALL_OTHERS:= 'ALL_OTHERS',
+                      WRITE_IN:= 'WRITE_IN',
                       NO_CANDIDATE:= 'NO_CANDIDATE')
     ATTRIBUTES = (
                   'id',
@@ -1883,6 +1904,39 @@ class Contest:
             contests[di] = cls.from_dict(v)
             contests[di].id = di
         return contests
+
+    @classmethod
+    def from_cvr_list(cls, votes, cards, cvr_list: list=None) -> dict:
+        """
+        Create a contest dict containing all contests in a cvr_list.
+        Every contest is single-winner plurality by default, audited by ballot comparison
+        """
+        contest_dict = {}
+        for key in votes:
+            contest_name = str(key)
+            cards_with_contest = cards[key]
+            options = np.array(list(votes[key].keys()), dtype = 'str')
+            tallies = np.array(list(votes[key].values()))
+
+            reported_winner = options[np.argmax(tallies)]
+
+            contest_dict[contest_name] = {
+                "name" : contest_name,
+                "cards" : cards_with_contest,
+                'choice_function': Contest.SOCIAL_CHOICE_FUNCTION.PLURALITY,
+                'n_winners': 1,
+                "risk_limit" : 0.05,
+                "candidates" : list(options),
+                "winner" : [reported_winner],
+                'assertion_file': None,
+                'audit_type': Audit.AUDIT_TYPE.BALLOT_COMPARISON,
+                'test': NonnegMean.alpha_mart,
+                'estim': NonnegMean.optimal_comparison
+            }
+        contests = Contest.from_dict_of_dicts(contest_dict)
+        return contests
+
+
 
     @classmethod
     def print_margins(cls, contests: dict=None):

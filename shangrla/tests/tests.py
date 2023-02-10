@@ -24,7 +24,7 @@ from shangrla.Hart import Hart
 #######################################################################################################
 
 class TestCVR:
-
+    
     def test_rcv_lfunc_wo(self):
         votes = CVR.from_vote({"Alice": 1, "Bob": 2, "Candy": 3, "Dan": ''})
         assert votes.rcv_lfunc_wo("AvB", "Bob", "Alice") == 1
@@ -104,9 +104,10 @@ class TestCVR:
         assert c[2].votes == {'339': {'18':1, '17':2, '15':3, '16':4}, '3': {'2':1}} # merges votes?
 
     def test_make_phantoms(self):
-        audit = Audit.from_dict({'strata': {'stratum_1': {'max_cards':   8,
+        audit = Audit.from_dict({'strata': {'stratum_1': {'max_cards':   8, 
                                           'use_style':   True,
-                                          'replacement': False
+                                          'replacement': False,
+                                          
                                          }
                                       }})
         contests =  Contest.from_dict_of_dicts({'city_council': {'risk_limit':0.05,
@@ -127,11 +128,11 @@ class TestCVR:
                                      'winner': ['yes']
                                     }
                     })
-        cvrs = [CVR(id="1", votes={"city_council": {"Alice": 1},     "measure_1": {"yes": 1}}, phantom=False),
-                    CVR(id="2", votes={"city_council": {"Bob": 1},   "measure_1": {"yes": 1}}, phantom=False),
-                    CVR(id="3", votes={"city_council": {"Bob": 1},   "measure_1": {"no": 1}}, phantom=False),
-                    CVR(id="4", votes={"city_council": {"Charlie": 1}}, phantom=False),
-                    CVR(id="5", votes={"city_council": {"Doug": 1}}, phantom=False),
+        cvrs = [CVR(id="1", votes={"city_council": {"Alice": 1},     "measure_1": {"yes": 1}}, phantom=False), 
+                    CVR(id="2", votes={"city_council": {"Bob": 1},   "measure_1": {"yes": 1}}, phantom=False), 
+                    CVR(id="3", votes={"city_council": {"Bob": 1},   "measure_1": {"no": 1}}, phantom=False), 
+                    CVR(id="4", votes={"city_council": {"Charlie": 1}}, phantom=False), 
+                    CVR(id="5", votes={"city_council": {"Doug": 1}}, phantom=False), 
                     CVR(id="6", votes={"measure_1": {"no": 1}}, phantom=False)
                 ]
         prefix = 'phantom-'
@@ -149,7 +150,7 @@ class TestCVR:
                       np.sum([c.has_contest('measure_1') for c in cvr_list])
         assert np.sum([c.has_contest('city_council') and not c.phantom for c in cvr_list]) ==  5
         assert np.sum([c.has_contest('measure_1') and not c.phantom for c in cvr_list]) == 4
-
+        
         audit.strata['stratum_1'].use_style = False
         cvr_list, phantoms = CVR.make_phantoms(audit, contests, cvrs, prefix='phantom-')
         assert len(cvr_list) == 8
@@ -166,11 +167,11 @@ class TestCVR:
         assert np.sum([c.has_contest('measure_1') and not c.phantom for c in cvr_list]) == 4
 
     def test_assign_sample_nums(self):
-        cvrs = [CVR(id="1", votes={"city_council": {"Alice": 1}, "measure_1": {"yes": 1}}, phantom=False),
-                    CVR(id="2", votes={"city_council": {"Bob": 1},   "measure_1": {"yes": 1}}, phantom=False),
-                    CVR(id="3", votes={"city_council": {"Bob": 1},   "measure_1": {"no": 1}}, phantom=False),
-                    CVR(id="4", votes={"city_council": {"Charlie": 1}}, phantom=False),
-                    CVR(id="5", votes={"city_council": {"Doug": 1}}, phantom=False),
+        cvrs = [CVR(id="1", votes={"city_council": {"Alice": 1}, "measure_1": {"yes": 1}}, phantom=False), 
+                    CVR(id="2", votes={"city_council": {"Bob": 1},   "measure_1": {"yes": 1}}, phantom=False), 
+                    CVR(id="3", votes={"city_council": {"Bob": 1},   "measure_1": {"no": 1}}, phantom=False), 
+                    CVR(id="4", votes={"city_council": {"Charlie": 1}}, phantom=False), 
+                    CVR(id="5", votes={"city_council": {"Doug": 1}}, phantom=False), 
                     CVR(id="6", votes={"measure_1": {"no": 1}}, phantom=False)
                 ]
         prng = SHA256(1234567890)
@@ -179,11 +180,11 @@ class TestCVR:
         assert cvrs[5].sample_num == 93838330019164869717966768063938259297046489853954854934402443181124696542865
 
     def test_consistent_sampling(self):
-        cvrs = [CVR(id="1", votes={"city_council": {"Alice": 1}, "measure_1": {"yes": 1}}, phantom=False),
-                CVR(id="2", votes={"city_council": {"Bob": 1},   "measure_1": {"yes": 1}}, phantom=False),
-                CVR(id="3", votes={"city_council": {"Bob": 1},   "measure_1": {"no": 1}}, phantom=False),
-                CVR(id="4", votes={"city_council": {"Charlie": 1}}, phantom=False),
-                CVR(id="5", votes={"city_council": {"Doug": 1}}, phantom=False),
+        cvrs = [CVR(id="1", votes={"city_council": {"Alice": 1}, "measure_1": {"yes": 1}}, phantom=False), 
+                CVR(id="2", votes={"city_council": {"Bob": 1},   "measure_1": {"yes": 1}}, phantom=False), 
+                CVR(id="3", votes={"city_council": {"Bob": 1},   "measure_1": {"no": 1}}, phantom=False), 
+                CVR(id="4", votes={"city_council": {"Charlie": 1}}, phantom=False), 
+                CVR(id="5", votes={"city_council": {"Doug": 1}}, phantom=False), 
                 CVR(id="6", votes={"measure_1": {"no": 1}}, phantom=False)
                 ]
         prng = SHA256(1234567890)
@@ -213,14 +214,14 @@ class TestCVR:
         assert sample_cvr_indices == [4, 3, 5, 0, 1]
 
     def test_tabulate_styles(self):
-        cvrs = [CVR(id="1", votes={"city_council": {"Alice": 1}, "measure_1": {"yes": 1}}, phantom=False),
-                CVR(id="2", votes={"city_council": {"Bob": 1}, "measure_1": {"yes": 1}}, phantom=False),
-                CVR(id="3", votes={"city_council": {"Bob": 1}, "measure_1": {"no": 1}}, phantom=False),
-                CVR(id="4", votes={"city_council": {"Charlie": 1}}, phantom=False),
-                CVR(id="5", votes={"city_council": {"Doug": 1}}, phantom=False),
+        cvrs = [CVR(id="1", votes={"city_council": {"Alice": 1}, "measure_1": {"yes": 1}}, phantom=False), 
+                CVR(id="2", votes={"city_council": {"Bob": 1}, "measure_1": {"yes": 1}}, phantom=False), 
+                CVR(id="3", votes={"city_council": {"Bob": 1}, "measure_1": {"no": 1}}, phantom=False), 
+                CVR(id="4", votes={"city_council": {"Charlie": 1}}, phantom=False), 
+                CVR(id="5", votes={"city_council": {"Doug": 1}}, phantom=False), 
                 CVR(id="6", votes={"measure_1": {"no": 1}}, phantom=False),
                 CVR(id="7", votes={"city_council": {"Alice": 1}, "measure_1": {"yes": 1}, "measure_2": {"no":1}},
-                          phantom=False),
+                          phantom=False), 
                 CVR(id="8", votes={"measure_1": {"no": 1}, "measure_2": {"yes": 1}}, phantom=False),
                 CVR(id="9", votes={"measure_1": {"no": 1}, "measure_3": {"yes": 1}}, phantom=False),
             ]
@@ -229,17 +230,17 @@ class TestCVR:
         assert t[frozenset(['measure_1','measure_3'])] == 1
         assert t[frozenset(['city_council','measure_1'])] == 3
         assert t[frozenset(['city_council','measure_1','measure_2'])] == 1
-
-
+        
+         
     def test_tabulate_votes(self):
-        cvrs = [CVR(id="1", votes={"city_council": {"Alice": 1}, "measure_1": {"yes": 1}}, phantom=False),
-                CVR(id="2", votes={"city_council": {"Bob": 1}, "measure_1": {"yes": 1}}, phantom=False),
-                CVR(id="3", votes={"city_council": {"Bob": 1}, "measure_1": {"no": 1}}, phantom=False),
-                CVR(id="4", votes={"city_council": {"Charlie": 1}}, phantom=False),
-                CVR(id="5", votes={"city_council": {"Doug": 1}}, phantom=False),
+        cvrs = [CVR(id="1", votes={"city_council": {"Alice": 1}, "measure_1": {"yes": 1}}, phantom=False), 
+                CVR(id="2", votes={"city_council": {"Bob": 1}, "measure_1": {"yes": 1}}, phantom=False), 
+                CVR(id="3", votes={"city_council": {"Bob": 1}, "measure_1": {"no": 1}}, phantom=False), 
+                CVR(id="4", votes={"city_council": {"Charlie": 1}}, phantom=False), 
+                CVR(id="5", votes={"city_council": {"Doug": 1}}, phantom=False), 
                 CVR(id="6", votes={"measure_1": {"no": 1}}, phantom=False),
                 CVR(id="7", votes={"city_council": {"Alice": 1}, "measure_1": {"yes": 1}, "measure_2": {"no":1}},
-                          phantom=False),
+                          phantom=False), 
                 CVR(id="8", votes={"measure_1": {"no": 1}, "measure_2": {"yes": 1}}, phantom=False),
                 CVR(id="9", votes={"measure_1": {"no": 1}, "measure_3": {"yes": 1}}, phantom=False),
             ]
@@ -248,11 +249,11 @@ class TestCVR:
         assert d['city_council']['Bob'] == 2
         assert d['city_council']['Doug'] == 1
         assert d['measure_1']['no'] == 4
-
+            
 ######################################################################################
 
 class TestAudit:
-
+    
     def test_from_dict(self):
         d = {
          'seed':           12345678901234567890,
@@ -265,7 +266,7 @@ class TestAudit:
          'error_rate_1':   0.001,
          'error_rate_2':   0.0001,
          'reps':           100,
-         'strata':         {'stratum_1': {'max_cards':   293555,
+         'strata':         {'stratum_1': {'max_cards':   293555, 
                                           'use_style':   True,
                                           'replacement': True,
                                           'audit_type':  Audit.AUDIT_TYPE.BALLOT_COMPARISON,
@@ -279,11 +280,11 @@ class TestAudit:
         assert a.strata['stratum_1'].max_cards == 293555
         assert a.quantile == 0.8
         assert a.reps == 100
-
-
+    
+    
 ######################################################################################
 class TestAssertion:
-
+    
     con_test = Contest.from_dict({'id': 'AvB',
                  'name': 'AvB',
                  'risk_limit': 0.05,
@@ -328,7 +329,7 @@ class TestAssertion:
 
     def test_supermajority_assorter(self):
         loser = ['Bob','Candy']
-        assn = Assertion.make_supermajority_assertion(contest=self.con_test, winner="Alice",
+        assn = Assertion.make_supermajority_assertion(contest=self.con_test, winner="Alice", 
                                                       loser=loser)
 
         label = 'Alice v ' + Contest.CANDIDATES.ALL_OTHERS
@@ -366,13 +367,13 @@ class TestAssertion:
                 cands = [audit['winner']]
                 for elim in audit['eliminated']:
                     cands.append(elim)
-                all_assertions = Assertion.make_assertions_from_json(contest=AvB, candidates=cands,
+                all_assertions = Assertion.make_assertions_from_json(contest=AvB, candidates=cands, 
                                                                      json_assertions=audit['assertions'])
                 assertions[audit['contest']] = all_assertions
-
+            
             # winner only assertion
             assorter = assertions['334']['5 v 47'].assorter
-
+            
             votes = CVR.from_vote({'5': 1, '47': 2})
             assert assorter.assort(votes) == 1, f'{assorter.assort(votes)=}'
 
@@ -387,10 +388,10 @@ class TestAssertion:
 
             votes = CVR.from_vote({'3': 1, '5': 2})
             assert assorter.assort(votes) == 0.5, f'{assorter.assort(votes)=}'
-
+            
             # elimination assertion
             assorter = assertions['334']['5 v 3 elim 1 6 47'].assorter
-
+                  
             votes = CVR.from_vote({'5': 1, '47': 2})
             assert assorter.assort(votes) == 1, f'{assorter.assort(votes)=}'
 
@@ -414,13 +415,13 @@ class TestAssertion:
 
             # winner-only assertion
             assorter = assertions['361']['28 v 50'].assorter
-
+            
             votes = CVR.from_vote({'28': 1, '50': 2})
             assert assorter.assort(votes) == 1, f'{assorter.assort(votes)=}'
-
+            
             votes = CVR.from_vote({'28': 1})
             assert assorter.assort(votes) == 1, f'{assorter.assort(votes)=}'
-
+            
             votes = CVR.from_vote({'50': 1})
             assert assorter.assort(votes) == 0, f'{assorter.assort(votes)=}'
 
@@ -438,7 +439,7 @@ class TestAssertion:
 
             # elimination assertion
             assorter = assertions['361']['27 v 26 elim 28 50'].assorter
-
+            
             votes = CVR.from_vote({'27': 1})
             assert assorter.assort(votes) == 1, f'{assorter.assort(votes)=}'
 
@@ -465,7 +466,7 @@ class TestAssertion:
 
             votes = CVR.from_vote({'50': 1})
             assert assorter.assort(votes) == 0.5, f'{assorter.assort(votes)=}'
-
+            
             votes = CVR.from_vote({})
             assert assorter.assort(votes) == 0.5, f'{assorter.assort(votes)=}'
 
@@ -494,10 +495,10 @@ class TestAssertion:
         winner = ["Alice"]
         loser = ["Bob"]
 
-        aVb = Assertion(contest=self.con_test, assorter=Assorter(contest=self.con_test,
+        aVb = Assertion(contest=self.con_test, assorter=Assorter(contest=self.con_test, 
                         assort = (lambda c, contest_id="AvB", winr="Alice", losr="Bob":
-                        ( CVR.as_vote(c.get_vote_for("AvB", winr))
-                        - CVR.as_vote(c.get_vote_for("AvB", losr))
+                        ( CVR.as_vote(c.get_vote_for("AvB", winr)) 
+                        - CVR.as_vote(c.get_vote_for("AvB", losr)) 
                         + 1)/2), upper_bound=1))
         assert aVb.assorter.overstatement(mvrs[0], cvrs[0], use_style=True) == 0
         assert aVb.assorter.overstatement(mvrs[0], cvrs[0], use_style=False) == 0
@@ -554,10 +555,10 @@ class TestAssertion:
         loser = ["Bob", "Candy"]
 
 
-        aVb = Assertion(contest=self.con_test, assorter=Assorter(contest=self.con_test,
+        aVb = Assertion(contest=self.con_test, assorter=Assorter(contest=self.con_test, 
                         assort = (lambda c, contest_id="AvB", winr="Alice", losr="Bob":
-                        ( CVR.as_vote(c.get_vote_for("AvB", winr))
-                        - CVR.as_vote(c.get_vote_for("AvB", losr))
+                        ( CVR.as_vote(c.get_vote_for("AvB", winr)) 
+                        - CVR.as_vote(c.get_vote_for("AvB", losr)) 
                         + 1)/2), upper_bound=1))
         aVb.margin=0.2
         assert aVb.overstatement_assorter(mvrs[0], cvrs[0], use_style=True) == 1/1.8
@@ -605,7 +606,7 @@ class TestAssertion:
             assert sam_size1 == ss1
             #
             # second test
-            # For "clean", the term is (1/2+g)/(clean+g); for a one-vote overstatement, it is (1/2+g)/(one_over+g).
+            # For "clean", the term is (1/2+g)/(clean+g); for a one-vote overstatement, it is (1/2+g)/(one_over+g). 
             sam_size2 = a.find_sample_size(data=None, prefix=True, rate_1=rate_1, reps=10**2, quantile=0.5, seed=1234567890)
             clean = 1/(2-a.margin/a.assorter.upper_bound)
             over = clean/2 # corresponds to an overstatement of upper_bound/2, i.e., 1 vote.
@@ -613,13 +614,13 @@ class TestAssertion:
             o = (a.test.t+a.test.g)/(clean/2+a.test.g)
             # the following calculation assumes the audit will terminate before the second overstatement error
             ss2 = math.ceil(np.log(AvB.risk_limit/o)/np.log(c))+1
-            assert sam_size2 == ss2
+            assert sam_size2 == ss2    
             #
             # third test
-            sam_size3 = a.find_sample_size(data=None, prefix=True, rate_1=rate_1, rate_2=rate_2,
+            sam_size3 = a.find_sample_size(data=None, prefix=True, rate_1=rate_1, rate_2=rate_2, 
                                            reps=10**2, quantile=0.99, seed=1234567890)
             assert sam_size3 > sam_size2
-
+ 
     def test_margin_from_tally(self):
         AvB = Contest.from_dict({'id': 'AvB',
                      'name': 'AvB',
@@ -642,11 +643,11 @@ class TestAssertion:
         tally = {'Alice': 4000, 'Bob': 2000, 'Carol': 1000}
         AvB.assertions['Alice v Carol'].find_margin_from_tally(tally)
         assert AvB.assertions['Alice v Carol'].margin == (tally['Alice'] - tally['Carol'])/AvB.cards
-
-
+        
+        
 ###################################################################################################
 class TestContests:
-
+    
     def test_contests_from_dict_of_dicts(self):
         ids = ['1','2']
         choice_functions = [Contest.SOCIAL_CHOICE_FUNCTION.PLURALITY, Contest.SOCIAL_CHOICE_FUNCTION.SUPERMAJORITY]
@@ -683,7 +684,7 @@ class TestContests:
                  'winner': ['alice'],
                  'audit_type': Audit.AUDIT_TYPE.POLLING,
                  'test': NonnegMean.alpha_mart,
-                 'use_style': False
+                 'use_style': False    
                 }
                 }
         contests = Contest.from_dict_of_dicts(contest_dict)
@@ -692,7 +693,7 @@ class TestContests:
             for att in atts:
                 if att != 'id':
                     assert c.__dict__.get(att) == contest_dict[i].get(att)
-
+        
 
 ##########################################################################################
 class TestNonnegMean:
@@ -812,37 +813,37 @@ class TestNonnegMean:
         quantile = 0.5
         reps=None
         prefix=False
-
-        test = NonnegMean(test=NonnegMean.alpha_mart,
-                              estim=NonnegMean.fixed_alternative_mean,
+        
+        test = NonnegMean(test=NonnegMean.alpha_mart, 
+                              estim=NonnegMean.fixed_alternative_mean, 
                               u=u, N=N, t=t, eta=eta)
-
+        
         x = np.ones(math.floor(N/200))
         sam_size = test.sample_size(x=x, alpha=alpha, reps=reps, prefix=prefix, quantile=quantile)
         np.testing.assert_equal(sam_size, 8) # ((.75/.5)*1+(.25/.5)*0)**8 = 25 > 1/alpha, so sam_size=8
-    #
+    #    
         reps=100
         sam_size = test.sample_size(x=x, alpha=alpha, reps=reps, prefix=prefix, quantile=quantile)
         np.testing.assert_equal(sam_size, 8) # all simulations should give the same answer
     #
         x = 0.75*np.ones(math.floor(N/200))
         sam_size = test.sample_size(x=x, alpha=alpha, reps=reps, prefix=prefix, quantile=quantile)
-        np.testing.assert_equal(sam_size, 14) # ((.75/.5)*.75+(.25/.5)*.25)**14 = 22.7 > 1/alpha, so sam_size=14
+        np.testing.assert_equal(sam_size, 14) # ((.75/.5)*.75+(.25/.5)*.25)**14 = 22.7 > 1/alpha, so sam_size=14    
     #
-        g = 0.1
+        g = 0.1        
         x = np.ones(math.floor(N/200))
 
-        test = NonnegMean(test=NonnegMean.kaplan_wald,
-                              estim=NonnegMean.fixed_alternative_mean,
+        test = NonnegMean(test=NonnegMean.kaplan_wald, 
+                              estim=NonnegMean.fixed_alternative_mean, 
                               u=u, N=N, t=t, eta=eta, g=g)
         sam_size = test.sample_size(x=x, alpha=alpha, reps=None, prefix=prefix, quantile=quantile)
-    #   p-value is \prod ((1-g)*x/t + g), so
+    #   p-value is \prod ((1-g)*x/t + g), so 
         kw_size = math.ceil(math.log(1/alpha)/math.log((1-g)/t + g))
         np.testing.assert_equal(sam_size, kw_size)
 
         x = 0.75*np.ones(math.floor(N/200))
         sam_size = test.sample_size(x=x, alpha=alpha, reps=None, prefix=prefix, quantile=quantile)
-    #   p-value is \prod ((1-g)*x/t + g), so
+    #   p-value is \prod ((1-g)*x/t + g), so 
         kw_size = math.ceil(math.log(1/alpha)/math.log(0.75*(1-g)/t + g))
         np.testing.assert_equal(sam_size, kw_size)
 
@@ -871,79 +872,7 @@ class TestDominion:
         assert cards[6] == [3, 3, 19, 3, 1, "19-3-1",201]
         assert len(mvr_phantoms) == 0
 
-#TODO: Fix. (XML won't parse)
-class TestHart:
-    def test_read_cvrs_directory(self):
-        cvr_list = Hart.read_cvrs_directory("shangrla/tests/Data/Hart_CVRs")
-        cvr_1 = cvr_list[0]
-        cvr_2 = cvr_list[1]
-        assert list(cvr_1.votes.keys()) == ["PRESIDENT","GOVERNOR","MAYOR"]
-        assert cvr_1.votes['GOVERNOR'] == {}
-        assert cvr_2.get_vote_for("MAYOR", "WRITE_IN")
-        assert cvr_2.get_vote_for("PRESIDENT", "George Washington")
 
-    def test_read_cvrs_zip(self):
-        cvr_list = Hart.read_cvrs_zip("shangrla/tests/Data/Hart_CVRs.zip")
-        cvr_1 = cvr_list[0]
-        cvr_2 = cvr_list[1]
-        assert list(cvr_1.votes.keys()) == ["PRESIDENT","GOVERNOR","MAYOR"]
-        assert cvr_1.votes['GOVERNOR'] == {}
-        assert cvr_2.get_vote_for("MAYOR", "WRITE_IN")
-        assert cvr_2.get_vote_for("PRESIDENT", "George Washington")
-
-    #TODO: tests for prep_manifest, sample_from_manifest, sample_from_CVRs
-    def test_prep_manifest(self):
-        #without phantoms
-        manifest = pd.read_excel("shangrla/tests/Data/Hart_manifest.xlsx")
-        max_cards = 1141765
-        n_cvrs = 1141765
-        manifest, manifest_cards, phantoms = Hart.prep_manifest(manifest, max_cards, n_cvrs)
-        assert manifest['Number of Ballots'].astype(int).sum() == max_cards
-        assert phantoms == 0
-        #with phantoms
-        manifest = pd.read_excel("shangrla/tests/Data/Hart_manifest.xlsx")
-        max_cards = 1500000
-        manifest, manifest_cards, phantoms = Hart.prep_manifest(manifest, max_cards, n_cvrs)
-        assert manifest['Number of Ballots'].astype(int).sum() == max_cards
-        assert phantoms == max_cards - n_cvrs
-
-    def test_sample_from_manifest(self):
-        cvr_dict = [{'id': "1_1", 'votes': {'AvB': {'Alice':True}}},
-                    {'id': "1_2", 'votes': {'AvB': {'Bob':True}}},
-                    {'id': "1_3", 'votes': {'AvB': {'Alice':True}}}]
-        manifest = pd.DataFrame.from_dict({'Container': ['Mail', 'Mail'], 'Tabulator': [1, 1],\
-            'Batch Name': [1, 2], 'Number of Ballots': [1, 2]}, orient = "columns")
-        manifest, manifest_cards, phantoms = Hart.prep_manifest(manifest, 3, 3)
-        sample_indices = [0,1,2]
-        sampled_card_identifiers, sample_order, mvr_phantoms_sample = \
-            Hart.sample_from_manifest(manifest, sample_indices)
-        assert sampled_card_identifiers[0][4] == '1-1-0'
-        assert sampled_card_identifiers[1][4] == '1-2-0'
-        assert sampled_card_identifiers[2][4] == '1-2-1'
-        assert sample_order['1-1-0']['selection_order'] == 0
-        assert sample_order['1-2-0']['selection_order'] == 1
-        assert sample_order['1-2-1']['selection_order'] == 2
-        assert mvr_phantoms_sample == []
-
-
-
-    def test_sample_from_cvrs(self):
-        cvr_dict = [{'id': "1_1", 'votes': {'AvB': {'Alice':True}}},
-                    {'id': "1_2", 'votes': {'AvB': {'Bob':True}}},
-                    {'id': "1_3", 'votes': {'AvB': {'Alice':True}}}]
-        manifest = pd.DataFrame.from_dict({'Container': ['Mail', 'Mail'], 'Tabulator': [1, 1],\
-            'Batch Name': [1, 2], 'Number of Ballots': [1, 2]}, orient = "columns")
-        manifest, manifest_cards, phantoms = Hart.prep_manifest(manifest, 3, 3)
-        cvr_list = CVR.from_dict(cvr_dict)
-        sampled_cvr_indices = [0,1]
-        cards_to_retrieve, sample_order, cvr_sample, mvr_phantoms_sample = \
-            Hart.sample_from_cvrs(cvr_list, manifest, sampled_cvr_indices)
-        assert len(cards_to_retrieve) == 2
-        assert sample_order["1_1"]["selection_order"] == 0
-        assert cvr_sample[1] == cvr_list[1]
-        assert mvr_phantoms_sample == []
-
-
-##########################################################################################
+##########################################################################################    
 if __name__ == "__main__":
     sys.exit(pytest.main(["-qq"], plugins=None))
