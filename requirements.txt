@@ -8,3 +8,4 @@ svgling
 svgwrite
 colorama
 xlrd
+openpyxl
