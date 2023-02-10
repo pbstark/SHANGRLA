@@ -14,8 +14,8 @@ import xml.etree.ElementTree as ET
 import xml.dom.minidom
 
 from zipfile import ZipFile, Path
-from Audit import Audit, Assertion, Assorter, Contest, CVR, Stratum
-from NonnegMean import NonnegMean
+from .Audit import Audit, Assertion, Assorter, Contest, CVR, Stratum
+from .NonnegMean import NonnegMean
 
 
 class Hart:
@@ -139,8 +139,7 @@ class Hart:
             cvr_path = cvr_directory + "/" + file
             with open(cvr_path, 'r', encoding='latin-1') as xml_file: #latin-1 encoding?
                 raw_string = xml_file.read()
-            cvr_list.append(Hart.read_cvr(raw_string))
-
+            cvr_list.append(cls.read_cvr(raw_string))
 
         return cvr_list
 
@@ -168,7 +167,7 @@ class Hart:
                 if cvr.endswith(".xml"):
                     with data.open(cvr) as xml_file:
                         raw_string = xml_file.read().decode()
-                        cvr_object = Hart.read_cvr(raw_string)
+                        cvr_object = cls.read_cvr(raw_string)
                         cvr_list.append(cvr_object)
         return cvr_list
 

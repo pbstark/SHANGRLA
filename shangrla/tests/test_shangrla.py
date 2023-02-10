@@ -1,21 +1,25 @@
 import math
 import numpy as np
 import scipy as sp
+import pandas as pd
 import json
 import csv
 import warnings
 import typing
+import sys
+import pytest
+import coverage
 from numpy import testing
 from collections import OrderedDict, defaultdict
 from cryptorandom.cryptorandom import SHA256, random, int_from_hash
 from cryptorandom.sample import random_permutation
 from cryptorandom.sample import sample_by_index
 
-from Audit import Audit, Assertion, Assorter, Contest, CVR, Stratum
-from NonnegMean import NonnegMean
-from Dominion import Dominion
-from Hart import Hart
-import pandas as pd
+
+from shangrla.Audit import Audit, Assertion, Assorter, Contest, CVR, Stratum
+from shangrla.NonnegMean import NonnegMean
+from shangrla.Dominion import Dominion
+from shangrla.Hart import Hart
 
 #######################################################################################################
 
@@ -102,8 +106,7 @@ class TestCVR:
     def test_make_phantoms(self):
         audit = Audit.from_dict({'strata': {'stratum_1': {'max_cards':   8,
                                           'use_style':   True,
-                                          'replacement': False,
-
+                                          'replacement': False
                                          }
                                       }})
         contests =  Contest.from_dict_of_dicts({'city_council': {'risk_limit':0.05,
@@ -278,11 +281,10 @@ class TestAudit:
         assert a.reps == 100
 
 
-
 ######################################################################################
 class TestAssertion:
 
-    con_test_dict = {'id': 'AvB',
+    con_test = Contest.from_dict({'id': 'AvB',
                  'name': 'AvB',
                  'risk_limit': 0.05,
                  'cards': 10**4,
@@ -295,8 +297,7 @@ class TestAssertion:
                  'share_to_win': 2/3,
                  'test': NonnegMean.alpha_mart,
                  'use_style': True
-                }
-    con_test = Contest.from_dict(con_test_dict)
+                })
 
 
     def test_make_plurality_assertions(self):
@@ -349,7 +350,7 @@ class TestAssertion:
 
     def test_rcv_assorter(self):
         import json
-        with open('Data/334_361_vbm.json') as fid:
+        with open('./shangrla/tests/Data/334_361_vbm.json') as fid:
             data = json.load(fid)
             AvB = Contest.from_dict({'id': 'AvB',
                      'name': 'AvB',
@@ -475,7 +476,6 @@ class TestAssertion:
             assert assorter.assort(votes) == 0.5, f'{assorter.assort(votes)=}'
 
 
-
     def test_overstatement(self):
         mvr_dict = [{'id': 1, 'votes': {'AvB': {'Alice':True}}},
                     {'id': 2, 'votes': {'AvB': {'Bob':True}}},
@@ -494,47 +494,47 @@ class TestAssertion:
         winner = ["Alice"]
         loser = ["Bob"]
 
-        aVb = Assertion(contest=self.con_test, assorter=Assorter(contest_id="AvB",
+        aVb = Assertion(contest=self.con_test, assorter=Assorter(contest=self.con_test,
                         assort = (lambda c, contest_id="AvB", winr="Alice", losr="Bob":
                         ( CVR.as_vote(c.get_vote_for("AvB", winr))
                         - CVR.as_vote(c.get_vote_for("AvB", losr))
                         + 1)/2), upper_bound=1))
-        assert aVb.overstatement(mvrs[0], cvrs[0], use_style=True) == 0
-        assert aVb.overstatement(mvrs[0], cvrs[0], use_style=False) == 0
+        assert aVb.assorter.overstatement(mvrs[0], cvrs[0], use_style=True) == 0
+        assert aVb.assorter.overstatement(mvrs[0], cvrs[0], use_style=False) == 0
 
-        assert aVb.overstatement(mvrs[0], cvrs[1], use_style=True) == -1
-        assert aVb.overstatement(mvrs[0], cvrs[1], use_style=False) == -1
+        assert aVb.assorter.overstatement(mvrs[0], cvrs[1], use_style=True) == -1
+        assert aVb.assorter.overstatement(mvrs[0], cvrs[1], use_style=False) == -1
 
-        assert aVb.overstatement(mvrs[2], cvrs[0], use_style=True) == 1/2
-        assert aVb.overstatement(mvrs[2], cvrs[0], use_style=False) == 1/2
+        assert aVb.assorter.overstatement(mvrs[2], cvrs[0], use_style=True) == 1/2
+        assert aVb.assorter.overstatement(mvrs[2], cvrs[0], use_style=False) == 1/2
 
-        assert aVb.overstatement(mvrs[2], cvrs[1], use_style=True) == -1/2
-        assert aVb.overstatement(mvrs[2], cvrs[1], use_style=False) == -1/2
+        assert aVb.assorter.overstatement(mvrs[2], cvrs[1], use_style=True) == -1/2
+        assert aVb.assorter.overstatement(mvrs[2], cvrs[1], use_style=False) == -1/2
 
 
-        assert aVb.overstatement(mvrs[1], cvrs[0], use_style=True) == 1
-        assert aVb.overstatement(mvrs[1], cvrs[0], use_style=False) == 1
+        assert aVb.assorter.overstatement(mvrs[1], cvrs[0], use_style=True) == 1
+        assert aVb.assorter.overstatement(mvrs[1], cvrs[0], use_style=False) == 1
 
-        assert aVb.overstatement(mvrs[2], cvrs[0], use_style=True) == 1/2
-        assert aVb.overstatement(mvrs[2], cvrs[0], use_style=False) == 1/2
+        assert aVb.assorter.overstatement(mvrs[2], cvrs[0], use_style=True) == 1/2
+        assert aVb.assorter.overstatement(mvrs[2], cvrs[0], use_style=False) == 1/2
 
-        assert aVb.overstatement(mvrs[3], cvrs[0], use_style=True) == 1
-        assert aVb.overstatement(mvrs[3], cvrs[0], use_style=False) == 1/2
+        assert aVb.assorter.overstatement(mvrs[3], cvrs[0], use_style=True) == 1
+        assert aVb.assorter.overstatement(mvrs[3], cvrs[0], use_style=False) == 1/2
 
         try:
-            tst = aVb.overstatement(mvrs[3], cvrs[3], use_style=True)
+            tst = aVb.assorter.overstatement(mvrs[3], cvrs[3], use_style=True)
             raise AssertionError('aVb is not contained in the mvr or cvr')
         except ValueError:
             pass
-        assert aVb.overstatement(mvrs[3], cvrs[3], use_style=False) == 0
+        assert aVb.assorter.overstatement(mvrs[3], cvrs[3], use_style=False) == 0
 
-        assert aVb.overstatement(mvrs[4], cvrs[4], use_style=True) == 1/2
-        assert aVb.overstatement(mvrs[4], cvrs[4], use_style=False) == 1/2
-        assert aVb.overstatement(mvrs[4], cvrs[4], use_style=False) == 1/2
-        assert aVb.overstatement(mvrs[4], cvrs[0], use_style=True) == 1
-        assert aVb.overstatement(mvrs[4], cvrs[0], use_style=False) == 1
-        assert aVb.overstatement(mvrs[4], cvrs[1], use_style=True) == 0
-        assert aVb.overstatement(mvrs[4], cvrs[1], use_style=False) == 0
+        assert aVb.assorter.overstatement(mvrs[4], cvrs[4], use_style=True) == 1/2
+        assert aVb.assorter.overstatement(mvrs[4], cvrs[4], use_style=False) == 1/2
+        assert aVb.assorter.overstatement(mvrs[4], cvrs[4], use_style=False) == 1/2
+        assert aVb.assorter.overstatement(mvrs[4], cvrs[0], use_style=True) == 1
+        assert aVb.assorter.overstatement(mvrs[4], cvrs[0], use_style=False) == 1
+        assert aVb.assorter.overstatement(mvrs[4], cvrs[1], use_style=True) == 0
+        assert aVb.assorter.overstatement(mvrs[4], cvrs[1], use_style=False) == 0
 
 
     def test_overstatement_assorter(self):
@@ -553,7 +553,8 @@ class TestAssertion:
         winner = ["Alice"]
         loser = ["Bob", "Candy"]
 
-        aVb = Assertion(contest=self.con_test, assorter=Assorter(contest_id="AvB",
+
+        aVb = Assertion(contest=self.con_test, assorter=Assorter(contest=self.con_test,
                         assort = (lambda c, contest_id="AvB", winr="Alice", losr="Bob":
                         ( CVR.as_vote(c.get_vote_for("AvB", winr))
                         - CVR.as_vote(c.get_vote_for("AvB", losr))
@@ -596,15 +597,16 @@ class TestAssertion:
         AvB.find_margins_from_tally()
         for a_id, a in AvB.assertions.items():
             # first test
-            rate=0.01
-            sam_size1 = a.find_sample_size(data=np.ones(10), prefix=True, rate=rate, reps=None, quantile=0.5, seed=1234567890)
+            rate_1=0.01
+            rate_2=0.001
+            sam_size1 = a.find_sample_size(data=np.ones(10), prefix=True, rate_1=rate_1, reps=None, quantile=0.5, seed=1234567890)
             # Kaplan-Markov martingale is \prod (t+g)/(x+g). For x = [1, 1, ...], sample size should be:
             ss1 = math.ceil(np.log(AvB.risk_limit)/np.log((a.test.t+a.test.g)/(1+a.test.g)))
             assert sam_size1 == ss1
             #
             # second test
             # For "clean", the term is (1/2+g)/(clean+g); for a one-vote overstatement, it is (1/2+g)/(one_over+g).
-            sam_size2 = a.find_sample_size(data=None, prefix=True, rate=rate, reps=10**2, quantile=0.5, seed=1234567890)
+            sam_size2 = a.find_sample_size(data=None, prefix=True, rate_1=rate_1, reps=10**2, quantile=0.5, seed=1234567890)
             clean = 1/(2-a.margin/a.assorter.upper_bound)
             over = clean/2 # corresponds to an overstatement of upper_bound/2, i.e., 1 vote.
             c = (a.test.t+a.test.g)/(clean+a.test.g)
@@ -614,14 +616,14 @@ class TestAssertion:
             assert sam_size2 == ss2
             #
             # third test
-            rate = 0.1
-            sam_size3 = a.find_sample_size(data=None, prefix=True, rate=rate, reps=10**2, quantile=0.99, seed=1234567890)
+            sam_size3 = a.find_sample_size(data=None, prefix=True, rate_1=rate_1, rate_2=rate_2,
+                                           reps=10**2, quantile=0.99, seed=1234567890)
             assert sam_size3 > sam_size2
 
     def test_margin_from_tally(self):
         AvB = Contest.from_dict({'id': 'AvB',
                      'name': 'AvB',
-                     'risk_limit': 0.05,
+                     'risk_limit': 0.01,
                      'cards': 10**4,
                      'choice_function': Contest.SOCIAL_CHOICE_FUNCTION.PLURALITY,
                      'n_winners': 1,
@@ -872,7 +874,7 @@ class TestDominion:
 #TODO: Fix. (XML won't parse)
 class TestHart:
     def test_read_cvrs_directory(self):
-        cvr_list = Hart.read_cvrs_directory("tests/Data/Hart_CVRs")
+        cvr_list = Hart.read_cvrs_directory("shangrla/tests/Data/Hart_CVRs")
         cvr_1 = cvr_list[0]
         cvr_2 = cvr_list[1]
         assert list(cvr_1.votes.keys()) == ["PRESIDENT","GOVERNOR","MAYOR"]
@@ -881,7 +883,7 @@ class TestHart:
         assert cvr_2.get_vote_for("PRESIDENT", "George Washington")
 
     def test_read_cvrs_zip(self):
-        cvr_list = Hart.read_cvrs_zip("tests/Data/Hart_CVRs.zip")
+        cvr_list = Hart.read_cvrs_zip("shangrla/tests/Data/Hart_CVRs.zip")
         cvr_1 = cvr_list[0]
         cvr_2 = cvr_list[1]
         assert list(cvr_1.votes.keys()) == ["PRESIDENT","GOVERNOR","MAYOR"]
@@ -892,14 +894,14 @@ class TestHart:
     #TODO: tests for prep_manifest, sample_from_manifest, sample_from_CVRs
     def test_prep_manifest(self):
         #without phantoms
-        manifest = pd.read_excel(I)
+        manifest = pd.read_excel("shangrla/tests/Data/Hart_manifest.xlsx")
         max_cards = 1141765
         n_cvrs = 1141765
         manifest, manifest_cards, phantoms = Hart.prep_manifest(manifest, max_cards, n_cvrs)
         assert manifest['Number of Ballots'].astype(int).sum() == max_cards
         assert phantoms == 0
         #with phantoms
-        manifest = pd.read_excel("tests/Data/Hart_manifest.xlsx")
+        manifest = pd.read_excel("shangrla/tests/Data/Hart_manifest.xlsx")
         max_cards = 1500000
         manifest, manifest_cards, phantoms = Hart.prep_manifest(manifest, max_cards, n_cvrs)
         assert manifest['Number of Ballots'].astype(int).sum() == max_cards

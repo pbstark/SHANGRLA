@@ -7,12 +7,12 @@ import csv
 import pandas as pd
 import warnings
 import copy
-from Audit import CVR
+from .Audit import CVR
 
 class Dominion:
-    
+
     @classmethod
-    def prep_manifest(cls,manifest, max_cards, n_cvrs):
+    def prep_manifest(cls, manifest, max_cards, n_cvrs):
         """
         Prepare a Dominion Excel ballot manifest (read as a pandas dataframe) for sampling.
         The manifest may have cards that do not contain the contest, but every listed CVR
@@ -34,8 +34,8 @@ class Dominion:
         Returns:
         --------
         manifest: dataframe
-            original manifest with additional column for cumulative cards and, if needed, an additional 
-            batch for any phantom cards   
+            original manifest with additional column for cumulative cards and, if needed, an additional
+            batch for any phantom cards
         manifest_cards: int
             the total number of cards in the manifest
         phantoms: int
@@ -54,7 +54,7 @@ class Dominion:
             r = {'Tray #': None, 'Tabulator Number': 'phantom', 'Batch Number': 1, \
                  'Total Ballots': phantoms, 'VBMCart.Cart number': None}
             manifest = manifest.append(r, ignore_index = True)
-        manifest['cum_cards'] = manifest['Total Ballots'].cumsum()    
+        manifest['cum_cards'] = manifest['Total Ballots'].cumsum()
         for c in ['Tray #', 'Tabulator Number', 'Batch Number', 'VBMCart.Cart number']:
             manifest[c] = manifest[c].astype(str)
         return manifest, manifest_cards, phantoms
@@ -127,10 +127,10 @@ class Dominion:
         Parameters
         ----------
         manifest: dataframe
-            the processed Dominion manifest, including phantom batches if max_cards exceeds the 
+            the processed Dominion manifest, including phantom batches if max_cards exceeds the
             number of cards in the original manifest
         sample: list of ints
-            the cards to sample    
+            the cards to sample
 
         Returns
         -------
@@ -171,14 +171,14 @@ class Dominion:
 
         Parameters
         ----------
-        cvr_list: list of CVR objects. 
-            The id for the cvr is assumed to be composed of a scanner number, batch number, and 
+        cvr_list: list of CVR objects.
+            The id for the cvr is assumed to be composed of a scanner number, batch number, and
             ballot number, joined with underscores, Dominion's format
 
         manifest: pandas dataframe
             a ballot manifest as a pandas dataframe
         sample: numpy array of ints
-            the CVRs to sample    
+            the CVRs to sample
 
         Returns
         -------
@@ -217,19 +217,18 @@ class Dominion:
         cards.sort(key = lambda x: x[5])
         return cards, sample_order, cvr_sample, mvr_phantoms
 
-
     @classmethod
     def write_cards_sampled(cls, sample_file: str, cards: list, print_phantoms: bool=True):
         """
         Write the identifiers of the sampled CVRs to a file.
 
         Parameters
-        ----------  
+        ----------
         sample_file: string
             filename for output
 
         cards: list of lists
-            'VBMCart.Cart number','Tray #','Tabulator Number','Batch Number', 'ballot_in_batch', 
+            'VBMCart.Cart number','Tray #','Tabulator Number','Batch Number', 'ballot_in_batch',
                   'imprint', 'absolute_card_index'
 
         print_phantoms: Boolean
@@ -240,15 +239,15 @@ class Dominion:
         Returns
         -------
 
-        """    
+        """
         with open(sample_file, 'a') as f:
             writer = csv.writer(f)
             writer.writerow(["cart", "tray", "tabulator", "batch",\
                              "card in batch", "imprint", "absolute card index"])
             if print_phantoms:
                 for row in cards:
-                    writer.writerow(row) 
+                    writer.writerow(row)
             else:
                 for row in cards:
                     if row[2] != "phantom":
-                        writer.writerow(row) 
+                        writer.writerow(row)
