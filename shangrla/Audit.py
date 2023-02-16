@@ -963,9 +963,6 @@ class Assertion:
                 f'assorter upper bound: {self.assorter.upper_bound}'
                )
 
-    def assort(self, cvr):
-        return self.assorter.assort(cvr)
-
     def min_p(self):
         return min(self.p_history)
 
@@ -1548,7 +1545,7 @@ class Assertion:
                                 if ((not use_style) or cvr_sample[i].has_contest(c))]
                     u = 2/(2-margin/upper_bound)
                 elif con.audit_type == Audit.AUDIT_TYPE.POLLING:  # Assume style information is irrelevant
-                    d = [asn.assort(mvr_sample[i]) for i in range(len(mvr_sample))]
+                    d = [asn.assorter.assort(mvr_sample[i]) for i in range(len(mvr_sample))]
                     u = upper_bound
                 else:
                     raise NotImplementedError(f'audit type {con.audit_type} not implemented')
