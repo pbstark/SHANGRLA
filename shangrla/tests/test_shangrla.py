@@ -283,6 +283,9 @@ class TestAudit:
 
 ######################################################################################
 class TestAssertion:
+    #cvr_list = CVR.from_dict([{'id': "1_1", 'votes': {'AvB': {'Alice':True}}},
+    #            {'id': "1_2", 'votes': {'AvB': {'Bob':True}}},
+    #            {'id': "1_3", 'votes': {'AvB': {'Alice':True}}}])
 
     con_test = Contest.from_dict({'id': 'AvB',
                  'name': 'AvB',
@@ -298,6 +301,48 @@ class TestAssertion:
                  'test': NonnegMean.alpha_mart,
                  'use_style': True
                 })
+    plur_con_test = Contest.from_dict({'id': 'AvB',
+                 'name': 'AvB',
+                 'risk_limit': 0.05,
+                 'cards': 4,
+                 'choice_function': Contest.SOCIAL_CHOICE_FUNCTION.PLURALITY,
+                 'n_winners': 1,
+                 'candidates': 3,
+                 'candidates': ['Alice','Bob','Candy'],
+                 'winner': ['Alice'],
+                 'audit_type': Audit.AUDIT_TYPE.BALLOT_COMPARISON,
+                 'test': NonnegMean.alpha_mart,
+                 'use_style': True
+                })
+    plur_cvr_list = CVR.from_dict([{'id': "1_1", 'votes': {'AvB': {'Alice':True}}},
+               {'id': "1_2", 'votes': {'AvB': {'Bob':True}}},
+               {'id': "1_3", 'votes': {'AvB': {'Alice':True}}},
+               {'id': "1_4", 'votes': {'AvB': {'Alice':True}}}])
+
+
+    def test_min_p(self):
+        asrtn1 = Assertion(p_value = 0.1, p_history = [1, 0.5, 0.1, 0.01, 0.1])
+        asrtn2 = Assertion(p_value = 0.05, p_history = [0.05])
+        assert Assertion.min_p(asrtn1) == 0.01
+        assert Assertion.min_p(asrtn2) == 0.05
+
+    #what's the right way to write a unit test for this?
+    #define a bare-minimum Assertion / Assorter and CVR list and then call margin on them?
+    def test_margin(self):
+        AvB_asrtn = Assertion(
+            contest = self.plur_con_test,
+            winner = "Alice",
+            loser = "Bob",
+            assorter = Assorter(
+                contest = self.plur_con_test,
+                assort = lambda c:
+                             (CVR.as_vote(c.get_vote_for("AvB", "Alice"))
+                             - CVR.as_vote(c.get_vote_for("AvB", "Bob"))
+                              + 1)/2,
+                upper_bound = 1
+            )
+        )
+        assert Assertion.margin(AvB_asrtn, self.plur_cvr_list) == 0.5
 
 
     def test_make_plurality_assertions(self):
@@ -305,6 +350,7 @@ class TestAssertion:
         loser = ["Candy","Dan"]
         asrtns = Assertion.make_plurality_assertions(self.con_test, winner, loser)
 
+        #these test Assorter.assort()
         assert asrtns['Alice v Candy'].assorter.assort(CVR.from_vote({'Alice': 1})) == 1, \
                f"{asrtns['Alice v Candy'].assorter.assort(CVR.from_vote({'Alice': 1}))=}"
         assert asrtns['Alice v Candy'].assorter.assort(CVR.from_vote({'Bob': 1})) == 1/2
@@ -325,6 +371,12 @@ class TestAssertion:
         assert asrtns['Bob v Dan'].assorter.assort(CVR.from_vote({'Bob': 1})) == 1
         assert asrtns['Bob v Dan'].assorter.assort(CVR.from_vote({'Candy': 1})) == 1/2
         assert asrtns['Bob v Dan'].assorter.assort(CVR.from_vote({'Dan': 1})) == 0
+
+        #this tests Assertions.assort()
+        # assert asrtns['Alice v Dan'].assort(CVR.from_vote({'Alice': 1})) == 1
+        # assert asrtns['Alice v Dan'].assort(CVR.from_vote({'Bob': 1})) == 1/2
+        # assert asrtns['Alice v Dan'].assort(CVR.from_vote({'Candy': 1})) == 1/2
+        # assert asrtns['Alice v Dan'].assort(CVR.from_vote({'Dan': 1})) == 0
 
     def test_supermajority_assorter(self):
         loser = ['Bob','Candy']
@@ -871,7 +923,7 @@ class TestDominion:
         assert cards[6] == [3, 3, 19, 3, 1, "19-3-1",201]
         assert len(mvr_phantoms) == 0
 
-#TODO: Fix. (XML won't parse)
+
 class TestHart:
     def test_read_cvrs_directory(self):
         cvr_list = Hart.read_cvrs_directory("shangrla/tests/Data/Hart_CVRs")
@@ -891,7 +943,7 @@ class TestHart:
         assert cvr_2.get_vote_for("MAYOR", "WRITE_IN")
         assert cvr_2.get_vote_for("PRESIDENT", "George Washington")
 
-    #TODO: tests for prep_manifest, sample_from_manifest, sample_from_CVRs
+
     def test_prep_manifest(self):
         #without phantoms
         manifest = pd.read_excel("shangrla/tests/Data/Hart_manifest.xlsx")
