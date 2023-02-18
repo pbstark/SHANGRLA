@@ -344,6 +344,24 @@ class TestAssertion:
         )
         assert Assertion.margin(AvB_asrtn, self.plur_cvr_list) == 0.5
 
+    #is it weird that margin calling signature involves cvr_list,
+    #but not so for overstatement_assorter_margin
+    def test_overstatement_assorter_margin(self):
+        AvB_asrtn = Assertion(
+            contest = self.plur_con_test,
+            winner = "Alice",
+            loser = "Bob",
+            assorter = Assorter(
+                contest = self.plur_con_test,
+                assort = lambda c:
+                             (CVR.as_vote(c.get_vote_for("AvB", "Alice"))
+                             - CVR.as_vote(c.get_vote_for("AvB", "Bob"))
+                              + 1)/2,
+                upper_bound = 1
+            ),
+            margin = 0.5
+        )
+        assert Assertion.overstatement_assorter_margin(AvB_asrtn) == 1 / 3
 
     def test_make_plurality_assertions(self):
         winner = ["Alice","Bob"]
