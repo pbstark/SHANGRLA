@@ -301,6 +301,13 @@ class TestAssertion:
                  'test': NonnegMean.alpha_mart,
                  'use_style': True
                 })
+
+    #objects used to test many Assertion functions in plurality contests
+    plur_cvr_list = CVR.from_dict([
+               {'id': "1_1", 'votes': {'AvB': {'Alice':True}}},
+               {'id': "1_2", 'votes': {'AvB': {'Bob':True}}},
+               {'id': "1_3", 'votes': {'AvB': {'Alice':True}}},
+               {'id': "1_4", 'votes': {'AvB': {'Alice':True}}}])
     plur_con_test = Contest.from_dict({'id': 'AvB',
                  'name': 'AvB',
                  'risk_limit': 0.05,
@@ -312,12 +319,40 @@ class TestAssertion:
                  'winner': ['Alice'],
                  'audit_type': Audit.AUDIT_TYPE.BALLOT_COMPARISON,
                  'test': NonnegMean.alpha_mart,
+                 'estim': NonnegMean.optimal_comparison,
                  'use_style': True
                 })
-    plur_cvr_list = CVR.from_dict([{'id': "1_1", 'votes': {'AvB': {'Alice':True}}},
-               {'id': "1_2", 'votes': {'AvB': {'Bob':True}}},
-               {'id': "1_3", 'votes': {'AvB': {'Alice':True}}},
-               {'id': "1_4", 'votes': {'AvB': {'Alice':True}}}])
+    #assertion without a margin
+    raw_AvB_asrtn = Assertion(
+        contest = plur_con_test,
+        winner = "Alice",
+        loser = "Bob",
+        test = NonnegMean(test=plur_con_test.test, estim=plur_con_test.estim, u=1,
+                            N=plur_con_test.cards, t=1/2, random_order=True),
+        assorter = Assorter(
+            contest = plur_con_test,
+            assort = lambda c:
+                         (CVR.as_vote(c.get_vote_for("AvB", "Alice"))
+                         - CVR.as_vote(c.get_vote_for("AvB", "Bob"))
+                          + 1)/2,
+            upper_bound = 1
+        )
+    )
+    #comparison and polling audits referencing plur_cvr_list
+    comparison_audit = Audit.from_dict({'quantile':       0.8,
+         'error_rate_1': 0,
+         'error_rate_2': 0,
+         'reps':           100,
+         'strata':         {'stratum_1': {'max_cards':   4,
+                                          'use_style':   True,
+                                          'replacement': False,
+                                          'audit_type':  Audit.AUDIT_TYPE.BALLOT_COMPARISON,
+                                          'test':        NonnegMean.alpha_mart,
+                                          'estimator':   NonnegMean.optimal_comparison,
+                                          'test_kwargs': {}
+                                         }
+                           }
+        })
 
 
     def test_min_p(self):
@@ -329,20 +364,7 @@ class TestAssertion:
     #what's the right way to write a unit test for this?
     #define a bare-minimum Assertion / Assorter and CVR list and then call margin on them?
     def test_margin(self):
-        AvB_asrtn = Assertion(
-            contest = self.plur_con_test,
-            winner = "Alice",
-            loser = "Bob",
-            assorter = Assorter(
-                contest = self.plur_con_test,
-                assort = lambda c:
-                             (CVR.as_vote(c.get_vote_for("AvB", "Alice"))
-                             - CVR.as_vote(c.get_vote_for("AvB", "Bob"))
-                              + 1)/2,
-                upper_bound = 1
-            )
-        )
-        assert Assertion.margin(AvB_asrtn, self.plur_cvr_list) == 0.5
+        assert Assertion.margin(self.raw_AvB_asrtn, self.plur_cvr_list) == 0.5
 
     #is it weird that margin calling signature involves cvr_list,
     #but not so for overstatement_assorter_margin
@@ -362,6 +384,33 @@ class TestAssertion:
             margin = 0.5
         )
         assert Assertion.overstatement_assorter_margin(AvB_asrtn) == 1 / 3
+
+
+
+    def test_overstatement_assorter_mean(self):
+        AvB_asrtn = Assertion(
+            contest = self.plur_con_test,
+            winner = "Alice",
+            loser = "Bob",
+            assorter = Assorter(
+                contest = self.plur_con_test,
+                assort = lambda c:
+                             (CVR.as_vote(c.get_vote_for("AvB", "Alice"))
+                             - CVR.as_vote(c.get_vote_for("AvB", "Bob"))
+                              + 1)/2,
+                upper_bound = 1
+            ),
+            margin = 0.5
+        )
+        assert Assertion.overstatement_assorter_mean(AvB_asrtn) == 1/1.5
+        assert Assertion.overstatement_assorter_mean(AvB_asrtn, error_rate_1 = 0.5) == 0.5
+        assert Assertion.overstatement_assorter_mean(AvB_asrtn, error_rate_2 = 0.25) == 0.5
+        assert Assertion.overstatement_assorter_mean(AvB_asrtn, error_rate_1 = 0.25, error_rate_2 = 0.25) == (1 - 0.125 - 0.25)/(2-0.5)
+
+    def test_find_margin_from_cvrs(self):
+        self.raw_AvB_asrtn.find_margin_from_cvrs(self.comparison_audit, self.plur_cvr_list)
+        assert self.raw_AvB_asrtn.margin == 0.5
+
 
     def test_make_plurality_assertions(self):
         winner = ["Alice","Bob"]
@@ -690,7 +739,7 @@ class TestAssertion:
                                            reps=10**2, quantile=0.99, seed=1234567890)
             assert sam_size3 > sam_size2
 
-    def test_margin_from_tally(self):
+    def test_find_margin_from_tally(self):
         AvB = Contest.from_dict({'id': 'AvB',
                      'name': 'AvB',
                      'risk_limit': 0.01,
