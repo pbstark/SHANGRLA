@@ -24,7 +24,6 @@ from shangrla.Hart import Hart
 
 
 ######################################################################################
-#TODO: Fix. (XML won't parse)
 class TestHart:
     def test_read_cvrs_directory(self):
         cvr_list = Hart.read_cvrs_directory("shangrla/tests/Data/Hart_CVRs")
@@ -44,7 +43,7 @@ class TestHart:
         assert cvr_2.get_vote_for("MAYOR", "WRITE_IN")
         assert cvr_2.get_vote_for("PRESIDENT", "George Washington")
 
-    #TODO: tests for prep_manifest, sample_from_manifest, sample_from_CVRs
+
     def test_prep_manifest(self):
         #without phantoms
         manifest = pd.read_excel("shangrla/tests/Data/Hart_manifest.xlsx")
@@ -77,6 +76,8 @@ class TestHart:
         assert sample_order['1-2-0']['selection_order'] == 1
         assert sample_order['1-2-1']['selection_order'] == 2
         assert mvr_phantoms_sample == []
+
+
 
     def test_sample_from_cvrs(self):
         cvr_dict = [{'id': "1_1", 'votes': {'AvB': {'Alice':True}}},
