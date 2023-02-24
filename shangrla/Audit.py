@@ -1243,7 +1243,8 @@ class Assertion:
 
     @classmethod
     def make_plurality_assertions(
-                                  cls, contest: object=None, winner: list=None, loser: list=None):
+                                  cls, contest: object=None, winner: list=None, loser: list=None, 
+                                  test: callable=None, estim: callable=None):
         '''
         Construct assertions that imply the winner(s) got more votes than the loser(s).
 
@@ -1265,10 +1266,12 @@ class Assertion:
 
         '''
         assertions = {}
+        test = test if test is not None else contest.test
+        estim = estim if estim is not None else contest.estim
         for winr in winner:
             for losr in loser:
                 wl_pair = winr + ' v ' + losr
-                _test = NonnegMean(test=contest.test, estim=contest.estim, g=contest.g, u=1, N=contest.cards,
+                _test = NonnegMean(test=test, estim=estim, g=contest.g, u=1, N=contest.cards,
                                        t=1/2, random_order=True)
                 assertions[wl_pair] = Assertion(contest, winner=winr, loser=losr,
                                          assorter=Assorter(contest=contest,
