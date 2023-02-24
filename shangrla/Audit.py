@@ -963,9 +963,6 @@ class Assertion:
                 f'assorter upper bound: {self.assorter.upper_bound}'
                )
 
-    def assort(self, cvr):
-        return self.assorter.assort(cvr)
-
     def min_p(self):
         return min(self.p_history)
 
@@ -1052,7 +1049,7 @@ class Assertion:
         return (1-self.assorter.overstatement(mvr, cvr, use_style)
                 / self.assorter.upper_bound)/(2-self.margin/self.assorter.upper_bound)
 
-    def find_margin_from_cvrs(self, audit: object=None, cvr_list: list=None):
+    def set_margin_from_cvrs(self, audit: object=None, cvr_list: list=None):
         '''
         find assorter margin from cvrs and store it
 
@@ -1246,7 +1243,8 @@ class Assertion:
 
     @classmethod
     def make_plurality_assertions(
-                                  cls, contest: object=None, winner: list=None, loser: list=None):
+                                  cls, contest: object=None, winner: list=None, loser: list=None, 
+                                  test: callable=None, estim: callable=None):
         '''
         Construct assertions that imply the winner(s) got more votes than the loser(s).
 
@@ -1268,10 +1266,12 @@ class Assertion:
 
         '''
         assertions = {}
+        test = test if test is not None else contest.test
+        estim = estim if estim is not None else contest.estim
         for winr in winner:
             for losr in loser:
                 wl_pair = winr + ' v ' + losr
-                _test = NonnegMean(test=contest.test, estim=contest.estim, g=contest.g, u=1, N=contest.cards,
+                _test = NonnegMean(test=test, estim=estim, g=contest.g, u=1, N=contest.cards,
                                        t=1/2, random_order=True)
                 assertions[wl_pair] = Assertion(contest, winner=winr, loser=losr,
                                          assorter=Assorter(contest=contest,
@@ -1450,7 +1450,7 @@ class Assertion:
         return True
 
     @classmethod
-    def set_margins_from_cvrs(cls, audit: object=None, contests: dict=None, cvr_list: list=None):
+    def set_all_margins_from_cvrs(cls, audit: object=None, contests: dict=None, cvr_list: list=None):
         '''
         Find all the assorter margins in a set of Assertions. Updates the dict of dicts of assertions
         and the contest dict.
@@ -1483,7 +1483,7 @@ class Assertion:
         for c, con in contests.items():
             con.margins = {}
             for a, asn in con.assertions.items():
-                asn.find_margin_from_cvrs(audit, cvr_list)
+                asn.set_margin_from_cvrs(audit, cvr_list)
                 margin = asn.margin
                 con.margins.update({a: margin})
                 if con.audit_type==Audit.AUDIT_TYPE.POLLING:
@@ -1548,7 +1548,7 @@ class Assertion:
                                 if ((not use_style) or cvr_sample[i].has_contest(c))]
                     u = 2/(2-margin/upper_bound)
                 elif con.audit_type == Audit.AUDIT_TYPE.POLLING:  # Assume style information is irrelevant
-                    d = [asn.assort(mvr_sample[i]) for i in range(len(mvr_sample))]
+                    d = [asn.assorter.assort(mvr_sample[i]) for i in range(len(mvr_sample))]
                     u = upper_bound
                 else:
                     raise NotImplementedError(f'audit type {con.audit_type} not implemented')
