@@ -1049,7 +1049,7 @@ class Assertion:
         return (1-self.assorter.overstatement(mvr, cvr, use_style)
                 / self.assorter.upper_bound)/(2-self.margin/self.assorter.upper_bound)
 
-    def find_margin_from_cvrs(self, audit: object=None, cvr_list: list=None):
+    def set_margin_from_cvrs(self, audit: object=None, cvr_list: list=None):
         '''
         find assorter margin from cvrs and store it
 
@@ -1450,7 +1450,7 @@ class Assertion:
         return True
 
     @classmethod
-    def set_margins_from_cvrs(cls, audit: object=None, contests: dict=None, cvr_list: list=None):
+    def set_all_margins_from_cvrs(cls, audit: object=None, contests: dict=None, cvr_list: list=None):
         '''
         Find all the assorter margins in a set of Assertions. Updates the dict of dicts of assertions
         and the contest dict.
@@ -1483,7 +1483,7 @@ class Assertion:
         for c, con in contests.items():
             con.margins = {}
             for a, asn in con.assertions.items():
-                asn.find_margin_from_cvrs(audit, cvr_list)
+                asn.set_margin_from_cvrs(audit, cvr_list)
                 margin = asn.margin
                 con.margins.update({a: margin})
                 if con.audit_type==Audit.AUDIT_TYPE.POLLING:
