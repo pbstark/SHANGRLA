@@ -7,7 +7,7 @@ from collections import OrderedDict, defaultdict
 from cryptorandom.cryptorandom import SHA256, random, int_from_hash
 from cryptorandom.sample import random_permutation
 from cryptorandom.sample import sample_by_index
-from .NonnegMean import NonnegMean
+from NonnegMean import NonnegMean
 
 ##########################################################################################
 class Stratum:
