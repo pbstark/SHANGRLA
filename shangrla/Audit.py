@@ -7,7 +7,7 @@ from collections import OrderedDict, defaultdict
 from cryptorandom.cryptorandom import SHA256, random, int_from_hash
 from cryptorandom.sample import random_permutation
 from cryptorandom.sample import sample_by_index
-from NonnegMean import NonnegMean
+from shangrla.NonnegMean import NonnegMean
 
 ##########################################################################################
 class Stratum:
@@ -744,7 +744,12 @@ class Audit:
         if stratum.use_style and cvrs is None:
             raise ValueError("stratum.use_style==True but cvrs was not provided.")
         # unless style information is being used, the sample size is the same for every contest.
-        old = 0 if stratum.use_style else len(mvr_sample)
+        #old = 0 if stratum.use_style else len(mvr_sample) # NOT WORKING FOR use_style = F
+        # TRY THIS INSTEAD:
+        if stratum.use_style == False and mvr_sample is not None:
+            old  = len(mvr_sample)
+        else:
+            old = 0
         old_sizes = {c:old for c in contests.keys()}
         for c, con in contests.items():
             if stratum.use_style:
@@ -1243,7 +1248,7 @@ class Assertion:
 
     @classmethod
     def make_plurality_assertions(
-                                  cls, contest: object=None, winner: list=None, loser: list=None, 
+                                  cls, contest: object=None, winner: list=None, loser: list=None,
                                   test: callable=None, estim: callable=None):
         '''
         Construct assertions that imply the winner(s) got more votes than the loser(s).
@@ -1906,7 +1911,7 @@ class Contest:
         return contests
 
     @classmethod
-    def from_cvr_list(cls, votes, cards, cvr_list: list=None) -> dict:
+    def from_cvr_list(cls, votes, cards, cvr_list: list=None, use_style=True) -> dict:
         """
         Create a contest dict containing all contests in a cvr_list.
         Every contest is single-winner plurality by default, audited by ballot comparison
@@ -1915,8 +1920,11 @@ class Contest:
         for key in votes:
             contest_name = str(key)
             cards_with_contest = cards[key]
-            options = np.array(list(votes[key].keys()), dtype = 'str')
+            full_options = np.array(list(votes[key].keys()), dtype = 'str')
             tallies = np.array(list(votes[key].values()))
+            # do not use '__cards__'
+            tallies = tallies[full_options != '__cards__']
+            options = full_options[full_options != '__cards__']
 
             reported_winner = options[np.argmax(tallies)]
 
@@ -1931,7 +1939,8 @@ class Contest:
                 'assertion_file': None,
                 'audit_type': Audit.AUDIT_TYPE.BALLOT_COMPARISON,
                 'test': NonnegMean.alpha_mart,
-                'estim': NonnegMean.optimal_comparison
+                'estim': NonnegMean.optimal_comparison,
+                'use_style':use_style
             }
         contests = Contest.from_dict_of_dicts(contest_dict)
         return contests
