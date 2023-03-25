@@ -633,7 +633,6 @@ class CVR:
         d = defaultdict(lambda: defaultdict(int))
         for c in cvr_list:
             for con, votes in c.votes.items():
-                d[con]['__cards__'] += 1
                 for cand in votes:
                     d[con][cand] += CVR.as_vote(c.get_vote_for(con, cand))
         return d
@@ -1911,12 +1910,24 @@ class Contest:
         return contests
 
     @classmethod
+<<<<<<< HEAD
     def from_cvr_list(cls, votes, cards, cvr_list: list=None, use_style=True) -> dict:
+=======
+    def from_cvr_list(cls, audit, votes, cards, cvr_list: list=None) -> dict:
+>>>>>>> b677f7da26f6ce58f9ecf55db9a3dbea3ea016ff
         """
         Create a contest dict containing all contests in a cvr_list.
         Every contest is single-winner plurality by default, audited by ballot comparison
         """
+<<<<<<< HEAD
         #pass audit as first argument
+=======
+        if len(audit.strata) > 1:
+            raise NotImplementedError('stratified audits not implemented')
+        stratum = next(iter(audit.strata.values()))
+        use_style = stratum.use_style
+        max_cards = stratum.max_cards
+>>>>>>> b677f7da26f6ce58f9ecf55db9a3dbea3ea016ff
         contest_dict = {}
         for key in votes:
             contest_name = str(key)
@@ -1931,7 +1942,7 @@ class Contest:
 
             contest_dict[contest_name] = {
                 "name" : contest_name,
-                "cards" : cards_with_contest,
+                "cards" : cards_with_contest if use_style else max_cards,
                 'choice_function': Contest.SOCIAL_CHOICE_FUNCTION.PLURALITY,
                 'n_winners': 1,
                 "risk_limit" : 0.05,
