@@ -7,7 +7,7 @@ from collections import OrderedDict, defaultdict
 from cryptorandom.cryptorandom import SHA256, random, int_from_hash
 from cryptorandom.sample import random_permutation
 from cryptorandom.sample import sample_by_index
-from shangrla.NonnegMean import NonnegMean
+from .NonnegMean import NonnegMean
 
 ##########################################################################################
 class Stratum:
@@ -1916,6 +1916,7 @@ class Contest:
         Create a contest dict containing all contests in a cvr_list.
         Every contest is single-winner plurality by default, audited by ballot comparison
         """
+        #pass audit as first argument
         contest_dict = {}
         for key in votes:
             contest_name = str(key)
