@@ -108,8 +108,8 @@ class TestAssertion:
     def test_margin(self):
         assert Assertion.margin(self.raw_AvB_asrtn, self.plur_cvr_list) == 0.5
 
-    #is it weird that margin calling signature involves cvr_list,
-    #but not so for overstatement_assorter_margin
+    # is it weird that margin calling signature involves cvr_list,
+    # but not so for overstatement_assorter_margin
     def test_overstatement_assorter_margin(self):
         AvB_asrtn = Assertion(
             contest = self.plur_con_test,
@@ -126,7 +126,6 @@ class TestAssertion:
             margin = 0.5
         )
         assert Assertion.overstatement_assorter_margin(AvB_asrtn) == 1 / 3
-
 
     def test_overstatement_assorter_mean(self):
         AvB_asrtn = Assertion(
@@ -146,7 +145,8 @@ class TestAssertion:
         assert Assertion.overstatement_assorter_mean(AvB_asrtn) == 1/1.5
         assert Assertion.overstatement_assorter_mean(AvB_asrtn, error_rate_1 = 0.5) == 0.5
         assert Assertion.overstatement_assorter_mean(AvB_asrtn, error_rate_2 = 0.25) == 0.5
-        assert Assertion.overstatement_assorter_mean(AvB_asrtn, error_rate_1 = 0.25, error_rate_2 = 0.25) == (1 - 0.125 - 0.25)/(2-0.5)
+        assert Assertion.overstatement_assorter_mean(AvB_asrtn, error_rate_1 = 0.25, error_rate_2 = 0.25) == \
+            (1 - 0.125 - 0.25)/(2-0.5)
 
     def test_set_margin_from_cvrs(self):
         self.raw_AvB_asrtn.set_margin_from_cvrs(self.comparison_audit, self.plur_cvr_list)
@@ -502,6 +502,31 @@ class TestAssertion:
         tally = {'Alice': 4000, 'Bob': 2000, 'Carol': 1000}
         AvB.assertions['Alice v Carol'].find_margin_from_tally(tally)
         assert AvB.assertions['Alice v Carol'].margin == (tally['Alice'] - tally['Carol'])/AvB.cards
+
+    def test_make_polling_values(self):
+        n_small = 5
+        n_med = 3
+        n_big = 6
+        x = make_polling_values(n_, n_med, n_big)
+        assert len(x) == 14
+        assert x[0] == 0
+        assert np.sum(x==0) == 5
+        assert np.sum(x==1/2) == 3
+        assert np.sum(x==1) == 6
+        
+        n_small = 0
+        n_med = 3
+        n_big = 6
+        big = 2
+        med = 1
+        small = 0.1
+        x = make_polling_values(n_small, n_med, n_big, small=small, med=med, big=big)
+        assert len(x) == 9
+        assert x[0] == 1
+        assert np.sum(x==0.1) == 0
+        assert np.sum(x==1) == 3
+        assert np.sum(x==2) == 6
+
 
 ##########################################################################################
 if __name__ == "__main__":

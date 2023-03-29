@@ -1243,8 +1243,8 @@ class Assertion:
                     if self.contest.tally:
                         n_0 = self.contest.tally[self.loser]
                         n_big = self.contest.tally[self.winner]
-                        n_half = self.test.N - n_small - n_big
-                        x = make_polling_values(n_0, n_half, n_big, big)
+                        big = self.test.N - n_0 - n_big
+                        x = interleave_values(n_0, n_half, n_big, big=big)
                     else: 
                         raise ValueError(f'contest {self.contest} tally required but not defined')
             elif self.contest.audit_type == Audit.AUDIT_TYPE.BALLOT_COMPARISON: # comparison audit
@@ -1260,45 +1260,46 @@ class Assertion:
         return sample_size
 
     @classmethod
-    def make_polling_values(cls, n_0: int, n_half: int, n_big: int, big):
+    def interleave_values(
+            cls, n_small: int, n_med: int, n_big: int, small: float=0, med: float=1/2, big: float=1):
         r'''
-        make an interleaved population of n_0 zeros, n_half 1/2, and n_big bigs
-        Start with a zero if n_0 > 0
+        make an interleaved population of n_s values equal to small, n_m values equal to med, and n_big equal to big
+        Start with a small if n_small > 0
         '''
-        N = n_0 + n_half + n_big
+        N = n_small + n_med + n_big
         x = np.zeros(N)
-        i_0 = 0
+        i_small = 0
+        i_med = 0
         i_big = 0
-        i_half = 0
-        r_0 = 1 if n_0 else 0
+        r_small = 1 if n_small else 0
+        r_med = 1 if n_med else 0
         r_big = 1 
-        r_half = 1 if r_half else 0
-        if r_0:   # start with 0
-            x[0] = 0
-            i_0 = 1
-            r_0 = (n_0-i_0)/n_0
-        elif r_half: # start with 1/2
-            x[0] = 1/2
-            i_half = 1
-            r_half = (n_half-i_half)/n_half
+        if r_small:   # start with small
+            x[0] = small
+            i_small = 1
+            r_small = (n_small-i_small)/n_small
+        elif r_med: # start with 1/2
+            x[0] = med
+            i_med = 1
+            r_med = (n_med-i_med)/n_med
         else:
             x[0] = big
             i_big = 1
             r_big = (n_big-i_big)/n_big
         for i in range(1, N):
-            if r_0 > r_big:
-                if r_half > r_0:
-                    x[i] = 1/2
-                    i_half += 1
-                    r_half = (n_half-i_half)/n_half
+            if r_small > r_big:
+                if r_med > r_small:
+                    x[i] = med
+                    i_med += 1
+                    r_med = (n_med-i_med)/n_med
                 else:
-                    x[i] = 0
-                    i_0 += 1
-                    r_0 = (n_0-i_0)/n_0
-            elif r_half > r_big:
-                x[i] = 1/2
-                i_half += 1
-                r_half = (n_half-i_half)/n_half
+                    x[i] = small
+                    i_small += 1
+                    r_small = (n_small-i_small)/n_small
+            elif r_med > r_big:
+                x[i] = med
+                i_med += 1
+                r_med = (n_med-i_med)/n_med
             else:
                 x[i] = big
                 i_big += 1

@@ -15,8 +15,6 @@ import xml.dom.minidom
 
 from zipfile import ZipFile, Path
 from .Audit import Audit, Assertion, Assorter, Contest, CVR, Stratum
-from .NonnegMean import NonnegMean
-
 
 class Hart:
 
