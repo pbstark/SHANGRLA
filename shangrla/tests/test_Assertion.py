@@ -507,7 +507,7 @@ class TestAssertion:
         n_small = 5
         n_med = 3
         n_big = 6
-        x = make_polling_values(n_small, n_med, n_big)
+        x = interleave_values(n_small, n_med, n_big)
         assert len(x) == 14
         assert x[0] == 0
         assert np.sum(x==0) == 5
@@ -520,7 +520,7 @@ class TestAssertion:
         big = 2
         med = 1
         small = 0.1
-        x = make_polling_values(n_small, n_med, n_big, small=small, med=med, big=big)
+        x = interleave_values(n_small, n_med, n_big, small=small, med=med, big=big)
         assert len(x) == 9
         assert x[0] == 1
         assert np.sum(x==0.1) == 0
