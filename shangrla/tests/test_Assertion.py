@@ -503,11 +503,11 @@ class TestAssertion:
         AvB.assertions['Alice v Carol'].find_margin_from_tally(tally)
         assert AvB.assertions['Alice v Carol'].margin == (tally['Alice'] - tally['Carol'])/AvB.cards
 
-    def test_make_polling_values(self):
+    def test_interleave_values(self):
         n_small = 5
         n_med = 3
         n_big = 6
-        x = make_polling_values(n_, n_med, n_big)
+        x = make_polling_values(n_small, n_med, n_big)
         assert len(x) == 14
         assert x[0] == 0
         assert np.sum(x==0) == 5
