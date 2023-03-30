@@ -7,7 +7,7 @@ from collections import OrderedDict, defaultdict
 from cryptorandom.cryptorandom import SHA256, random, int_from_hash
 from cryptorandom.sample import random_permutation
 from cryptorandom.sample import sample_by_index
-from .NonnegMean import NonnegMean
+from NonnegMean import NonnegMean
 
 ##########################################################################################
 class Stratum:
@@ -1910,24 +1910,16 @@ class Contest:
         return contests
 
     @classmethod
-<<<<<<< HEAD
-    def from_cvr_list(cls, votes, cards, cvr_list: list=None, use_style=True) -> dict:
-=======
     def from_cvr_list(cls, audit, votes, cards, cvr_list: list=None) -> dict:
->>>>>>> b677f7da26f6ce58f9ecf55db9a3dbea3ea016ff
         """
         Create a contest dict containing all contests in a cvr_list.
         Every contest is single-winner plurality by default, audited by ballot comparison
         """
-<<<<<<< HEAD
-        #pass audit as first argument
-=======
         if len(audit.strata) > 1:
             raise NotImplementedError('stratified audits not implemented')
         stratum = next(iter(audit.strata.values()))
         use_style = stratum.use_style
         max_cards = stratum.max_cards
->>>>>>> b677f7da26f6ce58f9ecf55db9a3dbea3ea016ff
         contest_dict = {}
         for key in votes:
             contest_name = str(key)
