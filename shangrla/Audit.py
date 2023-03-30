@@ -1160,8 +1160,10 @@ class Assertion:
                     reps: int=None, quantile: float=0.5, seed: int=1234567890) -> int:
         '''
         Estimate sample size needed to reject the null hypothesis that the assorter mean is <=1/2,
-        for the specified risk function, given the margin and--for comparison audits--assumptions
-        about the rate of overstatement errors.
+        for the specified risk function, given:
+            - for comparison audits, the assorter margin and assumptions about the rate of overstatement errors
+            - for polling audits, either a set of assorter values, or the assumption that the reported tallies 
+              are correct
 
         If `data is not None`, uses data to make the estimate. There are three strategies:
             1. if `reps is None`, tile the data to make a list of length N
@@ -1170,14 +1172,17 @@ class Assertion:
             3. if `reps is not None and prefix`, start with `data`, then draw N-len(data) times from data with
                replacement to make `reps` lists of length N
 
-        If `data is None`, constructs values from scratch. There are two strategies:
-            1. Systematically interleave small and large values, starting with a small value (`reps is None`)
-            2. Sample randomly from a set of such values
-        The rate of small values is `rate_1` if `rate_1 is not None`. If `rate is None`, for POLLING audits, gets
-        the rate of small values from the margin.
-        For Audit.AUDIT_TYPE.POLLING audits, the small values are 0 and the large values are `u`.
-        For Audit.AUDIT_TYPE.BALLOT_COMPARISON audits, the small values are the overstatement assorter for an
-        overstatement of `u/2` and the large values are the overstatement assorter for an overstatement of 0.
+        If `data is None`, constructs values from scratch. 
+            - For polling audits, values are inferred from the reported tallies. Since contest.tally only reports
+              actual candidate totals, not IRV/RAIRE pseudo-candidates, this is not implemented for IRV.
+            - For comparison audits, there are two strategies to construct the values:
+                1. Systematically interleave small and large values, starting with a small value (`reps is None`)
+                2. Sample randomly from a set of such values
+            The rate of small values is `rate_1` if `rate_1 is not None`. If `rate is None`, for POLLING audits, gets
+            the rate of small values from the margin.
+            For Audit.AUDIT_TYPE.POLLING audits, the small values are 0 and the large values are `u`; the rest are 1/2.
+            For Audit.AUDIT_TYPE.BALLOT_COMPARISON audits, the small values are the overstatement assorter for an
+            overstatement of `u/2` and the large values are the overstatement assorter for an overstatement of 0.
 
         This function is for a single assorter.
 
@@ -1227,7 +1232,7 @@ class Assertion:
                                                 prefix=prefix, quantile=quantile, seed=seed)
         else:
             '''Construct data.
-               For POLLING, values are 0 and u.
+               For POLLING, values are 0, 1/2, and u.
                For BALLOT_COMPARISON, values are overstatement assorter values corresponding to
                  overstatements of 2u (at rate_2), u (at rate_1), or 0.
             '''
@@ -1236,15 +1241,76 @@ class Assertion:
             small = 0 if self.contest.audit_type == Audit.AUDIT_TYPE.POLLING else self.make_overstatement(overs=1/2)
             rate_1 = rate_1 if rate_1 is not None else (1-self.margin)/2   # rate of small values
             x = big*np.ones(self.test.N)
-            rate_1_i = np.arange(0, self.test.N, step=int(1/rate_1), dtype=int) if rate_1 else []
-            rate_2_i = np.arange(0, self.test.N, step=int(1/rate_2), dtype=int) if rate_2 else []
-            x[rate_1_i] = small
-            x[rate_2_i] = 0
+            if self.contest.audit_type == Audit.AUDIT_TYPE.POLLING:
+                if self.contest.choice_function == Contest.SOCIAL_CHOICE_FUNCTION.IRV:
+                    raise NotImplementedError(f'data must be provided to estimate sample sizes for IRV assertions')
+                else: # get tally
+                    if self.contest.tally:
+                        n_0 = self.contest.tally[self.loser]
+                        n_big = self.contest.tally[self.winner]
+                        n_half = self.test.N - n_0 - n_big
+                        x = interleave_values(n_0, n_half, n_big, big=big)
+                    else: 
+                        raise ValueError(f'contest {self.contest} tally required but not defined')
+            elif self.contest.audit_type == Audit.AUDIT_TYPE.BALLOT_COMPARISON: # comparison audit
+                rate_1_i = np.arange(0, self.test.N, step=int(1/rate_1), dtype=int) if rate_1 else []
+                rate_2_i = np.arange(0, self.test.N, step=int(1/rate_2), dtype=int) if rate_2 else []
+                x[rate_1_i] = small
+                x[rate_2_i] = 0
+            else:
+                raise NotImplementedError(f'audit type {self.contest.audit_type} for contest {self.contest} not implemented')
             sample_size = self.test.sample_size(x, alpha=self.contest.risk_limit, reps=reps,
                                                 prefix=prefix, quantile=quantile, seed=seed)
         self.sample_size = sample_size
         return sample_size
 
+    @classmethod
+    def interleave_values(
+            cls, n_small: int, n_med: int, n_big: int, small: float=0, med: float=1/2, big: float=1):
+        r'''
+        make an interleaved population of n_s values equal to small, n_m values equal to med, and n_big equal to big
+        Start with a small if n_small > 0
+        '''
+        N = n_small + n_med + n_big
+        x = np.zeros(N)
+        i_small = 0
+        i_med = 0
+        i_big = 0
+        r_small = 1 if n_small else 0
+        r_med = 1 if n_med else 0
+        r_big = 1 
+        if r_small:   # start with small
+            x[0] = small
+            i_small = 1
+            r_small = (n_small-i_small)/n_small
+        elif r_med: # start with 1/2
+            x[0] = med
+            i_med = 1
+            r_med = (n_med-i_med)/n_med
+        else:
+            x[0] = big
+            i_big = 1
+            r_big = (n_big-i_big)/n_big
+        for i in range(1, N):
+            if r_small > r_big:
+                if r_med > r_small:
+                    x[i] = med
+                    i_med += 1
+                    r_med = (n_med-i_med)/n_med
+                else:
+                    x[i] = small
+                    i_small += 1
+                    r_small = (n_small-i_small)/n_small
+            elif r_med > r_big:
+                x[i] = med
+                i_med += 1
+                r_med = (n_med-i_med)/n_med
+            else:
+                x[i] = big
+                i_big += 1
+                r_big = (n_big-i_big)/n_big
+        return x
+                            
     @classmethod
     def make_plurality_assertions(
                                   cls, contest: object=None, winner: list=None, loser: list=None,
