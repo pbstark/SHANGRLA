@@ -14,7 +14,7 @@ import xml.etree.ElementTree as ET
 import xml.dom.minidom
 
 from zipfile import ZipFile, Path
-from .Audit import CVR
+from .Audit import CVR, Contest
 
 class Hart:
 
