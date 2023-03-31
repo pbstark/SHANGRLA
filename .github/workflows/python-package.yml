@@ -34,5 +34,5 @@ jobs:
       continue-on-error: true
     - name: Test with pytest
       run: |
-        coverage run -m pytest shangrla/tests
+        coverage run -m pytest shangrla/shangrla/tests
 
