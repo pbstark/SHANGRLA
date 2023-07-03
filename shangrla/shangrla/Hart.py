@@ -22,7 +22,7 @@ class Hart:
     NO_CANDIDATE = "NO_CANDIDATE"
 
     @classmethod
-    def prep_manifest(cls, manifest, max_cards, n_cvrs):
+    def prep_manifest(cls, manifest: pd.DataFrame, max_cards: int, n_cvrs: int):
         """
         Prepare a HART Excel ballot manifest (read as a pandas dataframe) for sampling.
         The manifest may have cards that do not contain the contest, but every listed CVR
@@ -33,7 +33,7 @@ class Hart:
 
         Parameters:
         ----------
-        manifest: dataframe
+        manifest: DataFrame
             should contain the columns
                'Container', 'Tabulator', 'Batch Name', 'Number of Ballots'
         max_cards: int
@@ -43,7 +43,7 @@ class Hart:
 
         Returns:
         --------
-        manifest: dataframe
+        manifest: pandas DataFrame
             original manifest with additional column for cumulative cards and, if needed, an additional batch
             for any phantom cards
         manifest_cards: int
@@ -54,15 +54,14 @@ class Hart:
         cols = ['Container', 'Tabulator', 'Batch Name', 'Number of Ballots']
         assert set(cols).issubset(manifest.columns), "missing columns"
         manifest_cards = manifest['Number of Ballots'].sum()
-        assert manifest_cards <= max_cards, f"cards in manifest {manifest_cards} exceeds max possible {max_cards}"
-        assert manifest_cards >= n_cvrs, f"number of cvrs {n_cvrs} exceeds number of cards in the manifest {manifest_cards}"
+        assert manifest_cards <= max_cards, f'cards in manifest {manifest_cards} exceeds max possible {max_cards}'
+        assert manifest_cards >= n_cvrs, f'number of cvrs {n_cvrs} exceeds number of cards in the manifest {manifest_cards}'
         phantoms = 0
         if manifest_cards < max_cards:
             phantoms = max_cards-manifest_cards
             warnings.warn(f'manifest does not account for every card; appending batch of {phantoms} phantom cards to the manifest')
-            r = {'Container': None, 'Tabulator': 'phantom', 'Batch Name': 1, \
-                 'Number of Ballots': phantoms}
-            manifest = manifest.append(r, ignore_index = True)
+            r = {'Container': None, 'Tabulator': 'phantom', 'Batch Name': 1, 'Number of Ballots': phantoms}
+            manifest = manifest.append(r, ignore_index=True)
         manifest['cum_cards'] = manifest['Number of Ballots'].cumsum()
         for c in ['Container', 'Tabulator', 'Batch Name', 'Number of Ballots']:
             manifest[c] = manifest[c].astype(str) #<- why is this a str instead of a float? weird behavior when e.g. summing to get total ballots

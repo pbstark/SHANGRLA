@@ -45,17 +45,17 @@ class TestHart:
 
 
     def test_prep_manifest(self):
-        #without phantoms
-        manifest = pd.read_excel("shangrla/shangrla/tests/Data/Hart_manifest.xlsx")
+        # without phantoms
+        manifest_f = pd.read_excel("shangrla/shangrla/tests/Data/Hart_manifest.xlsx")
         max_cards = 1141765
         n_cvrs = 1141765
-        manifest, manifest_cards, phantoms = Hart.prep_manifest(manifest, max_cards, n_cvrs)
+        manifest, manifest_cards, phantoms = Hart.prep_manifest(manifest_f, max_cards, n_cvrs)
         assert manifest['Number of Ballots'].astype(int).sum() == max_cards
         assert phantoms == 0
-        #with phantoms
-        manifest = pd.read_excel("shangrla/shangrla/tests/Data/Hart_manifest.xlsx")
+        # with phantoms
+        manifest_f = pd.read_excel("shangrla/shangrla/tests/Data/Hart_manifest.xlsx")
         max_cards = 1500000
-        manifest, manifest_cards, phantoms = Hart.prep_manifest(manifest, max_cards, n_cvrs)
+        manifest, manifest_cards, phantoms = Hart.prep_manifest(manifest_f, max_cards, n_cvrs)
         assert manifest['Number of Ballots'].astype(int).sum() == max_cards
         assert phantoms == max_cards - n_cvrs
 
@@ -63,9 +63,9 @@ class TestHart:
         cvr_dict = [{'id': "1_1", 'votes': {'AvB': {'Alice':True}}},
                     {'id': "1_2", 'votes': {'AvB': {'Bob':True}}},
                     {'id': "1_3", 'votes': {'AvB': {'Alice':True}}}]
-        manifest = pd.DataFrame.from_dict({'Container': ['Mail', 'Mail'], 'Tabulator': [1, 1],\
+        manifest_f = pd.DataFrame.from_dict({'Container': ['Mail', 'Mail'], 'Tabulator': [1, 1],\
             'Batch Name': [1, 2], 'Number of Ballots': [1, 2]}, orient = "columns")
-        manifest, manifest_cards, phantoms = Hart.prep_manifest(manifest, 3, 3)
+        manifest, manifest_cards, phantoms = Hart.prep_manifest(manifest_f, 3, 3)
         sample_indices = [0,1,2]
         sampled_card_identifiers, sample_order, mvr_phantoms_sample = \
             Hart.sample_from_manifest(manifest, sample_indices)

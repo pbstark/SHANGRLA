@@ -12,9 +12,7 @@ import coverage
 from numpy import testing
 from collections import OrderedDict, defaultdict
 from cryptorandom.cryptorandom import SHA256, random, int_from_hash
-from cryptorandom.sample import random_permutation
-from cryptorandom.sample import sample_by_index
-
+from cryptorandom.sample import random_permutation, sample_by_index
 
 from shangrla.Audit import Audit, Assertion, Assorter, Contest, CVR, Stratum
 from shangrla.NonnegMean import NonnegMean
@@ -172,7 +170,77 @@ class TestNonnegMean:
     #   p-value is \prod ((1-g)*x/t + g), so
         kw_size = math.ceil(math.log(1/alpha)/math.log(0.75*(1-g)/t + g))
         np.testing.assert_equal(sam_size, kw_size)
+
+    def test_lam_to_eta_to_lam(self):
+        N = 100
+        u = 1
+        test = NonnegMean(N=N, u=u)
+        for lam in [0.5, 1, 2]:
+            for mu in [0.5, 0.7, 0.9]:
+                eta = mu*(1+lam*(u-mu))
+                np.testing.assert_almost_equal(test.lam_to_eta(lam, mu), eta)
+                np.testing.assert_almost_equal(test.eta_to_lam(test.lam_to_eta(lam, mu), mu), lam)
+        lam = np.array([0.5, 0.6, 0.7])
+        mu = np.array([0.6, 0.65, 0.55])
+        eta = np.array(list(mu[i]*(1+lam[i]*(u-mu[i])) for i in range(len(lam))))
+        np.testing.assert_almost_equal(test.lam_to_eta(lam, mu), eta)
+        np.testing.assert_almost_equal(test.eta_to_lam(test.lam_to_eta(lam, mu), mu), lam)
+
+    def test_agrapa(self):
+        t = 0.5
+        c_g_0 = 0.5
+        c_g_m = 0.99
+        c_g_g = 0
+        N = np.infty
+        u = 1
+        n=10
+        # test for sampling with replacement, constant c
+        for val in [0.6, 0.7]:
+            for lam in [0.2, 0.5]:
+                test = NonnegMean(N=N, u=u, bet=NonnegMean.fixed_bet, 
+                                  c_grapa_0=c_g_0, c_grapa_m=c_g_m, c_grapa_grow=c_g_g, 
+                                  lam=lam)
+                x = val*np.ones(n)
+                lam_0 = test.agrapa(x) 
+                term = max(0, min(c_g_0/t, (val-t)/(val-t)**2))
+                lam_t = term*np.ones_like(x)
+                lam_t[0] = lam 
+                np.testing.assert_almost_equal(lam_0, lam_t)
+        # test for sampling without replacement, growing c, but zero sample variance
+        N = 10
+        n = 5
+        t = 0.5
+        c_g_0 = 0.6
+        c_g_m = 0.9
+        c_g_g = 2
+        for val in [0.75, 0.9]:
+            for lam in [0.25, 0.5]:
+                test = NonnegMean(N=N, u=u, bet=NonnegMean.agrapa,
+                                  c_grapa_0=c_g_0, c_grapa_max=c_g_m, c_grapa_grow=c_g_g, 
+                                  lam=lam)
+                x = val*np.ones(n)
+                lam_0 = test.agrapa(x) 
+                t_adj = np.array([(N*t - i*val)/(N-i) for i in range(n)])
+                mj = val
+                lam_t = (mj-t_adj)/(mj-t_adj)**2
+                lam_t = np.insert(lam_t, 0, lam)[0:-1]
+                j = np.arange(n)
+                cj = c_g_0 + (c_g_m-c_g_0)*(1-1/(1+c_g_g*np.sqrt(j)))
+                lam_t = np.minimum(cj/t_adj, lam_t)
+                np.testing.assert_almost_equal(lam_0, lam_t)
         
+    def test_betting_mart(self):
+        N = np.infty
+        n = 20
+        t = 0.5
+        u = 1
+        for val in [0.75, 0.9]:
+            for lam in [0.25, 0.5]:
+                test = NonnegMean(N=N, u=u, bet=NonnegMean.fixed_bet, lam=lam)
+                x = val*np.ones(n)
+                np.testing.assert_almost_equal(test.betting_mart(x)[0], 1/(1+lam*(val-t))**n)
+
+
 ##########################################################################################
 if __name__ == "__main__":
     sys.exit(pytest.main(["-qq"], plugins=None))
