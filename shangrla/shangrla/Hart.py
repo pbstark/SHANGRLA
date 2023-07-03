@@ -33,7 +33,7 @@ class Hart:
 
         Parameters:
         ----------
-        manifest: dataframe
+        manifest: DataFrame
             should contain the columns
                'Container', 'Tabulator', 'Batch Name', 'Number of Ballots'
         max_cards: int
@@ -60,8 +60,7 @@ class Hart:
         if manifest_cards < max_cards:
             phantoms = max_cards-manifest_cards
             warnings.warn(f'manifest does not account for every card; appending batch of {phantoms} phantom cards to the manifest')
-            r = {'Container': None, 'Tabulator': 'phantom', 'Batch Name': 1, \
-                 'Number of Ballots': phantoms}
+            r = {'Container': None, 'Tabulator': 'phantom', 'Batch Name': 1, 'Number of Ballots': phantoms}
             manifest = manifest.append(r, ignore_index=True)
         manifest['cum_cards'] = manifest['Number of Ballots'].cumsum()
         for c in ['Container', 'Tabulator', 'Batch Name', 'Number of Ballots']:
