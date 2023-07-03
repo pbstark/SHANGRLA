@@ -215,7 +215,7 @@ class TestNonnegMean:
         c_g_g = 2
         for val in [0.75, 0.9]:
             for lam in [0.25, 0.5]:
-                test = NonnegMean(N=N, u=u, bet=NonnegMean.fixed_bet,
+                test = NonnegMean(N=N, u=u, bet=NonnegMean.agrapa,
                                   c_grapa_0=c_g_0, c_grapa_max=c_g_m, c_grapa_grow=c_g_g, 
                                   lam=lam)
                 x = val*np.ones(n)
@@ -229,7 +229,18 @@ class TestNonnegMean:
                 lam_t = np.minimum(cj/t_adj, lam_t)
                 np.testing.assert_almost_equal(lam_0, lam_t)
         
-        
+    def test_betting_mart(self):
+        N = np.infty
+        n = 20
+        t = 0.5
+        u = 1
+        for val in [0.75, 0.9]:
+            for lam in [0.25, 0.5]:
+                test = NonnegMean(N=N, u=u, bet=NonnegMean.fixed_bet, lam=lam)
+                x = val*np.ones(n)
+                np.testing.assert_almost_equal(test.betting_mart(x)[0], 1/(1+lam*(val-t))**n)
+
+
 ##########################################################################################
 if __name__ == "__main__":
     sys.exit(pytest.main(["-qq"], plugins=None))

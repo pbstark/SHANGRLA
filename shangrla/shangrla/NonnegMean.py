@@ -162,8 +162,8 @@ class NonnegMean:
         m = (N*t-S)/(N-j+1) if np.isfinite(N) else t   # mean of population after (j-1)st draw, if null is true
         x = np.array(x)
         with np.errstate(divide='ignore',invalid='ignore'):
-            lambdaj = self.bet(x)
-            terms = np.cumprod(1+bet*(x-m))
+            lam = self.bet(x)
+            terms = np.cumprod(1+lam*(x-m))
         terms[m>u] = 0                                       # true mean is certainly less than hypothesized
         terms[np.isclose(0, m, atol=atol)] = 1               # ignore
         terms[np.isclose(u, m, atol=atol, rtol=rtol)] = 1    # ignore
