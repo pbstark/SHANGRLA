@@ -14,7 +14,11 @@ import xml.etree.ElementTree as ET
 import xml.dom.minidom
 
 from zipfile import ZipFile, Path
+<<<<<<< HEAD:shangrla/shangrla/Hart.py
 from .Audit import CVR, Contest
+=======
+from Audit import Audit, Assertion, Assorter, Contest, CVR, Stratum
+>>>>>>> oc:shangrla/Hart.py
 
 class Hart:
 
@@ -60,8 +64,14 @@ class Hart:
         if manifest_cards < max_cards:
             phantoms = max_cards-manifest_cards
             warnings.warn(f'manifest does not account for every card; appending batch of {phantoms} phantom cards to the manifest')
+<<<<<<< HEAD:shangrla/shangrla/Hart.py
             r = {'Container': None, 'Tabulator': 'phantom', 'Batch Name': 1, 'Number of Ballots': phantoms}
             manifest = manifest.append(r, ignore_index=True)
+=======
+            r = {'Container': None, 'Tabulator': 'phantom', 'Batch Name': 1, \
+                 'Number of Ballots': phantoms}
+            manifest = pd.concat([manifest, pd.DataFrame(r)])
+>>>>>>> oc:shangrla/Hart.py
         manifest['cum_cards'] = manifest['Number of Ballots'].cumsum()
         for c in ['Container', 'Tabulator', 'Batch Name', 'Number of Ballots']:
             manifest[c] = manifest[c].astype(str) #<- why is this a str instead of a float? weird behavior when e.g. summing to get total ballots
