@@ -61,7 +61,7 @@ class Hart:
             phantoms = max_cards-manifest_cards
             warnings.warn(f'manifest does not account for every card; appending batch of {phantoms} phantom cards to the manifest')
             r = {'Container': None, 'Tabulator': 'phantom', 'Batch Name': 1, 'Number of Ballots': phantoms}
-            manifest = manifest.append(r, ignore_index=True)
+            manifest = pd.concat([manifest, pd.DataFrame([r])])
         manifest['cum_cards'] = manifest['Number of Ballots'].cumsum()
         for c in ['Container', 'Tabulator', 'Batch Name', 'Number of Ballots']:
             manifest[c] = manifest[c].astype(str) #<- why is this a str instead of a float? weird behavior when e.g. summing to get total ballots
