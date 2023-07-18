@@ -24,6 +24,7 @@ class Stratum:
                   audit_type:  str=None,
                   test:  callable=None,
                   estimator:  callable=None,
+                  bet: callable=None,
                   test_kwargs: dict=None):
         self.id = id
         self.max_cards = max_cards
@@ -32,6 +33,7 @@ class Stratum:
         self.audit_type = audit_type
         self.test = test
         self.estimator = estimator
+        self.bet = bet
         self.test_kwargs = test_kwargs
 
     @classmethod
@@ -741,7 +743,7 @@ class Audit:
             raise NotImplementedError('only unstratified audits are currently supported')
         stratum = next(iter(self.strata.values())) # the only stratum
         if stratum.use_style and cvrs is None:
-            raise ValueError("stratum.use_style==True but cvrs was not provided.")
+            raise ValueError("stratum.use_style==True but cvrs were not provided.")
         # unless style information is being used, the sample size is the same for every contest.
         old = 0 if stratum.use_style else len(mvr_sample)
         old_sizes = {c:old for c in contests.keys()}
@@ -1309,7 +1311,7 @@ class Assertion:
     @classmethod
     def make_plurality_assertions(
                                   cls, contest: object=None, winner: list=None, loser: list=None, 
-                                  test: callable=None, estim: callable=None):
+                                  test: callable=None, estim: callable=None, bet: callable=None):
         '''
         Construct assertions that imply the winner(s) got more votes than the loser(s).
 
@@ -1333,10 +1335,11 @@ class Assertion:
         assertions = {}
         test = test if test is not None else contest.test
         estim = estim if estim is not None else contest.estim
+        bet = bet if bet is not None else contest.bet
         for winr in winner:
             for losr in loser:
                 wl_pair = winr + ' v ' + losr
-                _test = NonnegMean(test=test, estim=estim, g=contest.g, u=1, N=contest.cards,
+                _test = NonnegMean(test=test, estim=estim, bet=bet, g=contest.g, u=1, N=contest.cards,
                                        t=1/2, random_order=True)
                 assertions[wl_pair] = Assertion(contest, winner=winr, loser=losr,
                                          assorter=Assorter(contest=contest,
@@ -1351,7 +1354,7 @@ class Assertion:
     @classmethod
     def make_supermajority_assertion(
                                      cls, contest, winner: str=None, loser: list=None,
-                                     test: callable=None, estim: callable=None):
+                                     test: callable=None, estim: callable=None, bet:callable=None):
         '''
         Construct assertion that winner got >= share_to_win \in (0,1) of the valid votes
 
@@ -1385,7 +1388,8 @@ class Assertion:
         test: instance of NonnegMean
             risk function for the contest
         estim: an estimation method of NonnegMean
-            estimator the test uses for the alternative
+            estimator the alpha_mart test uses for the alternative
+        bet: method to choose the bet for betting_mart risk function
 
         Returns
         --------
@@ -1396,7 +1400,7 @@ class Assertion:
         wl_pair = winner + ' v ' + Contest.CANDIDATES.ALL_OTHERS
         cands = loser.copy()
         cands.append(winner)
-        _test = NonnegMean(test=test, estim=estim, u=1/(2*contest.share_to_win), 
+        _test = NonnegMean(test=test, estim=estim, bet=bet, u=1/(2*contest.share_to_win), 
                            N=contest.cards, t=1/2, random_order=True)
         assertions[wl_pair] = Assertion(contest, winner=winner, loser=Contest.CANDIDATES.ALL_OTHERS,
                                  assorter=Assorter(contest=contest,
@@ -1411,7 +1415,7 @@ class Assertion:
     def make_assertions_from_json(
                                   cls, contest: object=None, candidates: list=None,
                                   json_assertions: dict=None, test: callable=None,
-                                  estim: callable=None):
+                                  estim: callable=None, bet: callable=None):
         '''
         dict of Assertion objects from a RAIRE-style json representations of assertions.
 
@@ -1451,7 +1455,7 @@ class Assertion:
                              v.rcv_lfunc_wo(contest_id, winr, losr)
 
                 wl_pair = winr + ' v ' + losr
-                _test = NonnegMean(test=test, estim=estim, u=1, N=contest.cards, t=1/2, random_order=True)
+                _test = NonnegMean(test=test, estim=estim, bet=bet, u=1, N=contest.cards, t=1/2, random_order=True)
                 assertions[wl_pair] = Assertion(contest,
                                                 Assorter(contest=contest, winner=winner_func,
                                                    loser=loser_func, upper_bound=1), test=_test)
@@ -1463,7 +1467,7 @@ class Assertion:
                 remn = [c for c in candidates if c not in elim]
                 # Identifier for tracking which assertions have been proved
                 wl_given = winr + ' v ' + losr + ' elim ' + ' '.join(elim)
-                _test = NonnegMean(test=test, estim=estim, u=1, N=contest.cards, t=1/2, random_order=True)
+                _test = NonnegMean(test=test, estim=estim, bet=bet, u=1, N=contest.cards, t=1/2, random_order=True)
                 assertions[wl_given] = Assertion(contest, Assorter(contest=contest,
                                        assort = lambda v, contest_id=contest.id, winner=winr, loser=losr, remn=remn:
                                        ( v.rcv_votefor_cand(contest.id, winner, remn)
@@ -1499,19 +1503,20 @@ class Assertion:
             losrs = list(set(con.candidates) - set(winrs))
             test = con.test
             estim = con.estim
+            bet = con.bet
             if scf == Contest.SOCIAL_CHOICE_FUNCTION.PLURALITY:
                 contests[c].assertions = Assertion.make_plurality_assertions(contest=con, winner=winrs, loser=losrs,
-                                                                                test=test, estim=estim)
+                                                                                test=test, estim=estim, bet=bet)
             elif scf == Contest.SOCIAL_CHOICE_FUNCTION.SUPERMAJORITY:
                 contests[c].assertions = Assertion.make_supermajority_assertion(contest=con, winner=winrs[0],
                                                     loser=losrs, share_to_win=con.share_to_win,
-                                                    test=test, estim=estim)
+                                                    test=test, estim=estim, bet=bet)
             elif scf == Contest.SOCIAL_CHOICE_FUNCTION.IRV:
                 # Assumption: contests[c].assertion_json yields list assertions in JSON format.
                 contests[c].assertions = Assertion.make_assertions_from_json(contest=con,
                                                     candidates=con.candidates,
                                                     json_assertions=con.assertion_json,
-                                                    test=test, estim=estim)
+                                                    test=test, estim=estim, bet=bet)
             else:
                 raise NotImplementedError(f'Social choice function {scf} is not implemented.')
         return True
@@ -1862,6 +1867,7 @@ class Contest:
                  test: callable=None,
                  g: float=0.1,
                  estim: callable=None,
+                 bet: callable=None,
                  use_style: bool=True,
                  assertions: dict=None,
                  tally: dict=None,
@@ -1880,6 +1886,7 @@ class Contest:
         self.test = test
         self.g=g
         self.estim = estim
+        self.bet = bet
         self.use_style = use_style
         self.assertions = assertions
         self.tally = tally
@@ -1993,17 +2000,18 @@ class Contest:
             reported_winner = options[np.argmax(tallies)]
 
             contest_dict[contest_name] = {
-                "name" : contest_name,
-                "cards" : cards_with_contest if use_style else max_cards,
+                'name' : contest_name,
+                'cards' : cards_with_contest if use_style else max_cards,
                 'choice_function': Contest.SOCIAL_CHOICE_FUNCTION.PLURALITY,
                 'n_winners': 1,
-                "risk_limit" : 0.05,
+                'risk_limit' : 0.05,
                 "candidates" : list(options),
-                "winner" : [reported_winner],
+                'winner' : [reported_winner],
                 'assertion_file': None,
                 'audit_type': Audit.AUDIT_TYPE.BALLOT_COMPARISON,
                 'test': NonnegMean.alpha_mart,
-                'estim': NonnegMean.optimal_comparison
+                'estim': NonnegMean.optimal_comparison,
+                'bet': NonnegMean.fixed_bet
             }
         contests = Contest.from_dict_of_dicts(contest_dict)
         return contests
