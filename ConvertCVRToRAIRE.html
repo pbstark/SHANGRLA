@@ -46,13 +46,14 @@ const candidateManifest = makeJsonSource("candidatefile","CandidateManifest.json
 const jsonCVR = makeJsonSource("cvrfile","CvrExport.json",reinterpretCVRs);
 
 /** Interpret the marks structure. There is little sanity checking here. */
-function interpretMarks(marks,id,CountingGroupId,suppressIsAmbiguous,suppressUniqueRankWriteins) {
+function interpretMarks(marks,id,CountingGroupId,suppressNoCotConsecutiveRank,suppressIsAmbiguous,suppressUniqueRankWriteins) {
     const candidatesInPreferenceOrder = [];
     if (suppressIsAmbiguous) marks=marks.filter(mark=> !mark.IsAmbiguous);
     let sorted = marks.sort(function (a,b) {return a.Rank-b.Rank;}); // in place, not that it matters.
     if (suppressUniqueRankWriteins) {
         sorted=sorted.filter(function (mark,index) { return !(mark.hasOwnProperty("WriteinDensity") && (index==0 || mark.Rank!=sorted[index-1].Rank) && (index==sorted.length-1 || mark.Rank!=sorted[index+1].Rank)); })
     }
+    //if (suppressNoCotConsecutiveRank && sorted.length>0 && sorted[0].Rank>1) sorted=[];  // suppress votes with no rank 1 candidate. Removed as done later more generally.
     // now delete overvotes and everything after them.
     let nonDuplicatedIndex = 0
     while ((nonDuplicatedIndex<sorted.length) && ((nonDuplicatedIndex==sorted.length-1) || (sorted[nonDuplicatedIndex].Rank<sorted[nonDuplicatedIndex+1].Rank))) nonDuplicatedIndex++;
@@ -60,6 +61,7 @@ function interpretMarks(marks,id,CountingGroupId,suppressIsAmbiguous,suppressUni
     let repeatedCandidates = 0
     for (const mark of unduplicated) {
        if (candidatesInPreferenceOrder.includes(mark.CandidateId)) repeatedCandidates++;
+       else if (suppressNoCotConsecutiveRank && candidatesInPreferenceOrder.length+1!=mark.Rank ) break; // non-consecutive rank.
        else candidatesInPreferenceOrder.push(mark.CandidateId);
     }
     // if (candidatesInPreferenceOrder.length==1 && candidatesInPreferenceOrder[0] == 45) console.log(marks);
@@ -243,6 +245,7 @@ var allContests = {};
 var allPaperIds = [];
 
 function reinterpretCVRs() {
+   const suppressNoCotConsecutiveRank = document.getElementById("suppressNoCotConsecutiveRank").checked;
    const suppressIsAmbiguous = document.getElementById("suppressIsAmbiguous").checked;
    const suppressUniqueRankWriteins = document.getElementById("suppressUniqueRankWriteins").checked;
    allContests = {};
@@ -253,19 +256,24 @@ function reinterpretCVRs() {
       const version = session.Modified?session.Modified : session.Original;
       const paperID = ""+session.TabulatorId+"_"+session.BatchId+"_"+session.RecordId;
       allPaperIds.push({id:paperID,countingGroup:session.CountingGroupId});
-      for (const contest of version.Contests) {
-          // if (session.Modified && !donelog) { donelog=true; console.log(session.Original); console.log(version); }
-          if (!allContests.hasOwnProperty(contest.Id)) {
-              allContests[contest.Id]={entries:[],id:contest.Id};
+      function dealWithContests(thingWithContests) {
+          for (const contest of thingWithContests.Contests) {
+              // if (session.Modified && !donelog) { donelog=true; console.log(session.Original); console.log(version); }
+              if (!allContests.hasOwnProperty(contest.Id)) {
+                  allContests[contest.Id]={entries:[],id:contest.Id};
+              }
+              const c = allContests[contest.Id];
+              const interpreted = interpretMarks(contest.Marks,paperID,session.CountingGroupId,suppressNoCotConsecutiveRank,suppressIsAmbiguous,suppressUniqueRankWriteins);
+              if (session.Modified) interpreted.usesModified=true;
+              if (version.IsCurrent) interpreted.IsCurrent=true;
+              if (session.Modified && session.Original.IsCurrent) interpreted.hasModifiedButOriginalIsCurrent=true;
+              // if (interpreted.candidates.length==1 && interpreted.candidates[0] == 45) console.log(JSON.stringify(session));
+              c.entries.push(interpreted);
           }
-          const c = allContests[contest.Id];
-          const interpreted = interpretMarks(contest.Marks,paperID,session.CountingGroupId,suppressIsAmbiguous,suppressUniqueRankWriteins);
-          if (session.Modified) interpreted.usesModified=true;
-          if (version.IsCurrent) interpreted.IsCurrent=true;
-          if (session.Modified && session.Original.IsCurrent) interpreted.hasModifiedButOriginalIsCurrent=true;
-          // if (interpreted.candidates.length==1 && interpreted.candidates[0] == 45) console.log(JSON.stringify(session));
-          c.entries.push(interpreted);
       }
+      if (version.Contests) dealWithContests(version);
+      else if (version.Cards) for (const card of version.Cards) dealWithContests(card);
+
    }
    redrawContests();
 }
@@ -304,6 +312,7 @@ function loadCountingGroupsFromCheckboxes() {
 
         window.onload = function () {
            for (const f of onloads) f();
+           document.getElementById("suppressNoCotConsecutiveRank").addEventListener("input",reinterpretCVRs);
            document.getElementById("suppressIsAmbiguous").addEventListener("input",reinterpretCVRs);
            document.getElementById("suppressUniqueRankWriteins").addEventListener("input",reinterpretCVRs);
            document.getElementById("includeAllPiecesOfPaper").addEventListener("input",reinterpretCVRs);
@@ -330,6 +339,7 @@ function loadCountingGroupsFromCheckboxes() {
     CvrExport.json : <input id="cvrfile" type="file"/> <span id="status_cvrfile"></span><br/>
 
     <p>Then choose options on how to deal with some issues</p>
+    <input type="checkbox" id="suppressNoCotConsecutiveRank" checked="checked">Suppress any marks after a rank gap, such as a rank 2 candidate if no 1 rank candidate provided (false for SF, KA, true for AK, WY) <br/>
     <input type="checkbox" id="suppressIsAmbiguous" checked="checked">Suppress any marks with IsAmbiguous=true (should be checked to match DOE)<br/>
     <input type="checkbox" id="suppressUniqueRankWriteins" checked="checked">Suppress any marks with a write in with no other mark at same rank (should be checked to match DOE summary report). It will also suppress the write-in candidate in the RAIRE file produced.<br/>
     <input type="checkbox" id="includeAllPiecesOfPaper">Include all pieces of paper in the RAIRE output, not just those claimed by scanner to have the contest on them (may be needed for audit, unchecked to match DOE summary report blank numbers)<br/>
@@ -342,7 +352,7 @@ function loadCountingGroupsFromCheckboxes() {
     <div id="saveDiv"></div>
     <div class="footnote">This is just a second pass attempt and has been tested on just one set of real data. It is not clear what should be done with write in candidates.
         The IRV tables are simplistic, for sanity checking only, without multiple elimination or tie resolution.
-        This page is copyright 2019 Andrew Conway and placed under the GPL3. This program is free software: you can redistribute it and/or modify
+        This page is copyright 2019-2020 Andrew Conway and placed under the GPL3. This program is free software: you can redistribute it and/or modify
         it under the terms of the GNU General Public License as published by
         the Free Software Foundation, either version 3 of the License, or
         (at your option) any later version.
