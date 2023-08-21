@@ -24,6 +24,7 @@ class Stratum:
                   audit_type:  str=None,
                   test:  callable=None,
                   estimator:  callable=None,
+                  bet: callable=None,
                   test_kwargs: dict=None):
         self.id = id
         self.max_cards = max_cards
@@ -32,6 +33,7 @@ class Stratum:
         self.audit_type = audit_type
         self.test = test
         self.estimator = estimator
+        self.bet = bet
         self.test_kwargs = test_kwargs
 
     @classmethod
@@ -587,7 +589,9 @@ class CVR:
                      for c, con in contests.items()]):
                 sampled_cvr_indices.append(sorted_cvr_indices[inx])
                 for c, con in contests.items():
-                    current_sizes[c] += (1 if cvr_list[sorted_cvr_indices[inx]].has_contest(con.id) else 0)
+                    if cvr_list[sorted_cvr_indices[inx]].has_contest(con.id) and contest_in_progress(con):
+                        con.sample_threshold = cvr_list[sorted_cvr_indices[inx]].sample_num
+                        current_sizes[c] += 1
             inx += 1
         for i in range(len(cvr_list)):
             if i in sampled_cvr_indices:
@@ -741,7 +745,7 @@ class Audit:
             raise NotImplementedError('only unstratified audits are currently supported')
         stratum = next(iter(self.strata.values())) # the only stratum
         if stratum.use_style and cvrs is None:
-            raise ValueError("stratum.use_style==True but cvrs was not provided.")
+            raise ValueError("stratum.use_style==True but cvrs were not provided.")
         # unless style information is being used, the sample size is the same for every contest.
         #old = 0 if stratum.use_style else len(mvr_sample) # NOT WORKING FOR use_style = F
         # TRY THIS INSTEAD:
@@ -1162,7 +1166,7 @@ class Assertion:
         Estimate sample size needed to reject the null hypothesis that the assorter mean is <=1/2,
         for the specified risk function, given:
             - for comparison audits, the assorter margin and assumptions about the rate of overstatement errors
-            - for polling audits, either a set of assorter values, or the assumption that the reported tallies 
+            - for polling audits, either a set of assorter values, or the assumption that the reported tallies
               are correct
 
         If `data is not None`, uses data to make the estimate. There are three strategies:
@@ -1172,7 +1176,7 @@ class Assertion:
             3. if `reps is not None and prefix`, start with `data`, then draw N-len(data) times from data with
                replacement to make `reps` lists of length N
 
-        If `data is None`, constructs values from scratch. 
+        If `data is None`, constructs values from scratch.
             - For polling audits, values are inferred from the reported tallies. Since contest.tally only reports
               actual candidate totals, not IRV/RAIRE pseudo-candidates, this is not implemented for IRV.
             - For comparison audits, there are two strategies to construct the values:
@@ -1250,7 +1254,7 @@ class Assertion:
                         n_big = self.contest.tally[self.winner]
                         n_half = self.test.N - n_0 - n_big
                         x = interleave_values(n_0, n_half, n_big, big=big)
-                    else: 
+                    else:
                         raise ValueError(f'contest {self.contest} tally required but not defined')
             elif self.contest.audit_type == Audit.AUDIT_TYPE.BALLOT_COMPARISON: # comparison audit
                 rate_1_i = np.arange(0, self.test.N, step=int(1/rate_1), dtype=int) if rate_1 else []
@@ -1278,7 +1282,7 @@ class Assertion:
         i_big = 0
         r_small = 1 if n_small else 0
         r_med = 1 if n_med else 0
-        r_big = 1 
+        r_big = 1
         if r_small:   # start with small
             x[0] = small
             i_small = 1
@@ -1310,11 +1314,11 @@ class Assertion:
                 i_big += 1
                 r_big = (n_big-i_big)/n_big
         return x
-                            
+
     @classmethod
     def make_plurality_assertions(
                                   cls, contest: object=None, winner: list=None, loser: list=None,
-                                  test: callable=None, estim: callable=None):
+                                  test: callable=None, estim: callable=None, bet: callable=None):
         '''
         Construct assertions that imply the winner(s) got more votes than the loser(s).
 
@@ -1338,10 +1342,11 @@ class Assertion:
         assertions = {}
         test = test if test is not None else contest.test
         estim = estim if estim is not None else contest.estim
+        bet = bet if bet is not None else contest.bet
         for winr in winner:
             for losr in loser:
                 wl_pair = winr + ' v ' + losr
-                _test = NonnegMean(test=test, estim=estim, g=contest.g, u=1, N=contest.cards,
+                _test = NonnegMean(test=test, estim=estim, bet=bet, g=contest.g, u=1, N=contest.cards,
                                        t=1/2, random_order=True)
                 assertions[wl_pair] = Assertion(contest, winner=winr, loser=losr,
                                          assorter=Assorter(contest=contest,
@@ -1356,7 +1361,7 @@ class Assertion:
     @classmethod
     def make_supermajority_assertion(
                                      cls, contest, winner: str=None, loser: list=None,
-                                     test: callable=None, estim: callable=None):
+                                     test: callable=None, estim: callable=None, bet:callable=None):
         '''
         Construct assertion that winner got >= share_to_win \in (0,1) of the valid votes
 
@@ -1390,7 +1395,8 @@ class Assertion:
         test: instance of NonnegMean
             risk function for the contest
         estim: an estimation method of NonnegMean
-            estimator the test uses for the alternative
+            estimator the alpha_mart test uses for the alternative
+        bet: method to choose the bet for betting_mart risk function
 
         Returns
         --------
@@ -1401,7 +1407,7 @@ class Assertion:
         wl_pair = winner + ' v ' + Contest.CANDIDATES.ALL_OTHERS
         cands = loser.copy()
         cands.append(winner)
-        _test = NonnegMean(test=test, estim=estim, u=1/(2*contest.share_to_win), 
+        _test = NonnegMean(test=test, estim=estim, bet=bet, u=1/(2*contest.share_to_win),
                            N=contest.cards, t=1/2, random_order=True)
         assertions[wl_pair] = Assertion(contest, winner=winner, loser=Contest.CANDIDATES.ALL_OTHERS,
                                  assorter=Assorter(contest=contest,
@@ -1416,7 +1422,7 @@ class Assertion:
     def make_assertions_from_json(
                                   cls, contest: object=None, candidates: list=None,
                                   json_assertions: dict=None, test: callable=None,
-                                  estim: callable=None):
+                                  estim: callable=None, bet: callable=None):
         '''
         dict of Assertion objects from a RAIRE-style json representations of assertions.
 
@@ -1456,7 +1462,7 @@ class Assertion:
                              v.rcv_lfunc_wo(contest_id, winr, losr)
 
                 wl_pair = winr + ' v ' + losr
-                _test = NonnegMean(test=test, estim=estim, u=1, N=contest.cards, t=1/2, random_order=True)
+                _test = NonnegMean(test=test, estim=estim, bet=bet, u=1, N=contest.cards, t=1/2, random_order=True)
                 assertions[wl_pair] = Assertion(contest,
                                                 Assorter(contest=contest, winner=winner_func,
                                                    loser=loser_func, upper_bound=1), test=_test)
@@ -1468,7 +1474,7 @@ class Assertion:
                 remn = [c for c in candidates if c not in elim]
                 # Identifier for tracking which assertions have been proved
                 wl_given = winr + ' v ' + losr + ' elim ' + ' '.join(elim)
-                _test = NonnegMean(test=test, estim=estim, u=1, N=contest.cards, t=1/2, random_order=True)
+                _test = NonnegMean(test=test, estim=estim, bet=bet, u=1, N=contest.cards, t=1/2, random_order=True)
                 assertions[wl_given] = Assertion(contest, Assorter(contest=contest,
                                        assort = lambda v, contest_id=contest.id, winner=winr, loser=losr, remn=remn:
                                        ( v.rcv_votefor_cand(contest.id, winner, remn)
@@ -1504,19 +1510,20 @@ class Assertion:
             losrs = list(set(con.candidates) - set(winrs))
             test = con.test
             estim = con.estim
+            bet = con.bet
             if scf == Contest.SOCIAL_CHOICE_FUNCTION.PLURALITY:
                 contests[c].assertions = Assertion.make_plurality_assertions(contest=con, winner=winrs, loser=losrs,
-                                                                                test=test, estim=estim)
+                                                                                test=test, estim=estim, bet=bet)
             elif scf == Contest.SOCIAL_CHOICE_FUNCTION.SUPERMAJORITY:
                 contests[c].assertions = Assertion.make_supermajority_assertion(contest=con, winner=winrs[0],
                                                     loser=losrs, share_to_win=con.share_to_win,
-                                                    test=test, estim=estim)
+                                                    test=test, estim=estim, bet=bet)
             elif scf == Contest.SOCIAL_CHOICE_FUNCTION.IRV:
                 # Assumption: contests[c].assertion_json yields list assertions in JSON format.
                 contests[c].assertions = Assertion.make_assertions_from_json(contest=con,
                                                     candidates=con.candidates,
                                                     json_assertions=con.assertion_json,
-                                                    test=test, estim=estim)
+                                                    test=test, estim=estim, bet=bet)
             else:
                 raise NotImplementedError(f'Social choice function {scf} is not implemented.')
         return True
@@ -1617,7 +1624,9 @@ class Assertion:
                 if con.audit_type == Audit.AUDIT_TYPE.BALLOT_COMPARISON:
                     d = [asn.overstatement_assorter(mvr_sample[i], cvr_sample[i],
                                 use_style=use_style) for i in range(len(mvr_sample))
-                                if ((not use_style) or cvr_sample[i].has_contest(c))]
+                                if ((not use_style) or
+                                    (cvr_sample[i].has_contest(c)
+                                           and cvr_sample[i].sample_num <= con.sample_threshold))]
                     u = 2/(2-margin/upper_bound)
                 elif con.audit_type == Audit.AUDIT_TYPE.POLLING:  # Assume style information is irrelevant
                     d = [asn.assorter.assort(mvr_sample[i]) for i in range(len(mvr_sample))]
@@ -1847,7 +1856,8 @@ class Contest:
                   'use_style',
                   'assertions',
                   'tally',
-                  'sample_size'
+                  'sample_size',
+                  'sample_threshold'
                  )
 
 
@@ -1867,10 +1877,12 @@ class Contest:
                  test: callable=None,
                  g: float=0.1,
                  estim: callable=None,
+                 bet: callable=None,
                  use_style: bool=True,
                  assertions: dict=None,
                  tally: dict=None,
-                 sample_size: int=None):
+                 sample_size: int=None,
+                 sample_threshold: float=None):
         self.id = id
         self.name = name
         self.risk_limit = risk_limit
@@ -1885,10 +1897,12 @@ class Contest:
         self.test = test
         self.g=g
         self.estim = estim
+        self.bet = bet
         self.use_style = use_style
         self.assertions = assertions
         self.tally = tally
         self.sample_size = sample_size
+        self.sample_threshold = sample_threshold
 
     def __str__(self):
         return str(self.__dict__)
@@ -2001,18 +2015,18 @@ class Contest:
             reported_winner = options[np.argmax(tallies)]
 
             contest_dict[contest_name] = {
-                "name" : contest_name,
-                "cards" : cards_with_contest if use_style else max_cards,
+                'name' : contest_name,
+                'cards' : cards_with_contest if use_style else max_cards,
                 'choice_function': Contest.SOCIAL_CHOICE_FUNCTION.PLURALITY,
                 'n_winners': 1,
-                "risk_limit" : 0.05,
+                'risk_limit' : 0.05,
                 "candidates" : list(options),
-                "winner" : [reported_winner],
+                'winner' : [reported_winner],
                 'assertion_file': None,
                 'audit_type': Audit.AUDIT_TYPE.BALLOT_COMPARISON,
                 'test': NonnegMean.alpha_mart,
                 'estim': NonnegMean.optimal_comparison,
-                'use_style':use_style
+                'bet': NonnegMean.fixed_bet
             }
         contests = Contest.from_dict_of_dicts(contest_dict)
         return contests
