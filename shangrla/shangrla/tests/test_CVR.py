@@ -212,8 +212,8 @@ class TestCVR:
         con_tests = Contest.from_dict_of_dicts(contests)
         sample_cvr_indices = CVR.consistent_sampling(cvrs, con_tests)
         assert sample_cvr_indices == [0, 1, 2, 5]
-        np.testing.assert_approx_equal(con_tests['city_council'].sample_thresh, 2)
-        np.testing.assert_approx_equal(con_tests['measure_1'].sample_thresh, 5)
+        np.testing.assert_approx_equal(con_tests['city_council'].sample_threshold, 2)
+        np.testing.assert_approx_equal(con_tests['measure_1'].sample_threshold, 5)
 
     def test_tabulate_styles(self):
         cvrs = [CVR(id="1", votes={"city_council": {"Alice": 1}, "measure_1": {"yes": 1}}, phantom=False),
