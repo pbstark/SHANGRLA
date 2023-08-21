@@ -187,7 +187,7 @@ class TestCVR:
                 CVR(id="6", votes={"measure_1": {"no": 1}}, phantom=False)
                 ]
         prng = SHA256(1234567890)
-        for c, cvr in cvrs.items():
+        for c, cvr in enumerate(cvrs):
             cvr.sample_num = c
         contests = {'city_council': {'risk_limit':0.05,
                                      'id': 'city_council',
