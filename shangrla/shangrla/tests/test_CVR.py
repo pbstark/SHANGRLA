@@ -187,7 +187,8 @@ class TestCVR:
                 CVR(id="6", votes={"measure_1": {"no": 1}}, phantom=False)
                 ]
         prng = SHA256(1234567890)
-        CVR.assign_sample_nums(cvrs, prng)
+        for c, cvr in enumerate(cvrs):
+            cvr.sample_num = c
         contests = {'city_council': {'risk_limit':0.05,
                                      'id': 'city_council',
                                      'cards': None,
@@ -205,12 +206,14 @@ class TestCVR:
                                      'n_winners':1,
                                      'candidates':['yes','no'],
                                      'winner': ['yes'],
-                                     'sample_size': 3
+                                     'sample_size': 4
                                     }
                     }
         con_tests = Contest.from_dict_of_dicts(contests)
         sample_cvr_indices = CVR.consistent_sampling(cvrs, con_tests)
-        assert sample_cvr_indices == [4, 3, 5, 0, 1]
+        assert sample_cvr_indices == [0, 1, 2, 5]
+        np.testing.assert_approx_equal(con_tests['city_council'].sample_threshold, 2)
+        np.testing.assert_approx_equal(con_tests['measure_1'].sample_threshold, 5)
 
     def test_tabulate_styles(self):
         cvrs = [CVR(id="1", votes={"city_council": {"Alice": 1}, "measure_1": {"yes": 1}}, phantom=False),
