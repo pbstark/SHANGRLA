@@ -589,7 +589,9 @@ class CVR:
                      for c, con in contests.items()]):
                 sampled_cvr_indices.append(sorted_cvr_indices[inx])
                 for c, con in contests.items():
-                    current_sizes[c] += (1 if cvr_list[sorted_cvr_indices[inx]].has_contest(con.id) else 0)
+                    if cvr_list[sorted_cvr_indices[inx]].has_contest(con.id) and contest_in_progress(con):
+                        con.sample_threshold = cvr_list[sorted_cvr_indices[inx]].sample_num
+                        current_sizes[c] += 1
             inx += 1
         for i in range(len(cvr_list)):
             if i in sampled_cvr_indices:
@@ -1617,7 +1619,9 @@ class Assertion:
                 if con.audit_type == Audit.AUDIT_TYPE.BALLOT_COMPARISON:
                     d = [asn.overstatement_assorter(mvr_sample[i], cvr_sample[i],
                                 use_style=use_style) for i in range(len(mvr_sample))
-                                if ((not use_style) or cvr_sample[i].has_contest(c))]
+                                if ((not use_style) or 
+                                    (cvr_sample[i].has_contest(c) 
+                                           and cvr_sample[i].sample_num <= con.sample_threshold))]
                     u = 2/(2-margin/upper_bound)
                 elif con.audit_type == Audit.AUDIT_TYPE.POLLING:  # Assume style information is irrelevant
                     d = [asn.assorter.assort(mvr_sample[i]) for i in range(len(mvr_sample))]
@@ -1847,7 +1851,8 @@ class Contest:
                   'use_style',
                   'assertions',
                   'tally',
-                  'sample_size'
+                  'sample_size',
+                  'sample_threshold'   
                  )
 
 
@@ -1871,7 +1876,8 @@ class Contest:
                  use_style: bool=True,
                  assertions: dict=None,
                  tally: dict=None,
-                 sample_size: int=None):
+                 sample_size: int=None,
+                 sample_threshold: float=None):
         self.id = id
         self.name = name
         self.risk_limit = risk_limit
@@ -1891,6 +1897,7 @@ class Contest:
         self.assertions = assertions
         self.tally = tally
         self.sample_size = sample_size
+        self.sample_threshold = sample_threshold
 
     def __str__(self):
         return str(self.__dict__)
