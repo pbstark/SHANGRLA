@@ -742,7 +742,7 @@ class Audit:
         '''
         # Currently, only unstratified audits are supported
         if len(self.strata) > 1:
-            raise NotImplementedError('only unstratified audits are currently supported')
+            raise NotImplementedError('Stratified audits are not currently implemented.')
         stratum = next(iter(self.strata.values())) # the only stratum
         if stratum.use_style and cvrs is None:
             raise ValueError("stratum.use_style==True but cvrs were not provided.")
@@ -770,7 +770,7 @@ class Audit:
                     for c, con in contests.items():
                         if cvr.has_contest(c) and not cvr.sampled:
                             cvr.p = max(con.sample_size/(con.cards - old_sizes[c]), cvr.p)
-            total_size = math.ceil(np.sum([x.p for x in cvrs]))
+            total_size = math.ceil(np.sum([x.p for x in cvrs if not x.phantom]))
         else:
             total_size = np.max(np.array([con.sample_size for con in contests.values()]))
         return total_size
