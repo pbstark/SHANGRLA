@@ -52,6 +52,7 @@ class TestAudit:
         assert a.quantile == 0.8
         assert a.reps == 100
 
+    
 ##########################################################################################
 if __name__ == "__main__":
     sys.exit(pytest.main(["-qq"], plugins=None))

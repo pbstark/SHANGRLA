@@ -877,7 +877,7 @@ class Audit:
                 print("assertions remaining to be proved:")
                 for i, a in con.assertions.items():
                     if a.p_value > con.risk_limit:
-                        print(f'\t{a}: current risk {a.p_value}')
+                        print(f'\t{i}\t{a}: current risk {a.p_value}')
         return done
 
     @classmethod
@@ -1517,9 +1517,9 @@ class Assertion:
 
                 wl_pair = winr + ' v ' + losr
                 _test = NonnegMean(test=test, estim=estim, bet=bet, u=1, N=contest.cards, t=1/2, random_order=True)
-                assertions[wl_pair] = Assertion(contest,
+                assertions[wl_pair] = Assertion(contest, 
                                                 Assorter(contest=contest, winner=winner_func,
-                                                   loser=loser_func, upper_bound=1), test=_test)
+                                                   loser=loser_func, upper_bound=1), winner=winr, loser=losr, test=_test)
 
             elif assrtn['assertion_type'] == cls.IRV_ELIMINATION:
                 # Context is that all candidates in 'eliminated' have been
@@ -1533,7 +1533,7 @@ class Assertion:
                                        assort = lambda v, contest_id=contest.id, winner=winr, loser=losr, remn=remn:
                                        ( v.rcv_votefor_cand(contest.id, winner, remn)
                                        - v.rcv_votefor_cand(contest.id, loser, remn) +1)/2,
-                                       upper_bound=1), test=_test)
+                                       upper_bound=1), winner=winr, loser=losr, test=_test)
             else:
                 raise NotImplemented(f'JSON assertion type {assrtn["assertion_type"]} not implemented.')
         return assertions
