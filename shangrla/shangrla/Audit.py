@@ -1307,7 +1307,7 @@ class Assertion:
                         n_0 = self.contest.tally[self.loser]
                         n_big = self.contest.tally[self.winner]
                         n_half = self.test.N - n_0 - n_big
-                        x = cls.interleave_values(n_0, n_half, n_big, big=big)
+                        x = interleave_values(n_0, n_half, n_big, big=big)
                     else: 
                         raise ValueError(f'contest {self.contest} tally required but not defined')
             elif self.contest.audit_type == Audit.AUDIT_TYPE.CARD_COMPARISON: # comparison audit

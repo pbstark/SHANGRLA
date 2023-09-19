@@ -31,7 +31,7 @@ class TestContests:
         cards = [10000, 20000]
         n_winners = [2, 1]
         candidates = [4, 2]
-        audit_type = [Audit.AUDIT_TYPE.POLLING, Audit.AUDIT_TYPE.BALLOT_COMPARISON]
+        audit_type = [Audit.AUDIT_TYPE.POLLING, Audit.AUDIT_TYPE.CARD_COMPARISON]
         use_style = True
         atts = ('id','name','risk_limit','cards','choice_function','n_winners','share_to_win','candidates',
                 'winner','assertion_file','audit_type','test','use_style')
@@ -45,7 +45,7 @@ class TestContests:
                  'candidates': 5,
                  'candidates': ['alice','bob','carol','dave','erin'],
                  'winner': ['alice','bob'],
-                 'audit_type': Audit.AUDIT_TYPE.BALLOT_COMPARISON,
+                 'audit_type': Audit.AUDIT_TYPE.CARD_COMPARISON,
                  'test': NonnegMean.alpha_mart,
                  'use_style': True
                 },
