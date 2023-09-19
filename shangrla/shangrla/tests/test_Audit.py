@@ -40,7 +40,7 @@ class TestAudit:
          'strata':         {'stratum_1': {'max_cards':   293555,
                                           'use_style':   True,
                                           'replacement': True,
-                                          'audit_type':  Audit.AUDIT_TYPE.BALLOT_COMPARISON,
+                                          'audit_type':  Audit.AUDIT_TYPE.CARD_COMPARISON,
                                           'test':        NonnegMean.alpha_mart,
                                           'estimator':   NonnegMean.optimal_comparison,
                                           'test_kwargs': {}
@@ -52,6 +52,7 @@ class TestAudit:
         assert a.quantile == 0.8
         assert a.reps == 100
 
+    
 ##########################################################################################
 if __name__ == "__main__":
     sys.exit(pytest.main(["-qq"], plugins=None))

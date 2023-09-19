@@ -119,12 +119,13 @@ class CVR:
             {"id": "A-001-01", "votes": {"mayor": {"Alice": 1, "Bob": 2, "Candy": 3, "Dan": ''}}}
     Then int(vote_for("Candy","mayor"))=3, Candy's rank in the "mayor" contest.
 
-    CVRs can be flagged as "phantoms" to account for cards not listed in the manifest (Boolean `phantom` attribute).
+    CVRs can be flagged as "phantoms" to account for cards not listed in the manifest (Boolean 
+    `phantom` attribute).
 
-    CVRs can include sampling probabilities `p` and sample numbers `sample_num` (random numbers to facilitate
-        consistent sampling)
+    CVRs can include sampling probabilities `p` and sample numbers `sample_num` (pseudo-random numbers 
+    to facilitate consistent sampling)
 
-    CVRs can include a sequence number to facilitate ordering and reordering
+    CVRs can include a sequence number to facilitate ordering, sorting, and permuting
 
     Methods:
     --------
@@ -480,7 +481,7 @@ class CVR:
     @classmethod
     def prep_comparison_sample(cls, mvr_sample, cvr_sample, sample_order):
         '''
-        prepare the MVRs and CVRs for comparison by putting the MVRs into the same (random) order
+        prepare the MVRs and CVRs for comparison by putting them into the same (random) order
         in which the CVRs were selected
 
         conduct data integrity checks.
@@ -680,7 +681,7 @@ class Audit:
         types of audit
         '''
         AUDIT_TYPES = (POLLING:= 'POLLING',
-                       BALLOT_COMPARISON:= 'BALLOT_COMPARISON'
+                       CARD_COMPARISON:= 'CARD_COMPARISON'
                       )
         # TO DO: BATCH_COMPARISON, STRATIFIED, HYBRID, ...
 
@@ -717,7 +718,7 @@ class Audit:
     def __str__(self):
         return str(self.__dict__)
 
-    def find_sample_size(self, contests: dict=None, cvrs: list=None, mvr_sample: list=None) -> int:
+    def find_sample_size(self, contests: dict=None, cvrs: list=None, mvr_sample: list=None, cvr_sample: list=None) -> int:
         '''
         Estimate sample size for each contest and overall to allow the audit to complete.
         Uses simulations. For speed, uses the numpy.random Mersenne Twister instead of cryptorandom.
@@ -730,6 +731,8 @@ class Audit:
             the full set of CVRs
         mvr_sample: list of CVR objects
             manually ascertained votes
+        cvr_sample: list of CVR objects
+            CVRs corresponding to the cards that were manually inspected
 
         Returns
         -------
@@ -739,6 +742,7 @@ class Audit:
         Side effects
         ------------
         sets c.sample_size for each Contest in contests
+        if use_style, sets cvr.p for each CVR
         '''
         # Currently, only unstratified audits are supported
         if len(self.strata) > 1:
@@ -747,16 +751,23 @@ class Audit:
         if stratum.use_style and cvrs is None:
             raise ValueError("stratum.use_style==True but cvrs were not provided.")
         # unless style information is being used, the sample size is the same for every contest.
-        old = 0 if stratum.use_style else len(mvr_sample)
+        old = (0 if stratum.use_style 
+               else len(mvr_sample))
         old_sizes = {c:old for c in contests.keys()}
         for c, con in contests.items():
             if stratum.use_style:
                 old_sizes[c] = np.sum(np.array([cvr.sampled for cvr in cvrs if cvr.has_contest(c)]))
             new_size = 0
             for a, asn in con.assertions.items():
-                data=None # TO DO change to use data
                 if not asn.proved:
-                    new_size = max(new_size, asn.find_sample_size(data=data, rate_1=self.error_rate_1,
+                    if mvr_sample is not None: # use MVRs to estimate the next sample size
+                        data, u =  asn.mvrs_to_data(mvr_sample, cvr_sample)
+                        new_size = max(new_size, asn.find_sample_size(data=data, 
+                                                                  reps=self.reps, quantile=self.quantile,
+                                                                  seed=self.sim_seed))
+                    else:
+                        data=None
+                        new_size = max(new_size, asn.find_sample_size(data=data, rate_1=self.error_rate_1,
                                                                   rate_2=self.error_rate_2,
                                                                   reps=self.reps, quantile=self.quantile,
                                                                   seed=self.sim_seed))
@@ -866,7 +877,7 @@ class Audit:
                 print("assertions remaining to be proved:")
                 for i, a in con.assertions.items():
                     if a.p_value > con.risk_limit:
-                        print(f'\t{a}: current risk {a.p_value}')
+                        print(f'\t{i}\t{a}: current risk {a.p_value}')
         return done
 
     @classmethod
@@ -1082,7 +1093,7 @@ class Assertion:
         self.margin = 2*amean-1
         if self.contest.audit_type == Audit.AUDIT_TYPE.POLLING:
             self.test.u = self.assorter.upper_bound
-        elif self.contest.audit_type == Audit.AUDIT_TYPE.BALLOT_COMPARISON:
+        elif self.contest.audit_type == Audit.AUDIT_TYPE.CARD_COMPARISON:
             self.test.u = 2/(2-self.margin/self.assorter.upper_bound)
         else:
             raise NotImplementedError(f'audit type {self.contest.audit_type} not supported')
@@ -1154,6 +1165,52 @@ class Assertion:
         return (1-overs/self.assorter.upper_bound)/(2-self.margin/self.assorter.upper_bound)
 
 
+    def mvrs_to_data(self, mvr_sample: list=None, cvr_sample: list=None) -> np.array:
+        '''
+        Process mvrs (and, for comparison audits, cvrs) to create data for the assertion's test 
+        and for sample size simulations.
+        
+        Creates assorter values for the mvrs, or overstatement assorter values using the mvrs and cvrs,
+        according to whether the audit uses ballot polling or card-level comparison
+        
+        The margin should be set before calling this function.
+        
+        mvr_sample and cvr_sample should be ordered using CVR.prep_comparison_sample() or
+           CVR.prep_polling_sample() before calling this routine
+        
+        Parameters
+        ----------
+        mvr_sample: list of CVR objects
+            corresponding MVRs
+        cvr_sample: list of CVR objects
+            sampled CVRs
+        
+        Returns
+        -------
+        d: np.array
+            either assorter values or overstatement assorter values, depending on the audit method
+        u: upper bound for the test
+        '''
+        margin = self.margin
+        upper_bound = self.assorter.upper_bound
+        con = self.contest
+        use_style = con.use_style
+        if con.audit_type == Audit.AUDIT_TYPE.CARD_COMPARISON:
+            d = np.array(
+                [self.overstatement_assorter(mvr_sample[i], cvr_sample[i], use_style=use_style) 
+                     for i in range(len(mvr_sample))
+                         if ((not use_style) or 
+                         (cvr_sample[i].has_contest(con.id) and cvr_sample[i].sample_num <= con.sample_threshold))
+                ])
+            u = 2/(2-margin/upper_bound)
+        elif con.audit_type == Audit.AUDIT_TYPE.POLLING:  # Assume style information is irrelevant
+            d = np.array([self.assorter.assort(mvr_sample[i]) for i in range(len(mvr_sample))])
+            u = upper_bound
+        else:
+            raise NotImplementedError(f'audit type {con.audit_type} not implemented')
+        return d, u
+        
+        
     def find_sample_size(
                     self, data: np.array=None, prefix: bool=True, rate_1: float=None, rate_2: float=None,
                     reps: int=None, quantile: float=0.5, seed: int=1234567890) -> int:
@@ -1180,7 +1237,7 @@ class Assertion:
             The rate of small values is `rate_1` if `rate_1 is not None`. If `rate is None`, for POLLING audits, gets
             the rate of small values from the margin.
             For Audit.AUDIT_TYPE.POLLING audits, the small values are 0 and the large values are `u`; the rest are 1/2.
-            For Audit.AUDIT_TYPE.BALLOT_COMPARISON audits, the small values are the overstatement assorter for an
+            For Audit.AUDIT_TYPE.CARD_COMPARISON audits, the small values are the overstatement assorter for an
             overstatement of `u/2` and the large values are the overstatement assorter for an overstatement of 0.
 
         This function is for a single assertion.
@@ -1195,7 +1252,7 @@ class Assertion:
             approach, rather than simulating errors.
             If `self.contest.audit_type==Audit.POLLING`, the data should be (simulated or actual) values of
             the raw assorter.
-            If `self.contest.audit_type==Audit.BALLOT_COMPARISON`, the data should be (simulated or actual)
+            If `self.contest.audit_type==Audit.CARD_COMPARISON`, the data should be (simulated or actual)
             values of the overstatement assorter.
         prefix: bool
             prefix the data, then sample or tile to produce the remaining values
@@ -1226,18 +1283,20 @@ class Assertion:
 
         '''
         assert self.margin > 0, f'Margin {self.margin} is nonpositive'
-        if data is not None:  # use the data provided
+        if data is not None: 
             sample_size = self.test.sample_size(data, alpha=self.contest.risk_limit, reps=reps,
                                                 prefix=prefix, quantile=quantile, seed=seed)
         else:
-            '''Construct data.
-               For POLLING, values are 0, 1/2, and u.
-               For BALLOT_COMPARISON, values are overstatement assorter values corresponding to
-                 overstatements of 2u (at rate_2), u (at rate_1), or 0.
             '''
-            big = self.assorter.upper_bound if self.contest.audit_type == Audit.AUDIT_TYPE.POLLING \
-                              else self.make_overstatement(overs=0)
-            small = 0 if self.contest.audit_type == Audit.AUDIT_TYPE.POLLING else self.make_overstatement(overs=1/2)
+            Construct data.
+            For POLLING, values are 0, 1/2, and u.
+            For CARD_COMPARISON, values are overstatement assorter values corresponding to
+            overstatements of 2u (at rate_2), u (at rate_1), or 0.
+            '''
+            big = (self.assorter.upper_bound if self.contest.audit_type == Audit.AUDIT_TYPE.POLLING \
+                  else self.make_overstatement(overs=0))
+            small = (0 if self.contest.audit_type == Audit.AUDIT_TYPE.POLLING 
+                     else self.make_overstatement(overs=1/2))
             rate_1 = rate_1 if rate_1 is not None else (1-self.margin)/2   # rate of small values
             x = big*np.ones(self.test.N)
             if self.contest.audit_type == Audit.AUDIT_TYPE.POLLING:
@@ -1251,7 +1310,7 @@ class Assertion:
                         x = interleave_values(n_0, n_half, n_big, big=big)
                     else: 
                         raise ValueError(f'contest {self.contest} tally required but not defined')
-            elif self.contest.audit_type == Audit.AUDIT_TYPE.BALLOT_COMPARISON: # comparison audit
+            elif self.contest.audit_type == Audit.AUDIT_TYPE.CARD_COMPARISON: # comparison audit
                 rate_1_i = np.arange(0, self.test.N, step=int(1/rate_1), dtype=int) if rate_1 else []
                 rate_2_i = np.arange(0, self.test.N, step=int(1/rate_2), dtype=int) if rate_2 else []
                 x[rate_1_i] = small
@@ -1458,9 +1517,9 @@ class Assertion:
 
                 wl_pair = winr + ' v ' + losr
                 _test = NonnegMean(test=test, estim=estim, bet=bet, u=1, N=contest.cards, t=1/2, random_order=True)
-                assertions[wl_pair] = Assertion(contest,
+                assertions[wl_pair] = Assertion(contest, 
                                                 Assorter(contest=contest, winner=winner_func,
-                                                   loser=loser_func, upper_bound=1), test=_test)
+                                                   loser=loser_func, upper_bound=1), winner=winr, loser=losr, test=_test)
 
             elif assrtn['assertion_type'] == cls.IRV_ELIMINATION:
                 # Context is that all candidates in 'eliminated' have been
@@ -1474,7 +1533,7 @@ class Assertion:
                                        assort = lambda v, contest_id=contest.id, winner=winr, loser=losr, remn=remn:
                                        ( v.rcv_votefor_cand(contest.id, winner, remn)
                                        - v.rcv_votefor_cand(contest.id, loser, remn) +1)/2,
-                                       upper_bound=1), test=_test)
+                                       upper_bound=1), winner=winr, loser=losr, test=_test)
             else:
                 raise NotImplemented(f'JSON assertion type {assrtn["assertion_type"]} not implemented.')
         return assertions
@@ -1551,7 +1610,7 @@ class Assertion:
         sets the margin of every assertion
         sets the assertion.test.u for every assertion, according to whether
            `assertion.contest.audit_type==Audit.AUDIT_TYPE.POLLING`
-           or `assertion.contest.audit_type==Audit.AUDIT_TYPE.BALLOT_COMPARISON`
+           or `assertion.contest.audit_type==Audit.AUDIT_TYPE.CARD_COMPARISON`
         '''
         min_margin = np.infty
         for c, con in contests.items():
@@ -1562,7 +1621,7 @@ class Assertion:
                 con.margins.update({a: margin})
                 if con.audit_type==Audit.AUDIT_TYPE.POLLING:
                     u = asn.assorter.upper_bound
-                elif con.audit_type==Audit.AUDIT_TYPE.BALLOT_COMPARISON:
+                elif con.audit_type==Audit.AUDIT_TYPE.CARD_COMPARISON:
                     u = 2/(2-margin/asn.assorter.upper_bound)
                 else:
                     raise NotImplementedError(f'audit type {con.audit_type} not implemented')
@@ -1600,7 +1659,7 @@ class Assertion:
         Side-effects
         ------------
         Sets u for every test for every assertion, according to whether the corresponding audit method
-        is Audit.BALLOT_COMPARISON or Audit.POLLING.
+        is Audit.CARD_COMPARISON or Audit.POLLING.
         Sets contest max_p to be the largest P-value of any assertion for that contest
         Updates p_value, p_history, and proved for every assertion
 
@@ -1612,22 +1671,8 @@ class Assertion:
             con.p_values = {}
             con.proved = {}
             contest_max_p = 0
-            use_style = con.use_style
             for a, asn in con.assertions.items():
-                margin = asn.margin
-                upper_bound = asn.assorter.upper_bound
-                if con.audit_type == Audit.AUDIT_TYPE.BALLOT_COMPARISON:
-                    d = [asn.overstatement_assorter(mvr_sample[i], cvr_sample[i],
-                                use_style=use_style) for i in range(len(mvr_sample))
-                                if ((not use_style) or 
-                                    (cvr_sample[i].has_contest(c) 
-                                           and cvr_sample[i].sample_num <= con.sample_threshold))]
-                    u = 2/(2-margin/upper_bound)
-                elif con.audit_type == Audit.AUDIT_TYPE.POLLING:  # Assume style information is irrelevant
-                    d = [asn.assorter.assort(mvr_sample[i]) for i in range(len(mvr_sample))]
-                    u = upper_bound
-                else:
-                    raise NotImplementedError(f'audit type {con.audit_type} not implemented')
+                d, u = asn.mvrs_to_data(mvr_sample, cvr_sample)
                 asn.test.u = u       # set upper bound for the test for each assorter
                 asn.p_value, asn.p_history = asn.test.test(d)
                 asn.proved = (asn.p_value <= con.risk_limit) or asn.proved
@@ -1868,7 +1913,7 @@ class Contest:
                  candidates: list=None,
                  winner: list=None,
                  assertion_file: str=None,
-                 audit_type: str=Audit.AUDIT_TYPE.BALLOT_COMPARISON,
+                 audit_type: str=Audit.AUDIT_TYPE.CARD_COMPARISON,
                  test: callable=None,
                  g: float=0.1,
                  estim: callable=None,
@@ -1904,11 +1949,11 @@ class Contest:
 
 
     def find_sample_size(
-                         self, audit: object=None, cvrs: list=None, mvrs: list=None, **kwargs) -> int:
+                         self, audit: object=None, mvr_sample: list=None, cvr_sample: list=None, **kwargs) -> int:
         '''
         Estimate the sample size required to confirm the contest at its risk limit.
 
-        This function can be used with or without data, for Audit.AUDIT_TYPE.POLLING and Audit.AUDIT_TYPE.BALLOT_COMPARISON
+        This function can be used with or without data, for Audit.AUDIT_TYPE.POLLING and Audit.AUDIT_TYPE.CARD_COMPARISON
         audits.
 
         The simulations in this implementation are inefficient because the randomization happens separately
@@ -1932,11 +1977,11 @@ class Contest:
         '''
         self.sample_size = 0
         for a in self.assertions.values():
-            x = None
-            if cvrs is not None:  # process the CVRs to get data appropriate to each assertion, to pass to find_sample_size
-                raise NotImplementedError('sample size estimate cannot yet use data')
+            data = None 
+            if mvr_sample is not None:  # process the MVRs/CVRs to get data appropriate to each assertion
+                data, u = a.mvrs_to_data(mvr_sample, cvr_sample)
             self.sample_size = max(self.sample_size,
-                                   a.find_sample_size(x=x, rate_1=audit.error_rate_1, rate_2=audit.error_rate_2,
+                                   a.find_sample_size(data=data, rate_1=audit.error_rate_1, rate_2=audit.error_rate_2,
                                                       reps=audit.reps, quantile=audit.quantile, seed=audit.sim_seed))
         return self.sample_size
 
@@ -2015,7 +2060,7 @@ class Contest:
                 "candidates" : list(options),
                 'winner' : [reported_winner],
                 'assertion_file': None,
-                'audit_type': Audit.AUDIT_TYPE.BALLOT_COMPARISON,
+                'audit_type': Audit.AUDIT_TYPE.CARD_COMPARISON,
                 'test': NonnegMean.alpha_mart,
                 'estim': NonnegMean.optimal_comparison,
                 'bet': NonnegMean.fixed_bet

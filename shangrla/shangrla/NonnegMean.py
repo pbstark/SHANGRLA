@@ -663,7 +663,7 @@ class NonnegMean:
             seed = kwargs.get('seed',1234567890)
             prng = np.random.RandomState(seed)  # use the Mersenne Twister for speed
             sams = np.zeros(int(reps))
-            pfx = x if prefix else []
+            pfx = np.array(x) if prefix else []
             ran_len = (N-len(x)) if prefix else N
             for r in range(reps):
                 pop = np.append(pfx, prng.choice(x, size=ran_len, replace=True))
