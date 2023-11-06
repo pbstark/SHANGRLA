@@ -762,7 +762,7 @@ class Audit:
                 if not asn.proved:
                     if mvr_sample is not None: # use MVRs to estimate the next sample size
                         data, u =  asn.mvrs_to_data(mvr_sample, cvr_sample)
-                        new_size = max(new_size, asn.find_sample_size(data=data, 
+                        new_size = max(new_size, asn.find_sample_size(data=data, prefix=True,
                                                                   reps=self.reps, quantile=self.quantile,
                                                                   seed=self.sim_seed))
                     else:
@@ -1212,7 +1212,7 @@ class Assertion:
         
         
     def find_sample_size(
-                    self, data: np.array=None, prefix: bool=True, rate_1: float=None, rate_2: float=None,
+                    self, data: np.array=None, prefix: bool=False, rate_1: float=None, rate_2: float=None,
                     reps: int=None, quantile: float=0.5, seed: int=1234567890) -> int:
         '''
         Estimate sample size needed to reject the null hypothesis that the assorter mean is <=1/2,
