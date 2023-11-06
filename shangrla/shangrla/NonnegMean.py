@@ -109,7 +109,7 @@ class NonnegMean:
         j = np.arange(1,len(x)+1)              # 1, 2, 3, ..., len(x)
         m = (N*t-S)/(N-j+1) if np.isfinite(N) else t   # mean of population after (j-1)st draw, if null is true
         x = np.array(x)
-        with np.errstate(divide='ignore',invalid='ignore'):
+        with np.errstate(divide='ignore', invalid='ignore', over='ignore'):
             etaj = self.estim(x)
             terms = np.cumprod((x*etaj/m + (u-x)*(u-etaj)/(u-m))/u)
         terms[m>u] = 0                                       # true mean is certainly less than hypothesized
@@ -161,7 +161,7 @@ class NonnegMean:
         j = np.arange(1,len(x)+1)              # 1, 2, 3, ..., len(x)
         m = (N*t-S)/(N-j+1) if np.isfinite(N) else t   # mean of population after (j-1)st draw, if null is true
         x = np.array(x)
-        with np.errstate(divide='ignore',invalid='ignore'):
+        with np.errstate(divide='ignore', invalid='ignore', over='ignore'):
             lam = self.bet(x)
             terms = np.cumprod(1+lam*(x-m))
         terms[m>u] = 0                                       # true mean is certainly less than hypothesized
@@ -473,7 +473,7 @@ class NonnegMean:
         S = np.insert(np.cumsum(x+g),0,0)[0:-1]  # 0, x_1, x_1+x_2, ...,
         j = np.arange(1,len(x)+1)                # 1, 2, 3, ..., len(x)
         m = (N*(t+g)-S)/(N-j+1) if np.isfinite(N) else t+g   # mean of population after (j-1)st draw, if null is true
-        with np.errstate(divide='ignore',invalid='ignore'):
+        with np.errstate(divide='ignore', invalid='ignore', over='ignore'):
             terms = np.cumprod((x+g)/m)
         terms[m<0] = np.inf
         p = min((1/np.max(terms) if random_order else 1/terms[-1]),1)
@@ -612,7 +612,7 @@ class NonnegMean:
         else:
             m = t
             etas = eta
-        with np.errstate(divide='ignore',invalid='ignore'):
+        with np.errstate(divide='ignore', invalid='ignore', over='ignore'):
             terms = np.cumprod((x*etas/m + (u-x)*(u-etas)/(u-m))/u) # generalization of Bernoulli SPRT
         terms[m<0] = np.inf                        # the null is surely false
         terms = np.cumprod(terms)
