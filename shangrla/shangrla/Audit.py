@@ -760,7 +760,7 @@ class Audit:
             new_size = 0
             for a, asn in con.assertions.items():
                 if not asn.proved:
-                    if mvr_sample is not None: # use MVRs to estimate the next sample size
+                    if mvr_sample is not None: # use MVRs to estimate the next sample size. Set `prefix=True` to use data
                         data, u =  asn.mvrs_to_data(mvr_sample, cvr_sample)
                         new_size = max(new_size, asn.find_sample_size(data=data, prefix=True,
                                                                   reps=self.reps, quantile=self.quantile,
