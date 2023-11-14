@@ -295,7 +295,8 @@ class CVR:
 
         Returns:
         --------
-        list of CVR objects corresponding to the RAIRE cvrs
+        list of CVR objects corresponding to the RAIRE cvrs, merged
+        number of CVRs read (before merging)
         '''
         skip = int(raire[0][0])
         cvr_list = []
@@ -306,7 +307,7 @@ class CVR:
             for j in range(2, len(c)):
                 votes[str(c[j])] = j-1
             cvr_list.append(CVR.from_vote(votes, id=id, contest_id=contest_id, phantom=phantom))
-        return CVR.merge_cvrs(cvr_list)
+        return CVR.merge_cvrs(cvr_list), len(raire)-skip
 
     @classmethod
     def from_raire_file(cls, cvr_file: str=None):
@@ -331,8 +332,8 @@ class CVR:
             cvr_reader = csv.reader(f, delimiter=',', quotechar='"')
             for row in cvr_reader:
                 cvr_in.append(row)
-        cvrs = CVR.from_raire(cvr_in)
-        return cvrs, len(cvr_in), len(cvrs)
+        cvrs, cvrs_read = CVR.from_raire(cvr_in)
+        return cvrs, cvrs_read, len(cvrs)
 
     @classmethod
     def merge_cvrs(cls, cvr_list):
