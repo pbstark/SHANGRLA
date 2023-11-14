@@ -96,7 +96,7 @@ class TestCVR:
                       ["339","99813_1_6","18","17","15","16"],
                       ["3","99813_1_6","2"]
                      ]
-        c = CVR.from_raire(raire_cvrs)
+        c, n = CVR.from_raire(raire_cvrs)
         assert len(c) == 3
         assert c[0].id == "99813_1_1"
         assert c[0].votes == {'339': {'17':1}}
