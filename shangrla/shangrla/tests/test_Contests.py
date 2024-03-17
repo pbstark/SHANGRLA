@@ -50,7 +50,7 @@ class TestContests:
                  'audit_type': Audit.AUDIT_TYPE.POLLING,
                  'test': NonnegMean.alpha_mart,
                  'use_style': False
-                }
+                },
                  'EvF': {
                  'name': 'contest_3',
                  'risk_limit': 0.05,
