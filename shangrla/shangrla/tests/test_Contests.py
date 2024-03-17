@@ -70,7 +70,7 @@ class TestContests:
         ids = ['1','2']
         atts = ('id','name','risk_limit','cards','choice_function','n_winners','share_to_win','candidates',
                 'winner','assertion_file','audit_type','test','use_style')
-        contests = Contest.from_dict_of_dicts(contest_dict)
+        contests = Contest.from_dict_of_dicts(self.contest_dict)
         for id, c in contests.items():
             assert c.__dict__.get('id') == id
             for att in atts:
@@ -87,6 +87,7 @@ class TestContests:
                     {'id': 7, 'votes': {'AvB': {'Alice':2}, 'CvD': {'Elvis':False, 'Candy':True}}}
                    ]
         cvr_list = CVR.from_dict(cvr_dict)
+        contests = Contest.from_dict_of_dicts(self.contest_dict)
         Contest.tally(contests, cvr_list)
         assert contests['AvB'].tally == {'Alice': 3, 'Bob': 3}
         assert contests['CvD'].tally == {'Candy': 5, 'Elvis': 2}
