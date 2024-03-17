@@ -2013,6 +2013,42 @@ class Contest:
 
 
     @classmethod
+    def tally(cls, con_list: list=None, cvr_list: list=None) -> dict:
+        '''
+        Tally the votes in the contests in con_list from a list of CVRs.
+        Only tallies plurality, multi-winner plurality, supermajority, and approval contests
+
+        Parameters
+        ----------
+        con_list: list of Contest objects to find tallies for
+        cvr_list: list of CVRs containing the votes to tally
+
+        Returns
+        -------
+
+        Side Effects
+        ------------
+        Sets the `tally` dict for the contests in con_list, if their social choice function is appropriate
+        '''
+        tallies = {}
+        cons = []
+        for c in con_list:
+            if c.choice_function in [Contest.SOCIAL_CHOICE_FUNCTION.PLURALITY,
+                                     Contest.SOCIAL_CHOICE_FUNCTION.SUPERMAJORITY,
+                                     Contest.SOCIAL_CHOICE_FUNCTION.APPROVAL]:
+                cons.append(c)
+                c.tally = defaultdict(int)
+            else:
+                warnings.warn(f'contest {c.id} ({c.name}) has social choice function {c.choice_function}: not tabulated')
+        for cvr in cvr_list:
+            for c in con_list:
+                for candidate, vote in c.votes[c.id].items():
+                    if candidate:
+                        c.tally[candidate] += int(bool(vote))
+
+
+    
+    @classmethod
     def from_dict(cls, d: dict) -> dict:
         '''
         define a contest objects from a dict containing data for one contest

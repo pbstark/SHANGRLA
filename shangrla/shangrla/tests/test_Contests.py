@@ -24,19 +24,8 @@ from shangrla.Hart import Hart
 ###################################################################################################
 class TestContests:
 
-    def test_contests_from_dict_of_dicts(self):
-        ids = ['1','2']
-        choice_functions = [Contest.SOCIAL_CHOICE_FUNCTION.PLURALITY, Contest.SOCIAL_CHOICE_FUNCTION.SUPERMAJORITY]
-        risk_limit = 0.05
-        cards = [10000, 20000]
-        n_winners = [2, 1]
-        candidates = [4, 2]
-        audit_type = [Audit.AUDIT_TYPE.POLLING, Audit.AUDIT_TYPE.CARD_COMPARISON]
-        use_style = True
-        atts = ('id','name','risk_limit','cards','choice_function','n_winners','share_to_win','candidates',
-                'winner','assertion_file','audit_type','test','use_style')
-        contest_dict = {
-                 'con_1': {
+    contest_dict = {
+                 'AvB': {
                  'name': 'contest_1',
                  'risk_limit': 0.05,
                  'cards': 10**4,
@@ -49,26 +38,61 @@ class TestContests:
                  'test': NonnegMean.alpha_mart,
                  'use_style': True
                 },
-                 'con_2': {
+                 'CvD': {
                  'name': 'contest_2',
                  'risk_limit': 0.05,
                  'cards': 10**4,
                  'choice_function': Contest.SOCIAL_CHOICE_FUNCTION.SUPERMAJORITY,
                  'n_winners': 1,
                  'candidates': 4,
-                 'candidates': ['alice','bob','carol','dave',],
+                 'candidates': ['alice','bob','carol','dave'],
                  'winner': ['alice'],
                  'audit_type': Audit.AUDIT_TYPE.POLLING,
                  'test': NonnegMean.alpha_mart,
                  'use_style': False
                 }
+                 'EvF': {
+                 'name': 'contest_3',
+                 'risk_limit': 0.05,
+                 'cards': 10**4,
+                 'choice_function': Contest.SOCIAL_CHOICE_FUNCTION.IRV,
+                 'n_winners': 1,
+                 'candidates': 4,
+                 'candidates': ['alice','bob','carol','dave'],
+                 'winner': ['alice'],
+                 'audit_type': Audit.AUDIT_TYPE.CARD_COMPARISON,
+                 'test': NonnegMean.alpha_mart,
+                 'use_style': False
                 }
+            }
+
+    def test_contests_from_dict_of_dicts(self):
+        ids = ['1','2']
+        atts = ('id','name','risk_limit','cards','choice_function','n_winners','share_to_win','candidates',
+                'winner','assertion_file','audit_type','test','use_style')
         contests = Contest.from_dict_of_dicts(contest_dict)
-        for i, c in contests.items():
-            assert c.__dict__.get('id') == i
+        for id, c in contests.items():
+            assert c.__dict__.get('id') == id
             for att in atts:
                 if att != 'id':
-                    assert c.__dict__.get(att) == contest_dict[i].get(att)
+                    assert c.__dict__.get(att) == contest_dict[id].get(att)
+
+    def test_tally(self):
+        cvr_dict = [{'id': 1, 'votes': {'AvB': {'Alice':True}, 'CvD': {'Candy':True}}},
+                    {'id': 2, 'votes': {'AvB': {'Bob':True}, 'CvD': {'Elvis':True, 'Candy':False}}},
+                    {'id': 3, 'votes': {'EvF': {'Bob':1, 'Edie':2}, 'CvD': {'Elvis':False, 'Candy':True}}},
+                    {'id': 4, 'votes': {'AvB': {'Alice':1}, 'CvD': {'Candy':'yes'}}},
+                    {'id': 5, 'votes': {'AvB': {'Bob':True}, 'CvD': {'Elvis':True, 'Candy':False}}},
+                    {'id': 6, 'votes': {'EvF': {'Bob':2, 'Edie':1}, 'CvD': {'Elvis':False, 'Candy':True}}},
+                    {'id': 7, 'votes': {'AvB': {'Alice':2}, 'CvD': {'Elvis':False, 'Candy':True}}}
+                   ]
+        cvr_list = CVR.from_dict(cvr_dict)
+        tally(contests)
+        assert contests['AvB'].tally == {'Alice': 3, 'Bob': 3}
+        assert contests['CvD'].tally == {'Candy': 5, 'Elvis': 2}
+        assert contests['EvF'].tally is None 
+        # TO DO: assert that this raises a warning about contest EvF
+            
 
 ##########################################################################################
 if __name__ == "__main__":
