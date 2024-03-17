@@ -75,7 +75,7 @@ class TestContests:
             assert c.__dict__.get('id') == id
             for att in atts:
                 if att != 'id':
-                    assert c.__dict__.get(att) == contest_dict[id].get(att)
+                    assert c.__dict__.get(att) == self.contest_dict[id].get(att)
 
     def test_tally(self):
         cvr_dict = [{'id': 1, 'votes': {'AvB': {'Alice':True}, 'CvD': {'Candy':True}}},
