@@ -26,6 +26,7 @@ class TestContests:
 
     contest_dict = {
                  'AvB': {
+                 'id': 'AvB',
                  'name': 'contest_1',
                  'risk_limit': 0.05,
                  'cards': 10**4,
@@ -39,6 +40,7 @@ class TestContests:
                  'use_style': True
                 },
                  'CvD': {
+                 'id': 'CvD',
                  'name': 'contest_2',
                  'risk_limit': 0.05,
                  'cards': 10**4,
@@ -52,6 +54,7 @@ class TestContests:
                  'use_style': False
                 },
                  'EvF': {
+                 'id': 'EvF',
                  'name': 'contest_3',
                  'risk_limit': 0.05,
                  'cards': 10**4,
@@ -67,7 +70,6 @@ class TestContests:
             }
 
     def test_contests_from_dict_of_dicts(self):
-        ids = ['1','2']
         atts = ('id','name','risk_limit','cards','choice_function','n_winners','share_to_win','candidates',
                 'winner','assertion_file','audit_type','test','use_style')
         contests = Contest.from_dict_of_dicts(self.contest_dict)
@@ -88,8 +90,9 @@ class TestContests:
                    ]
         cvr_list = CVR.from_dict(cvr_dict)
         contests = Contest.from_dict_of_dicts(self.contest_dict)
+        print(contests)
         Contest.tally(contests, cvr_list)
-        assert contests['AvB'].tally == {'Alice': 3, 'Bob': 3}
+        assert contests['AvB'].tally == {'Alice': 3, 'Bob': 2}
         assert contests['CvD'].tally == {'Candy': 5, 'Elvis': 2}
         assert contests['EvF'].tally is None 
         # TO DO: assert that this raises a warning about contest EvF

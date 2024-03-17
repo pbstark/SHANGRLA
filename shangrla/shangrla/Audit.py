@@ -2037,14 +2037,16 @@ class Contest:
                                      Contest.SOCIAL_CHOICE_FUNCTION.SUPERMAJORITY,
                                      Contest.SOCIAL_CHOICE_FUNCTION.APPROVAL]:
                 cons.append(c)
-                con.tally = defaultdict(int)
+                c.tally = defaultdict(int)
             else:
-                warnings.warn(f'contest {c.id} ({c.name}) has social choice function {c.choice_function}: not tabulated')
+                warnings.warn(f'contest {c.id} ({c.name}) has social choice function ' +
+                              f'{c.choice_function}: not tabulated')
         for cvr in cvr_list:
-            for c in con_list:
-                for candidate, vote in c.votes[c.id].items():
-                    if candidate:
-                        c.tally[candidate] += int(bool(vote))
+            for c in cons:
+                if cvr.has_contest(c.id):
+                    for candidate, vote in cvr.votes[c.id].items():
+                        if candidate:
+                            c.tally[candidate] += int(bool(vote))
 
 
     
