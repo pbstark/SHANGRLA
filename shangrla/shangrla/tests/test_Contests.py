@@ -87,7 +87,7 @@ class TestContests:
                     {'id': 7, 'votes': {'AvB': {'Alice':2}, 'CvD': {'Elvis':False, 'Candy':True}}}
                    ]
         cvr_list = CVR.from_dict(cvr_dict)
-        tally(contests)
+        Contest.tally(contests, cvr_list)
         assert contests['AvB'].tally == {'Alice': 3, 'Bob': 3}
         assert contests['CvD'].tally == {'Candy': 5, 'Elvis': 2}
         assert contests['EvF'].tally is None 
