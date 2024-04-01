@@ -88,15 +88,60 @@ class Dominion:
         cvr_list = []
         for c in cvr_json['Sessions']:
             votes = {}
-            for con in c["Original"]["Contests"]:
+            # Skip CVRs not in the desired include_group (if set)
+            if include_groups and c["CountingGroupId"] not in include_groups:
+                continue
+            # Use adjudicated CVR data (if present and if requested)
+            _ckey = (
+                "Modified" if "Modified" in c.keys() and use_adjudicated else "Original"
+            )
+            # Dominion somewhere between 5.2.18.2 and 5.10.50.85 added another hierarchical level, "Cards"
+            if "Cards" in c[_ckey].keys():
+                _selector = c[_ckey]["Cards"][0]["Contests"]
+            else:
+                _selector = c[_ckey]["Contests"]
+            for con in _selector:
                 contest_votes = {}
                 for mark in con["Marks"]:
                     contest_votes[str(mark["CandidateId"])] = mark["Rank"]
                 votes[str(con["Id"])] = contest_votes
+            # If RecordId is obfuscated, extract it from the ImageMask
+            if c["RecordId"] == "X":
+                image_match = image_mask_pattern.search(c["ImageMask"])
+                if image_match is not None:
+                    record_id = int(image_match.group(0).split("_")[-1])
+            else:
+                record_id = c["RecordId"]
             cvr_list.append(CVR(id = str(c["TabulatorId"])\
                                      + '_' + str(c["BatchId"]) \
-                                     + '_' + str(c["RecordId"]),\
+                                     + '_' + str(record_id),\
                                      votes = votes))
+        return cvr_list
+
+    @classmethod
+    def read_cvrs_directory(
+        cls, cvr_directory, use_adjudicated=False, include_groups=()
+    ):
+        """
+        Read CVRs in Dominion format from a given directory.
+
+        Parameters:
+        -----------
+        cvr_directory: string
+            directory name in which the cvrs can be found
+        use_adjudicated: bool [optional], default False
+            if set, read marks from ["Modified"] instead of ["Original"] (see read_cvrs)
+        include_groups: tuple of ints [optional], default ()
+            if set, use to select only CVRs with specified "CountingGroupId" (see read_cvrs)
+
+        Returns:
+        --------
+        cvr_list: list of CVR objects
+
+        """
+        cvr_list = []
+        for file in [f for f in glob.glob(f"{cvr_directory}/CvrExport_*.json")]:
+            cvr_list.extend(Dominion.read_cvrs(file, use_adjudicated, include_groups))
         return cvr_list
 
     @classmethod
