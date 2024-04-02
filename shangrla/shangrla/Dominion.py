@@ -61,7 +61,7 @@ class Dominion:
         return manifest, manifest_cards, phantoms
 
     @classmethod
-    def read_cvrs(cls, cvr_file):
+    def read_cvrs(cls, cvr_file, use_adjudicated: bool=False, include_groups: list=None):
         """
         Read CVRs in Dominion format.
         Dominion uses:
@@ -75,6 +75,10 @@ class Dominion:
         -----------
         cvr_file: string
             filename for cvrs
+        use_adjudicated: bool
+            if set, read marks from ["Modified"] instead of ["Original"] 
+        include_groups: list-like
+            if set, read only CVRs with "CountingGroupId" in include_groups
 
         Returns:
         --------
