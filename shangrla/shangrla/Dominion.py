@@ -7,6 +7,8 @@ import csv
 import pandas as pd
 import warnings
 import copy
+import re
+import glob
 from .Audit import CVR
 
 class Dominion:
@@ -60,7 +62,7 @@ class Dominion:
         return manifest, manifest_cards, phantoms
 
     @classmethod
-    def read_cvrs(cls, cvr_file):
+    def read_cvrs(cls, cvr_file, use_adjudicated=False, include_groups=()):
         """
         Read CVRs in Dominion format.
         Dominion uses:
@@ -74,12 +76,19 @@ class Dominion:
         -----------
         cvr_file: string
             filename for cvrs
+        use_adjudicated: bool [optional], default False
+            if set, read marks from ["Modified"] instead of ["Original"]
+        include_groups: tuple of ints [optional], default ()
+            if set, use to select only CVRs with specified "CountingGroupId", e.g. (2,) for VBM
 
         Returns:
         --------
         cvr_list: list of CVR objects
 
         """
+        # Image mask is used if the RecordId has been obfuscated (see below)
+        image_mask_pattern = re.compile(r"[0-9]{5}_[0-9]{5}_[0-9]{6}")
+
         with open(cvr_file, 'r') as f:
             cvr_json = json.load(f)
         # Dominion export wraps the CVRs under several layers; unwrap
