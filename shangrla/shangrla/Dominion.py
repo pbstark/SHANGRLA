@@ -149,7 +149,7 @@ class Dominion:
 
         """
         cvr_list = []
-        for file in [f for f in glob.glob(f"{cvr_directory}/CvrExport_*.json")]:
+        for file in [f for f in sorted(glob.glob(f"{cvr_directory}/CvrExport_*.json"))]:
             cvr_list.extend(Dominion.read_cvrs(file, use_adjudicated, include_groups))
         return cvr_list
 
