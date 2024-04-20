@@ -4,6 +4,8 @@ import json
 import csv
 import warnings
 from collections import OrderedDict, defaultdict
+from collections.abc import Collection
+from typing import Iterable, Tuple
 from cryptorandom.cryptorandom import SHA256, random, int_from_hash
 from cryptorandom.sample import random_permutation
 from cryptorandom.sample import sample_by_index
@@ -119,8 +121,15 @@ class CVR:
             {"id": "A-001-01", "votes": {"mayor": {"Alice": 1, "Bob": 2, "Candy": 3, "Dan": ''}}}
     Then int(vote_for("Candy","mayor"))=3, Candy's rank in the "mayor" contest.
 
-    CVRs can be flagged as "phantoms" to account for cards not listed in the manifest (Boolean 
-    `phantom` attribute).
+    CVRs can be flagged as `phantoms` to account for ballot cards not listed in the manifest using the boolean 
+    `phantom` attribute.
+
+    CVRs can be assigned to a `tally_batch`, useful for the ONEAudit method or batch-level comparison audits
+    using the `batch` attribute (batch-level comparison audits are not currently implemented)
+
+    CVRs can be flagged for use in ONEAudit "pool" assorter means. When a CVR is flagged this way, the
+    value of the assorter applied to the MVR is compared to the mean value of the assorter applied to the
+    CVRs in the tally batch the CVR belongs to.
 
     CVRs can include sampling probabilities `p` and sample numbers `sample_num` (pseudo-random numbers 
     to facilitate consistent sampling)
@@ -144,27 +153,32 @@ class CVR:
          create CVRs from the RAIRE representation
     '''
 
-    def __init__(self, id = None, votes = {}, phantom=False, sample_num=None, p=None, sampled=False):
-        self.votes = votes
-        self.id = id
-        self.phantom = phantom
-        self.sample_num = sample_num
-        self.p = p
-        self.sampled = sampled
+    def __init__(self, 
+                 id: object=None, votes: dict={}, phantom: bool=False, tally_batch: object=None, 
+                 pool: bool=False, sample_num: float=None, p: float=None, sampled: bool=False):
+        self.votes = votes              # contest/vote dict
+        self.id = id                    # identifier
+        self.phantom = phantom          # is this a phantom CVR?
+        self.tally_batch = tally_batch  # what tallying batch of cards does this CVR belong to (used by ONEAudit)?
+        self.pool = pool                # pool votes on this CVR within its tally_batch?
+        self.sample_num = sample_num    # pseudorandom number used for consistent sampling
+        self.p = p                      # sampling probability
+        self.sampled = sampled          # is this CVR in the sample?
 
     def __str__(self):
-        return f"id: {str(self.id)} votes: {str(self.votes)} phantom: {str(self.phantom)}"
+        return f'id: {str(self.id)} votes: {str(self.votes)} phantom: {str(self.phantom)} ' + \
+               f'tally_batch: {str(self.tally_batch)} pool: {str(self.pool)}'
 
-    def get_vote_for(self, contest_id, candidate):
+    def get_vote_for(self, contest_id: str, candidate: str):
         return (False if (contest_id not in self.votes or candidate not in self.votes[contest_id])
                 else self.votes[contest_id][candidate])
 
     def has_contest(self, contest_id: str):
         return contest_id in self.votes
 
-    def has_one_vote(self, contest_id, candidates):
+    def has_one_vote(self, contest_id: str, candidates: list) -> bool:
         '''
-        Is there exactly one vote among the candidates in the contest with contest_id?
+        Is there exactly one vote among the candidates in the contest `contest_id`?
 
         Parameters:
         -----------
@@ -182,7 +196,7 @@ class CVR:
                     for c in candidates])
         return True if v==1 else False
 
-    def rcv_lfunc_wo(self, contest_id: str, winner: str, loser: str):
+    def rcv_lfunc_wo(self, contest_id: str, winner: str, loser: str) -> int:
         '''
         Check whether vote is a vote for the loser with respect to a 'winner only'
         assertion between the given 'winner' and 'loser'.
@@ -211,7 +225,7 @@ class CVR:
         else:
             return 0
 
-    def rcv_votefor_cand(self, contest_id: str, cand: str, remaining: list):
+    def rcv_votefor_cand(self, contest_id: str, cand: str, remaining: list) -> int:
         '''
         Check whether 'vote' is a vote for the given candidate in the context
         where only candidates in 'remaining' remain standing.
@@ -252,7 +266,7 @@ class CVR:
         return json.dumps(cvr)
 
     @classmethod
-    def from_dict(cls, cvr_dict):
+    def from_dict(cls, cvr_dict: dict) -> list:
         '''
         Construct a list of CVR objects from a list of dicts containing cvr data
 
@@ -271,7 +285,7 @@ class CVR:
         return cvr_list
 
     @classmethod
-    def from_raire(cls, raire, phantom=False):
+    def from_raire(cls, raire: list, phantom: bool=False) -> Tuple[list, int]:
         '''
         Create a list of CVR objects from a list of cvrs in RAIRE format
 
@@ -310,7 +324,7 @@ class CVR:
         return CVR.merge_cvrs(cvr_list), len(raire)-skip
 
     @classmethod
-    def from_raire_file(cls, cvr_file: str=None):
+    def from_raire_file(cls, cvr_file: str=None) -> Tuple[list, int, int]:
         '''
         Read CVR data from a file; construct list of CVR objects from the data
 
@@ -336,7 +350,7 @@ class CVR:
         return cvrs, cvrs_read, len(cvrs)
 
     @classmethod
-    def merge_cvrs(cls, cvr_list):
+    def merge_cvrs(cls, cvr_list: list) -> list:
         '''
         Takes a list of CVRs that might contain duplicated ballot ids and merges the votes
         so that each identifier is listed only once, and votes from different records for that
@@ -366,7 +380,7 @@ class CVR:
         return [v for v in od.values()]
 
     @classmethod
-    def from_vote(cls, vote, id: object=1, contest_id: str='AvB', phantom: bool=False):
+    def from_vote(cls, vote: str, id: object=1, contest_id: str='AvB', phantom: bool=False) -> dict:
         '''
         Wraps a vote and creates a CVR, for unit tests
 
@@ -385,16 +399,17 @@ class CVR:
         return CVR(id=id, votes={contest_id: vote}, phantom=phantom)
 
     @classmethod
-    def as_vote(cls, v):
+    def as_vote(cls, v) -> int:
         return int(bool(v))
 
     @classmethod
-    def as_rank(cls, v):
+    def as_rank(cls, v) -> int:
         return int(v)
 
 
     @classmethod
-    def make_phantoms(cls, audit: None, contests: dict=None, cvr_list: list=None, prefix: str='phantom-'):
+    def make_phantoms(cls, audit: dict=None, contests: dict=None, cvr_list: list=None, 
+                      prefix: str='phantom-') -> Tuple[list, int] :
         '''
         Make phantom CVRs as needed for phantom cards; set contest parameters `cards` (if not set) and `cvrs`
 
@@ -457,7 +472,7 @@ class CVR:
         return cvr_list, phantoms
 
     @classmethod
-    def assign_sample_nums(cls, cvr_list, prng):
+    def assign_sample_nums(cls, cvr_list: list['CVR'], prng: 'np.RandomState') -> bool:
         '''
         Assigns a pseudo-random sample number to each cvr in cvr_list
 
@@ -480,7 +495,7 @@ class CVR:
 
 
     @classmethod
-    def prep_comparison_sample(cls, mvr_sample, cvr_sample, sample_order):
+    def prep_comparison_sample(cls, mvr_sample: list['CVR'], cvr_sample: list['CVR'], sample_order: list):
         '''
         prepare the MVRs and CVRs for comparison by putting them into the same (random) order
         in which the CVRs were selected
@@ -501,6 +516,10 @@ class CVR:
 
         Returns
         -------
+
+        Side effects
+        ------------
+        sorts the mvr sample into the same order as the cvr sample
         '''
         mvr_sample.sort(key = lambda x: sample_order[x.id]["selection_order"])
         cvr_sample.sort(key = lambda x: sample_order[x.id]["selection_order"])
@@ -527,7 +546,10 @@ class CVR:
 
         Returns
         -------
-        only side effects: mvr_sample is reordered
+
+        Side Effects
+        -------------
+        mvr_sample is reordered into the random selection order
         '''
         mvr_sample.sort(key= lambda x: sample_order[x.id]["selection_order"])
 
@@ -980,7 +1002,6 @@ class Assertion:
 
     def min_p(self):
         return min(self.p_history)
-
 
     def margin(self, cvr_list: list=None, use_style: bool=True):
         '''
