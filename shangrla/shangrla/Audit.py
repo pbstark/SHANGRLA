@@ -176,6 +176,34 @@ class CVR:
     def has_contest(self, contest_id: str):
         return contest_id in self.votes
 
+    def update_votes(self, votes: dict):
+        '''
+        Update the votes for any contests the CVR already contains; add any contests and votes not already contained
+        
+        Parameters
+        ----------
+        votes: dict of dict of dicts
+           key is a contest id; value is a dict of votes--keys and values
+           
+        Returns
+        -------
+        added: bool
+            True if the contest was already present; else false
+
+        Side effects
+        ------------
+        updates the CVR to add the contest if it was not already present and to update the votes
+        '''
+        added = False
+        for c, v in votes.items():
+            if self.has_contest(c):
+                self.votes[c].update(v)
+            else:
+                self.votes[c] = v
+                added = True
+        return added
+                
+
     def has_one_vote(self, contest_id: str, candidates: list) -> bool:
         '''
         Is there exactly one vote among the candidates in the contest `contest_id`?
@@ -266,7 +294,7 @@ class CVR:
         return json.dumps(cvr)
 
     @classmethod
-    def from_dict(cls, cvr_dict: dict) -> list:
+    def from_dict(cls, cvr_dict: list[dict]) -> list:
         '''
         Construct a list of CVR objects from a list of dicts containing cvr data
 
@@ -704,7 +732,8 @@ class Audit:
         types of audit
         '''
         AUDIT_TYPES = (POLLING:= 'POLLING',
-                       CARD_COMPARISON:= 'CARD_COMPARISON'
+                       CARD_COMPARISON:= 'CARD_COMPARISON',
+                       ONEAUDIT:= 'ONEAUDIT'
                       )
         # TO DO: BATCH_COMPARISON, STRATIFIED, HYBRID, ...
 
@@ -744,7 +773,8 @@ class Audit:
     def find_sample_size(self, contests: dict=None, cvrs: list=None, mvr_sample: list=None, cvr_sample: list=None) -> int:
         '''
         Estimate sample size for each contest and overall to allow the audit to complete.
-        Uses simulations. For speed, uses the numpy.random Mersenne Twister instead of cryptorandom.
+        Uses simulations. For speed, uses the numpy.random Mersenne Twister instead of cryptorandom, a higher-quality
+        PRNG used to select the actual audit sample.
 
         Parameters
         ----------
@@ -1115,7 +1145,7 @@ class Assertion:
         self.margin = 2*amean-1
         if self.contest.audit_type == Audit.AUDIT_TYPE.POLLING:
             self.test.u = self.assorter.upper_bound
-        elif self.contest.audit_type == Audit.AUDIT_TYPE.CARD_COMPARISON:
+        elif self.contest.audit_type == Audit.AUDIT_TYPE.CARD_COMPARISON or self.contest.audit_type == Audit.ONEAUDIT:
             self.test.u = 2/(2-self.margin/self.assorter.upper_bound)
         else:
             raise NotImplementedError(f'audit type {self.contest.audit_type} not supported')
@@ -1643,7 +1673,7 @@ class Assertion:
                 con.margins.update({a: margin})
                 if con.audit_type==Audit.AUDIT_TYPE.POLLING:
                     u = asn.assorter.upper_bound
-                elif con.audit_type==Audit.AUDIT_TYPE.CARD_COMPARISON:
+                elif con.audit_type==Audit.AUDIT_TYPE.CARD_COMPARISON or con.audit_type==Audit.AUDIT_TYPE.ONEAUDIT:
                     u = 2/(2-margin/asn.assorter.upper_bound)
                 else:
                     raise NotImplementedError(f'audit type {con.audit_type} not implemented')
@@ -1975,8 +2005,8 @@ class Contest:
         '''
         Estimate the sample size required to confirm the contest at its risk limit.
 
-        This function can be used with or without data, for Audit.AUDIT_TYPE.POLLING and Audit.AUDIT_TYPE.CARD_COMPARISON
-        audits.
+        This function can be used with or without data, for Audit.AUDIT_TYPE.POLLING,
+        Audit.AUDIT_TYPE.CARD_COMPARISON, and Audit.AUDIT_TYPE.ONEAUDIT audits.
 
         The simulations in this implementation are inefficient because the randomization happens separately
         for every assorter, rather than in parallel.

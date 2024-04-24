@@ -88,6 +88,27 @@ class TestCVR:
         assert cvr_list[1].has_contest('CvD')
         assert not cvr_list[1].has_contest('EvF')
 
+    def test_cvr_add_votes(self):
+        cvr_dict = [{'id': 1, 'votes': {'AvB': {}, 'CvD': {'Candy':True}}},
+                    {'id': 2, 'votes': {'CvD': {'Elvis':True, 'Candy':False}}}]
+        cvr_list = CVR.from_dict(cvr_dict)
+        assert not cvr_list[0].has_contest('QvR')
+        assert not cvr_list[1].has_contest('AvB')
+        assert cvr_list[0].update_votes({'QvR': {}})
+        assert cvr_list[1].get_vote_for('CvD', 'Elvis')
+        assert not cvr_list[0].update_votes({'CvD': {'Dan':7}})
+        assert cvr_list[1].update_votes({'QvR': {}, 'CvD': {'Dan':7, 'Elvis':False, 'Candy': True}})
+        for c in cvr_list:
+            assert c.has_contest('QvR')
+        assert not cvr_list[0].get_vote_for('QvR', 'Dan')
+        assert cvr_list[0].get_vote_for('CvD', 'Dan') == 7
+        assert cvr_list[0].get_vote_for('CvD', 'Candy')
+        assert not cvr_list[0].get_vote_for('CvD', 'Elvis')
+        assert cvr_list[1].get_vote_for('CvD', 'Dan') == 7
+        assert cvr_list[1].get_vote_for('CvD', 'Candy')
+        assert not cvr_list[1].get_vote_for('CvD', 'Elvis')        
+        
+
     def test_cvr_from_raire(self):
         raire_cvrs = [['1'],
                       ["Contest","339","5","15","16","17","18","45"],
