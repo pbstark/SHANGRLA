@@ -46,9 +46,10 @@ class TestCVR:
         assert votes.rcv_votefor_cand("AvB", "Aaron", remaining) == 0
 
     def test_cvr_from_dict(self):
-        cvr_dict = [{'id': 1, 'votes': {'AvB': {'Alice':True}, 'CvD': {'Candy':True}}},
-                    {'id': 2, 'votes': {'AvB': {'Bob':True}, 'CvD': {'Elvis':True, 'Candy':False}}},
-                    {'id': 3, 'votes': {'EvF': {'Bob':1, 'Edie':2}, 'CvD': {'Elvis':False, 'Candy':True}}}]
+        cvr_dict = [{'id': 1, 'pool': '1', 'votes': {'AvB': {'Alice':True}, 'CvD': {'Candy':True}}},
+                    {'id': 2, 'sample_num': 0.2, 'p': 0.5, 'sampled': True, 
+                              'votes': {'AvB': {'Bob':True}, 'CvD': {'Elvis':True, 'Candy':False}}},
+                    {'id': 3, 'tally_batch': 'abc', 'votes': {'EvF': {'Bob':1, 'Edie':2}, 'CvD': {'Elvis':False, 'Candy':True}}}]
         cvr_list = CVR.from_dict(cvr_dict)
         assert len(cvr_list) == 3
         assert cvr_list[0].id == 1
@@ -75,6 +76,12 @@ class TestCVR:
         assert cvr_list[2].get_vote_for('EvF', 'Bob') == 1
         assert cvr_list[2].get_vote_for('EvF', 'Edie') == 2
         assert cvr_list[2].get_vote_for('EvF', 'Alice') == False
+        
+        assert cvr_list[0].pool == '1'
+        assert cvr_list[1].sample_num == 0.2
+        assert cvr_list[1].p == 0.5
+        assert cvr_list[1].sampled
+        assert cvr_list[2].tally_batch == 'abc'
 
     def test_cvr_has_contest(self):
         cvr_dict = [{'id': 1, 'votes': {'AvB': {}, 'CvD': {'Candy':True}}},
@@ -89,9 +96,9 @@ class TestCVR:
         assert not cvr_list[1].has_contest('EvF')
 
     def test_cvr_add_votes(self):
-        cvr_dict = [{'id': 1, 'votes': {'AvB': {}, 'CvD': {'Candy':True}}},
-                    {'id': 2, 'votes': {'CvD': {'Elvis':True, 'Candy':False}}}]
-        cvr_list = CVR.from_dict(cvr_dict)
+        cvr_dicts = [{'id': 1, 'votes': {'AvB': {}, 'CvD': {'Candy':True}}},
+                     {'id': 2, 'votes': {'CvD': {'Elvis':True, 'Candy':False}}}]
+        cvr_list = CVR.from_dict(cvr_dicts)
         assert not cvr_list[0].has_contest('QvR')
         assert not cvr_list[1].has_contest('AvB')
         assert cvr_list[0].update_votes({'QvR': {}})
@@ -107,7 +114,35 @@ class TestCVR:
         assert cvr_list[1].get_vote_for('CvD', 'Dan') == 7
         assert cvr_list[1].get_vote_for('CvD', 'Candy')
         assert not cvr_list[1].get_vote_for('CvD', 'Elvis')        
-        
+
+
+    def test_cvr_pool_contests(self):
+        cvr_dicts = [{'id': 1, 'sample_num': 1, 'votes': {'AvB': {}, 'CvD': {'Candy':True}}},
+                     {'id': 2, 'p': 0.5, 'votes': {'CvD': {'Elvis':True, 'Candy':False}, 'EvF': {}}},
+                     {'id': 3, 'tally_batch': 'abc', 'sampled': True, 'votes': {'GvH': {}}}
+                   ]
+        cvr_list = CVR.from_dict(cvr_dicts)
+        assert CVR.pool_contests(cvr_list) == {'AvB', 'CvD', 'EvF', 'GvH'}  
+
+    def test_add_pool_contests(self):
+        cvr_dicts = [{'id': 1, 'pool': 1, 'votes': {'AvB': {}, 'CvD': {'Candy':True}}},
+                     {'id': 2, 'pool': 1, 'votes': {'CvD': {'Elvis':True, 'Candy':False}, 'EvF': {}}},
+                     {'id': 3, 'pool': 1, 'votes': {'GvH': {}}},
+                     {'id': 4, 'pool': 2, 'votes': {'AvB': {}, 'CvD': {'Candy':True}}},
+                     {'id': 5, 'pool': 2, 'votes': {'CvD': {'Elvis':True, 'Candy':False}, 'EvF': {}}}
+                   ]
+        cvr_list = CVR.from_dict(cvr_dicts)
+        pool_set = set(c.pool for c in cvr_list)
+        print(f'{pool_set=}')
+        pools = {}
+        for p in pool_set:
+            pools[p] = CVR.pool_contests(list([c for c in cvr_list if c.pool == p]))  
+        assert CVR.add_pool_contests(cvr_list, pools)
+        for i in range(3):
+            assert set(cvr_list[i].votes.keys()) == {'AvB', 'CvD', 'EvF', 'GvH'}  
+        for i in range(3,5):
+            assert set(cvr_list[i].votes.keys()) == {'AvB', 'CvD', 'EvF'} 
+        assert not CVR.add_pool_contests(cvr_list, pools)
 
     def test_cvr_from_raire(self):
         raire_cvrs = [['1'],

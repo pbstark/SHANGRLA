@@ -165,7 +165,7 @@ class CVR:
         self.p = p                      # sampling probability
         self.sampled = sampled          # is this CVR in the sample?
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f'id: {str(self.id)} votes: {str(self.votes)} phantom: {str(self.phantom)} ' + \
                f'tally_batch: {str(self.tally_batch)} pool: {str(self.pool)}'
 
@@ -173,10 +173,10 @@ class CVR:
         return (False if (contest_id not in self.votes or candidate not in self.votes[contest_id])
                 else self.votes[contest_id][candidate])
 
-    def has_contest(self, contest_id: str):
+    def has_contest(self, contest_id: str) -> bool:
         return contest_id in self.votes
 
-    def update_votes(self, votes: dict):
+    def update_votes(self, votes: dict) -> bool:
         '''
         Update the votes for any contests the CVR already contains; add any contests and votes not already contained
         
@@ -309,7 +309,13 @@ class CVR:
         cvr_list = []
         for c in cvr_dict:
             phantom = False if 'phantom' not in c.keys() else c['phantom']
-            cvr_list.append(CVR(id = c['id'], votes = c['votes'], phantom=phantom))
+            pool = None if 'pool' not in c.keys() else c['pool']
+            tally_batch = None if 'tally_batch' not in c.keys() else c['tally_batch']
+            sample_num =  None if 'sample_num' not in c.keys() else c['sample_num']
+            p =  None if 'p' not in c.keys() else c['p']
+            sampled =  None if 'sampled' not in c.keys() else c['sampled']
+            cvr_list.append(CVR(id=c['id'], votes=c['votes'], phantom=phantom, pool=pool, tally_batch=tally_batch,
+                               sample_num=sample_num, p=p, sampled=sampled))
         return cvr_list
 
     @classmethod
@@ -434,7 +440,47 @@ class CVR:
     def as_rank(cls, v) -> int:
         return int(v)
 
+    @classmethod
+    def pool_contests(cls, cvrs: list["CVR"]) -> set:
+        '''
+        create a set containing all contest ids in the list of CVRs
 
+        Parameters
+        ----------
+        cvrs : list of CVR objects
+            the set to collect contests from
+
+        Returns
+        -------
+        a set containing the ID of every contest mentioned in the CVR list
+        '''
+        contests = set()
+        for c in cvrs:
+            contests = contests.union(c.votes.keys())
+        return contests 
+
+    @classmethod
+    def add_pool_contests(cls, cvrs: list["CVR"], pools: dict) -> bool:
+        '''
+        for each pool, ensure every CVR in that pool has every contest in that pool
+
+        Parameters
+        ----------
+        cvrs : list of CVR objects
+            the set to update with additional contests as needed
+
+        pools : dict
+            keys are pool ids, values are sets of contests every CVR in that pool should have
+
+        Returns
+        -------
+        bool : True if any contests are added
+        '''
+        added = False
+        for c in cvrs:
+            added = c.update_votes({con: {} for con in pools[c.pool]}) or added # note: order of terms matters!
+        return added 
+                      
     @classmethod
     def make_phantoms(cls, audit: dict=None, contests: dict=None, cvr_list: list=None, 
                       prefix: str='phantom-') -> Tuple[list, int] :
