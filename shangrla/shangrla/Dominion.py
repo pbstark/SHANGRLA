@@ -84,7 +84,7 @@ class Dominion:
         include_groups: enumerable
             if nonempty, use to select only CVRs with specified "CountingGroupId", e.g. (2,) for VBM
         pool_groups: enumerable
-            if nonempty, CVRs with "CountingGroupId" in the 
+            if nonempty, CVRs with "CountingGroupId" in any of the groups is labeled as pooled (for ONEAudit)
 
         Returns:
         --------
