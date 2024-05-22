@@ -127,7 +127,7 @@ class Dominion:
             else:
                 record_id = c["RecordId"]
             cvr_list.append(CVR(id = str(c["TabulatorId"]) + '_' + str(c["BatchId"]) + '_' + str(record_id),
-                                tally_batch = str(c["TabulatorId"]) + '_' + str(c["BatchId"]),
+                                tally_pool = str(c["TabulatorId"]) + '_' + str(c["BatchId"]),
                                 pool = (c["CountingGroupId"] in pool_groups),
                                 votes = votes))
         return cvr_list

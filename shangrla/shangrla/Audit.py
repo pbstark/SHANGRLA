@@ -422,10 +422,10 @@ class CVR:
                    ):
                     pass
                 elif od[c.id].tally_pool is None and c.tally_pool is not None:
-                    oc[c.id].tally_pool = c.tally_pool
+                    od[c.id].tally_pool = c.tally_pool
                 else:
                     raise ValueError(f'two CVRs with the same ID have different tally_pools: \n{str(od)=}\n{str(c)=}')
-                oc[c.id].pool = oc[c.id] or c.pool
+                od[c.id].pool = od[c.id] or c.pool
         return [v for v in od.values()]
 
     @classmethod
