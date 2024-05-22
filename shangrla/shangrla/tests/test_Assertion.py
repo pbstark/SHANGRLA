@@ -15,19 +15,13 @@ from cryptorandom.cryptorandom import SHA256, random, int_from_hash
 from cryptorandom.sample import random_permutation
 from cryptorandom.sample import sample_by_index
 
-
 from shangrla.Audit import Audit, Assertion, Assorter, Contest, CVR, Stratum
 from shangrla.NonnegMean import NonnegMean
 from shangrla.Dominion import Dominion
 from shangrla.Hart import Hart
 
-
-
 ######################################################################################
 class TestAssertion:
-    #cvr_list = CVR.from_dict([{'id': "1_1", 'votes': {'AvB': {'Alice':True}}},
-    #            {'id': "1_2", 'votes': {'AvB': {'Bob':True}}},
-    #            {'id': "1_3", 'votes': {'AvB': {'Alice':True}}}])
 
     con_test = Contest.from_dict({'id': 'AvB',
                  'name': 'AvB',
@@ -46,10 +40,11 @@ class TestAssertion:
 
     #objects used to test many Assertion functions in plurality contests
     plur_cvr_list = CVR.from_dict([
-               {'id': "1_1", 'votes': {'AvB': {'Alice':True}}},
-               {'id': "1_2", 'votes': {'AvB': {'Bob':True}}},
-               {'id': "1_3", 'votes': {'AvB': {'Alice':True}}},
-               {'id': "1_4", 'votes': {'AvB': {'Alice':True}}}])
+               {'id': "1_1", 'tally_pool': '1', 'votes': {'AvB': {'Alice':True}}},
+               {'id': "1_2", 'tally_pool': '1', 'votes': {'AvB': {'Bob':True}}},
+               {'id': "1_3", 'tally_pool': '2', 'votes': {'AvB': {'Alice':True}}},
+               {'id': "1_4", 'tally_pool': '2', 'votes': {'AvB': {'Alice':True}}}])
+    
     plur_con_test = Contest.from_dict({'id': 'AvB',
                  'name': 'AvB',
                  'risk_limit': 0.05,
@@ -64,6 +59,7 @@ class TestAssertion:
                  'estim': NonnegMean.optimal_comparison,
                  'use_style': True
                 })
+
     #assertion without a margin
     raw_AvB_asrtn = Assertion(
         contest = plur_con_test,
@@ -80,6 +76,7 @@ class TestAssertion:
             upper_bound = 1
         )
     )
+    
     #comparison and polling audits referencing plur_cvr_list
     comparison_audit = Audit.from_dict({'quantile':       0.8,
          'error_rate_1': 0,
@@ -335,6 +332,44 @@ class TestAssertion:
             votes = CVR.from_vote({'28': 1, '50': 2})
             assert assorter.assort(votes) == 0.5, f'{assorter.assort(votes)=}'
 
+    def test_set_tally_pool_means(self):
+        cvr_dicts = [{'id': 1, 'tally_pool': '1', 'votes': {'AvB': {'Alice': 1}, 'CvD': {'Candy':True}}},
+                     {'id': 2, 'tally_pool': '1', 'votes': {'CvD': {'Elvis':True, 'Candy':False}, 'EvF': {}}},
+                     {'id': 3, 'tally_pool': '1', 'votes': {'GvH': {}}},
+                     {'id': 4, 'tally_pool': '2', 'votes': {'AvB': {'Bob': 1}, 'CvD': {'Candy':True}}},
+                     {'id': 5, 'tally_pool': '2', 'votes': {'CvD': {'Elvis':True, 'Candy':False}, 'EvF': {}}}
+                   ]
+        cvr_list = CVR.from_dict(cvr_dicts)
+        pool_set = set(c.tally_pool for c in cvr_list)
+        tally_pool = {}
+        for p in pool_set:
+            tally_pool[p] = CVR.pool_contests(list([c for c in cvr_list if c.tally_pool == p]))  
+        assert CVR.add_pool_contests(cvr_list, tally_pool) 
+        #
+        # without use_style
+        self.raw_AvB_asrtn.assorter.set_tally_pool_means(cvr_list=cvr_list, tally_pool=tally_pool, use_style=False)
+        np.testing.assert_almost_equal(self.raw_AvB_asrtn.assorter.tally_pool_means['1'], (1+1/2+1/2)/3)
+        np.testing.assert_almost_equal(self.raw_AvB_asrtn.assorter.tally_pool_means['2'], (0+1/2)/2)
+        #
+        # with use_style, but contests have already been added to every CVR in each pool
+        self.raw_AvB_asrtn.assorter.set_tally_pool_means(cvr_list=cvr_list, tally_pool=tally_pool, use_style=True)
+        np.testing.assert_almost_equal(self.raw_AvB_asrtn.assorter.tally_pool_means['1'], (1+1/2+1/2)/3)
+        np.testing.assert_almost_equal(self.raw_AvB_asrtn.assorter.tally_pool_means['2'], (0+1/2)/2)
+        #
+        # with use_style, without adding contests to every CVR in each pool
+        cvr_dicts = [{'id': 1, 'tally_pool': '1', 'votes': {'AvB': {'Alice': 1}, 'CvD': {'Candy':True}}},
+                     {'id': 2, 'tally_pool': '1', 'votes': {'CvD': {'Elvis':True, 'Candy':False}, 'EvF': {}}},
+                     {'id': 3, 'tally_pool': '1', 'votes': {'GvH': {}}},
+                     {'id': 4, 'tally_pool': '2', 'votes': {'AvB': {'Bob': 1}, 'CvD': {'Candy':True}}},
+                     {'id': 5, 'tally_pool': '2', 'votes': {'CvD': {'Elvis':True, 'Candy':False}, 'EvF': {}}}
+                   ]
+        cvr_list = CVR.from_dict(cvr_dicts)
+        print(f'{list([str(c) for c in cvr_list])}')
+        self.raw_AvB_asrtn.assorter.set_tally_pool_means(cvr_list=cvr_list, tally_pool=tally_pool, use_style=True)
+        np.testing.assert_almost_equal(self.raw_AvB_asrtn.assorter.tally_pool_means['1'], 1)
+        np.testing.assert_almost_equal(self.raw_AvB_asrtn.assorter.tally_pool_means['2'], 0)
+        
+ 
 
     def test_overstatement(self):
         mvr_dict = [{'id': 1, 'votes': {'AvB': {'Alice':True}}},
@@ -459,14 +494,16 @@ class TestAssertion:
             # first test
             rate_1=0.01
             rate_2=0.001
-            sam_size1 = a.find_sample_size(data=np.ones(10), prefix=True, rate_1=rate_1, reps=None, quantile=0.5, seed=1234567890)
+            sam_size1 = a.find_sample_size(data=np.ones(10), prefix=True, rate_1=rate_1, reps=None, quantile=0.5, 
+                                           seed=1234567890)
             # Kaplan-Markov martingale is \prod (t+g)/(x+g). For x = [1, 1, ...], sample size should be:
             ss1 = math.ceil(np.log(AvB.risk_limit)/np.log((a.test.t+a.test.g)/(1+a.test.g)))
             assert sam_size1 == ss1
             #
             # second test
             # For "clean", the term is (1/2+g)/(clean+g); for a one-vote overstatement, it is (1/2+g)/(one_over+g).
-            sam_size2 = a.find_sample_size(data=None, prefix=True, rate_1=rate_1, reps=10**2, quantile=0.5, seed=1234567890)
+            sam_size2 = a.find_sample_size(data=None, prefix=True, rate_1=rate_1, reps=10**2, quantile=0.5, 
+                                           seed=1234567890)
             clean = 1/(2-a.margin/a.assorter.upper_bound)
             over = clean/2 # corresponds to an overstatement of upper_bound/2, i.e., 1 vote.
             c = (a.test.t+a.test.g)/(clean+a.test.g)
