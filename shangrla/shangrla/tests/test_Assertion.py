@@ -332,7 +332,7 @@ class TestAssertion:
             votes = CVR.from_vote({'28': 1, '50': 2})
             assert assorter.assort(votes) == 0.5, f'{assorter.assort(votes)=}'
 
-    def test_set_pool_means(self):
+    def test_set_tally_pool_means(self):
         cvr_dicts = [{'id': 1, 'tally_pool': '1', 'votes': {'AvB': {'Alice': 1}, 'CvD': {'Candy':True}}},
                      {'id': 2, 'tally_pool': '1', 'votes': {'CvD': {'Elvis':True, 'Candy':False}, 'EvF': {}}},
                      {'id': 3, 'tally_pool': '1', 'votes': {'GvH': {}}},
@@ -344,22 +344,28 @@ class TestAssertion:
         tally_pool = {}
         for p in pool_set:
             tally_pool[p] = CVR.pool_contests(list([c for c in cvr_list if c.tally_pool == p]))  
-        CVR.add_pool_contests(cvr_list, tally_pool) 
+        assert CVR.add_pool_contests(cvr_list, tally_pool) 
         #
         # without use_style
-        self.raw_AvB_asrtn.assorter.set_pool_means(cvr_list=cvr_list, tally_pool=tally_pool, use_style=False)
+        self.raw_AvB_asrtn.assorter.set_tally_pool_means(cvr_list=cvr_list, tally_pool=tally_pool, use_style=False)
         np.testing.assert_almost_equal(self.raw_AvB_asrtn.assorter.tally_pool_means['1'], (1+1/2+1/2)/3)
         np.testing.assert_almost_equal(self.raw_AvB_asrtn.assorter.tally_pool_means['2'], (0+1/2)/2)
         #
         # with use_style, but contests have already been added to every CVR in each pool
-        self.raw_AvB_asrtn.assorter.set_pool_means(cvr_list=cvr_list, tally_pool=tally_pool, use_style=True)
+        self.raw_AvB_asrtn.assorter.set_tally_pool_means(cvr_list=cvr_list, tally_pool=tally_pool, use_style=True)
         np.testing.assert_almost_equal(self.raw_AvB_asrtn.assorter.tally_pool_means['1'], (1+1/2+1/2)/3)
         np.testing.assert_almost_equal(self.raw_AvB_asrtn.assorter.tally_pool_means['2'], (0+1/2)/2)
         #
         # with use_style, without adding contests to every CVR in each pool
+        cvr_dicts = [{'id': 1, 'tally_pool': '1', 'votes': {'AvB': {'Alice': 1}, 'CvD': {'Candy':True}}},
+                     {'id': 2, 'tally_pool': '1', 'votes': {'CvD': {'Elvis':True, 'Candy':False}, 'EvF': {}}},
+                     {'id': 3, 'tally_pool': '1', 'votes': {'GvH': {}}},
+                     {'id': 4, 'tally_pool': '2', 'votes': {'AvB': {'Bob': 1}, 'CvD': {'Candy':True}}},
+                     {'id': 5, 'tally_pool': '2', 'votes': {'CvD': {'Elvis':True, 'Candy':False}, 'EvF': {}}}
+                   ]
         cvr_list = CVR.from_dict(cvr_dicts)
         print(f'{list([str(c) for c in cvr_list])}')
-        self.raw_AvB_asrtn.assorter.set_pool_means(cvr_list=cvr_list, tally_pool=tally_pool, use_style=True)
+        self.raw_AvB_asrtn.assorter.set_tally_pool_means(cvr_list=cvr_list, tally_pool=tally_pool, use_style=True)
         np.testing.assert_almost_equal(self.raw_AvB_asrtn.assorter.tally_pool_means['1'], 1)
         np.testing.assert_almost_equal(self.raw_AvB_asrtn.assorter.tally_pool_means['2'], 0)
         

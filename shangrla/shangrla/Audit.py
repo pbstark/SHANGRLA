@@ -1956,7 +1956,7 @@ class Assorter:
             filtr = lambda c: True
         return np.mean([self.assort(c) for c in cvr_list if filtr(c)])
 
-    def set_pool_means(self, cvr_list: "Collection[CVR]"=None, tally_pool: Collection=None, use_style: bool=True):
+    def set_tally_pool_means(self, cvr_list: "Collection[CVR]"=None, tally_pool: Collection=None, use_style: bool=True):
         '''
         create dict of pool means for the assorter from a set of CVRs
 
