@@ -1,4 +1,3 @@
-import math
 import numpy as np
 import scipy as sp
 import pandas as pd
@@ -78,7 +77,7 @@ class TestCVR:
         assert cvr_list[2].get_vote_for('EvF', 'Alice') == False
         
         assert cvr_list[0].pool 
-        assert cvr_list[0].tally_pool == '1'
+        assert cvr_list[0].tally_pool == 1
         assert cvr_list[1].sample_num == 0.2
         assert cvr_list[1].p == 0.5
         assert cvr_list[1].sampled

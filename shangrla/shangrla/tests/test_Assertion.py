@@ -343,7 +343,7 @@ class TestAssertion:
         pool_set = set(c.tally_pool for c in cvr_list)
         tally_pool = {}
         for p in pool_set:
-            tally_pool[p] = CVR.pool_contests(list([c for c in cvr_list if c.pool == p]))  
+            tally_pool[p] = CVR.pool_contests(list([c for c in cvr_list if c.tally_pool == p]))  
         CVR.add_pool_contests(cvr_list, tally_pool) 
         #
         # without use_style
