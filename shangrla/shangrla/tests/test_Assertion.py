@@ -348,20 +348,20 @@ class TestAssertion:
         #
         # without use_style
         self.raw_AvB_asrtn.assorter.set_pool_means(cvr_list=cvr_list, tally_pool=tally_pool, use_style=False)
-        np.testing.assert_almost_equal(self.raw_AvB_asrtn.assorter.pool_means['1'], (1+1/2+1/2)/3)
-        np.testing.assert_almost_equal(self.raw_AvB_asrtn.assorter.pool_means['2'], (0+1/2)/2)
+        np.testing.assert_almost_equal(self.raw_AvB_asrtn.assorter.tally_pool_means['1'], (1+1/2+1/2)/3)
+        np.testing.assert_almost_equal(self.raw_AvB_asrtn.assorter.tally_pool_means['2'], (0+1/2)/2)
         #
         # with use_style, but contests have already been added to every CVR in each pool
         self.raw_AvB_asrtn.assorter.set_pool_means(cvr_list=cvr_list, tally_pool=tally_pool, use_style=True)
-        np.testing.assert_almost_equal(self.raw_AvB_asrtn.assorter.pool_means['1'], (1+1/2+1/2)/3)
-        np.testing.assert_almost_equal(self.raw_AvB_asrtn.assorter.pool_means['2'], (0+1/2)/2)
+        np.testing.assert_almost_equal(self.raw_AvB_asrtn.assorter.tally_pool_means['1'], (1+1/2+1/2)/3)
+        np.testing.assert_almost_equal(self.raw_AvB_asrtn.assorter.tally_pool_means['2'], (0+1/2)/2)
         #
         # with use_style, without adding contests to every CVR in each pool
         cvr_list = CVR.from_dict(cvr_dicts)
         print(f'{list([str(c) for c in cvr_list])}')
         self.raw_AvB_asrtn.assorter.set_pool_means(cvr_list=cvr_list, tally_pool=tally_pool, use_style=True)
-        np.testing.assert_almost_equal(self.raw_AvB_asrtn.assorter.pool_means['1'], 1)
-        np.testing.assert_almost_equal(self.raw_AvB_asrtn.assorter.pool_means['2'], 0)
+        np.testing.assert_almost_equal(self.raw_AvB_asrtn.assorter.tally_pool_means['1'], 1)
+        np.testing.assert_almost_equal(self.raw_AvB_asrtn.assorter.tally_pool_means['2'], 0)
         
  
 
