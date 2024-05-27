@@ -6,7 +6,7 @@
             "TabulatorId": 1,
             "BatchId": 2,
             "RecordId": 13,
-            "CountingGroupId": 2,
+            "CountingGroupId": 1,
             "ImageMask": "D:\\NAS\\GENERAL ELECTION\\Results\\Tabulator01\\Batch002\\Images\\00001_00002_000013*.*",
             "SessionType": "ScannedVote",
             "VotingSessionIdentifier": "",

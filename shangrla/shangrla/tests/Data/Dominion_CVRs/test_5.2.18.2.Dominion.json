@@ -6,7 +6,7 @@
             "TabulatorId": 60001,
             "BatchId": 1,
             "RecordId": 1,
-            "CountingGroupId": 2,
+            "CountingGroupId": 1,
             "ImageMask": "E:\\NAS\\GENERAL ELECTION\\Results\\Tabulator60001\\Batch001\\Images\\60001_00001_000001*.*",
             "Original": {
                 "PrecinctPortionId": 123,

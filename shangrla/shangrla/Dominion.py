@@ -9,6 +9,7 @@ import warnings
 import copy
 import re
 import glob
+from collections.abc import Collection
 from .Audit import CVR
 
 class Dominion:
@@ -62,7 +63,11 @@ class Dominion:
         return manifest, manifest_cards, phantoms
 
     @classmethod
-    def read_cvrs(cls, cvr_file, use_adjudicated=False, include_groups=()):
+    def read_cvrs(cls, 
+                  cvr_file: str, 
+                  use_adjudicated: bool=False, 
+                  include_groups: Collection=[], 
+                  pool_groups: Collection=[]):
         """
         Read CVRs in Dominion format.
         Dominion uses:
@@ -70,16 +75,16 @@ class Dominion:
            "Marks" as the container for votes
            "Rank" as the rank
 
-        We want to keep group 2 only (VBM)
-
         Parameters:
         -----------
         cvr_file: string
             filename for cvrs
         use_adjudicated: bool [optional], default False
             if set, read marks from ["Modified"] instead of ["Original"]
-        include_groups: tuple of ints [optional], default ()
-            if set, use to select only CVRs with specified "CountingGroupId", e.g. (2,) for VBM
+        include_groups: enumerable
+            if nonempty, use to select only CVRs with specified "CountingGroupId", e.g. (2,) for VBM
+        pool_groups: enumerable
+            if nonempty, CVRs with "CountingGroupId" in any of the groups is labeled as pooled (for ONEAudit)
 
         Returns:
         --------
@@ -100,9 +105,9 @@ class Dominion:
             # Skip CVRs not in the desired include_group (if set)
             if include_groups and c["CountingGroupId"] not in include_groups:
                 continue
-            # Use adjudicated CVR data (if present and if requested)
+            # Use adjudicated CVR data (if present and requested)
             _ckey = (
-                "Modified" if "Modified" in c.keys() and use_adjudicated else "Original"
+                "Modified" if ("Modified" in c.keys() and use_adjudicated) else "Original"
             )
             # Dominion somewhere between 5.2.18.2 and 5.10.50.85 added another hierarchical level, "Cards"
             if "Cards" in c[_ckey].keys():
@@ -121,15 +126,18 @@ class Dominion:
                     record_id = int(image_match.group(0).split("_")[-1])
             else:
                 record_id = c["RecordId"]
-            cvr_list.append(CVR(id = str(c["TabulatorId"])\
-                                     + '_' + str(c["BatchId"]) \
-                                     + '_' + str(record_id),\
-                                     votes = votes))
+            cvr_list.append(CVR(id = str(c["TabulatorId"]) + '_' + str(c["BatchId"]) + '_' + str(record_id),
+                                tally_pool = str(c["TabulatorId"]) + '_' + str(c["BatchId"]),
+                                pool = (c["CountingGroupId"] in pool_groups),
+                                votes = votes))
         return cvr_list
 
     @classmethod
-    def read_cvrs_directory(
-        cls, cvr_directory, use_adjudicated=False, include_groups=()
+    def read_cvrs_directory(cls, 
+                            cvr_directory: str, 
+                            use_adjudicated: bool=False, 
+                            include_groups: Collection=[], 
+                            pool_groups: Collection=[]
     ):
         """
         Read CVRs in Dominion format from a given directory.
@@ -150,7 +158,7 @@ class Dominion:
         """
         cvr_list = []
         for file in [f for f in sorted(glob.glob(f"{cvr_directory}/CvrExport_*.json"))]:
-            cvr_list.extend(Dominion.read_cvrs(file, use_adjudicated, include_groups))
+            cvr_list.extend(Dominion.read_cvrs(file, use_adjudicated, include_groups, pool_groups))
         return cvr_list
 
     @classmethod
