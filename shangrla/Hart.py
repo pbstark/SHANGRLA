@@ -5,16 +5,11 @@ Tools to read and parse Hart Intercivic CVRs
 import os
 import re
 import numpy as np
-import math
-import random
-import csv
 import pandas as pd
 import warnings
-import copy
 import xml.etree.ElementTree as ET
-import xml.dom.minidom
 
-from zipfile import ZipFile, Path
+from zipfile import ZipFile
 from .Audit import CVR, Contest
 
 
