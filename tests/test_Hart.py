@@ -26,7 +26,7 @@ from shangrla.Hart import Hart
 ######################################################################################
 class TestHart:
     def test_read_cvrs_directory(self):
-        cvr_list = Hart.read_cvrs_directory("shangrla/shangrla/tests/Data/Hart_CVRs")
+        cvr_list = Hart.read_cvrs_directory("tests/Data/Hart_CVRs")
         cvr_1 = cvr_list[0]
         cvr_2 = cvr_list[1]
         assert list(cvr_1.votes.keys()) == ["PRESIDENT","GOVERNOR","MAYOR"]
@@ -35,7 +35,7 @@ class TestHart:
         assert cvr_2.get_vote_for("PRESIDENT", "George Washington")
 
     def test_read_cvrs_zip(self):
-        cvr_list = Hart.read_cvrs_zip("shangrla/shangrla/tests/Data/Hart_CVRs.zip")
+        cvr_list = Hart.read_cvrs_zip("tests/Data/Hart_CVRs.zip")
         cvr_1 = cvr_list[0]
         cvr_2 = cvr_list[1]
         assert list(cvr_1.votes.keys()) == ["PRESIDENT","GOVERNOR","MAYOR"]
@@ -46,14 +46,14 @@ class TestHart:
 
     def test_prep_manifest(self):
         # without phantoms
-        manifest_f = pd.read_excel("shangrla/shangrla/tests/Data/Hart_manifest.xlsx")
+        manifest_f = pd.read_excel("tests/Data/Hart_manifest.xlsx")
         max_cards = 1141765
         n_cvrs = 1141765
         manifest, manifest_cards, phantoms = Hart.prep_manifest(manifest_f, max_cards, n_cvrs)
         assert manifest['Number of Ballots'].astype(int).sum() == max_cards
         assert phantoms == 0
         # with phantoms
-        manifest_f = pd.read_excel("shangrla/shangrla/tests/Data/Hart_manifest.xlsx")
+        manifest_f = pd.read_excel("tests/Data/Hart_manifest.xlsx")
         max_cards = 1500000
         manifest, manifest_cards, phantoms = Hart.prep_manifest(manifest_f, max_cards, n_cvrs)
         assert manifest['Number of Ballots'].astype(int).sum() == max_cards

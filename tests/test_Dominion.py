@@ -29,7 +29,7 @@ class TestDominion:
         Test reading the older Dominion CVR format
         """
         cvr_list = Dominion.read_cvrs(
-            "shangrla/shangrla/tests/Data/Dominion_CVRs/test_5.2.18.2.Dominion.json", pool_groups = [1]
+            "tests/Data/Dominion_CVRs/test_5.2.18.2.Dominion.json", pool_groups = [1]
         )
         assert len(cvr_list) == 2
         cvr_1, cvr_2 = cvr_list
@@ -59,7 +59,7 @@ class TestDominion:
         Ingests the older Dominion CVR format
         """
         cvr_list = Dominion.read_cvrs(
-            "shangrla/shangrla/tests/Data/Dominion_CVRs/test_5.2.18.2.Dominion.json",
+            "tests/Data/Dominion_CVRs/test_5.2.18.2.Dominion.json",
             use_adjudicated=True,
         )
         assert len(cvr_list) == 2
@@ -89,7 +89,7 @@ class TestDominion:
         Test reading the newer Dominion CVR format
         """
         cvr_list = Dominion.read_cvrs(
-            "shangrla/shangrla/tests/Data/Dominion_CVRs/test_5.10.50.85.Dominion.json"
+            "tests/Data/Dominion_CVRs/test_5.10.50.85.Dominion.json"
         )
         assert len(cvr_list) == 2
         cvr_1, cvr_2 = cvr_list
@@ -112,7 +112,7 @@ class TestDominion:
         Ingests the newer Dominion CVR format
         """
         cvr_list = Dominion.read_cvrs(
-            "shangrla/shangrla/tests/Data/Dominion_CVRs/test_5.10.50.85.Dominion.json",
+            "tests/Data/Dominion_CVRs/test_5.10.50.85.Dominion.json",
             use_adjudicated=True
         )
         assert len(cvr_list) == 2
@@ -137,7 +137,7 @@ class TestDominion:
         Test reading the newer Dominion CVR format, selecting VBM results only
         """
         cvr_list = Dominion.read_cvrs(
-            "shangrla/shangrla/tests/Data/Dominion_CVRs/test_5.10.50.85.Dominion.json",
+            "tests/Data/Dominion_CVRs/test_5.10.50.85.Dominion.json",
             include_groups=[2]
         )
         assert len(cvr_list) == 1
@@ -154,7 +154,7 @@ class TestDominion:
         Tests the convenience function for reading all CVRs from a given directory
         """
         cvr_list = Dominion.read_cvrs_directory(
-            "shangrla/shangrla/tests/Data/Dominion_CVRs/CVR_Export", pool_groups=[2]
+            "tests/Data/Dominion_CVRs/CVR_Export", pool_groups=[2]
         )
         assert len(cvr_list) == 2
         cvr_1, cvr_2 = cvr_list
