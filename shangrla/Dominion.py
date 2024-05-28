@@ -5,9 +5,7 @@ Tools to read and parse Dominion ballot manifests and CVRs
 import json
 import numpy as np
 import csv
-import pandas as pd
 import warnings
-import copy
 import re
 import glob
 from collections.abc import Collection

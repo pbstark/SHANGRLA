@@ -5,8 +5,8 @@ import csv
 import warnings
 from collections import OrderedDict, defaultdict
 from collections.abc import Collection
-from typing import Iterable, Tuple
-from cryptorandom.cryptorandom import SHA256, random, int_from_hash
+from typing import Tuple
+from cryptorandom.cryptorandom import int_from_hash
 from cryptorandom.sample import random_permutation
 from cryptorandom.sample import sample_by_index
 from .NonnegMean import NonnegMean

@@ -1,9 +1,7 @@
 import svgling
-from svgling.figure import Caption, SideBySide, RowByRow
-import colorama
-from colorama import Fore, Style
+from svgling.figure import Caption, RowByRow
+from colorama import Fore
 import functools
-import warnings
 from warnings import warn
 from collections import namedtuple
 
