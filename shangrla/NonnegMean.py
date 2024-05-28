@@ -11,10 +11,11 @@ from cryptorandom.cryptorandom import SHA256, random, int_from_hash
 from cryptorandom.sample import random_permutation
 from cryptorandom.sample import sample_by_index
 
-##########################################################################################    
+##########################################################################################
+
 
 class NonnegMean:
-    '''
+    """
     Tests of the hypothesis that the mean of a population of values in [0, u] is less than or equal to t.
         Several tests are implemented, all ultimately based on martingales or supermartingales:
             Kaplan-Kolmogorov (with and without replacement)
@@ -28,31 +29,43 @@ class NonnegMean:
     without replacement (`N` finite).
     Betting martingales and ALPHA martingales are different parametrizations of the same tests, but
       lead to different heuristics for selecting the parameters.
-    '''
+    """
 
-    TESTS = (ALPHA_MART:= "ALPHA_MART",
-             BETTING_MART:= "BETTING_MART",
-             KAPLAN_KOLMOGOROV:= "KAPLAN_KOLMOGOROV",
-             KAPLAN_MARKOV:= "KAPLAN_MARKOV",
-             KAPLAN_WALD:= "KAPLAN_WALD",
-             WALD_SPRT:= "WALD_SPRT")
-    
+    TESTS = (
+        ALPHA_MART := "ALPHA_MART",
+        BETTING_MART := "BETTING_MART",
+        KAPLAN_KOLMOGOROV := "KAPLAN_KOLMOGOROV",
+        KAPLAN_MARKOV := "KAPLAN_MARKOV",
+        KAPLAN_WALD := "KAPLAN_WALD",
+        WALD_SPRT := "WALD_SPRT",
+    )
+
     def __init__(
-                 self, test: callable=None, estim: callable=None, bet: callable=None, u: float=1, 
-                 N: int=np.inf, t: float=1/2, random_order: bool=True, **kwargs):
-        '''
-        kwargs can be used to set attributes such as `betting` and parameters later used by 
-        `test`, `estim`, or `bet`, for instance, `eta` and to pass `c`, `d`, `f`, and `minsd` to 
+        self,
+        test: callable = None,
+        estim: callable = None,
+        bet: callable = None,
+        u: float = 1,
+        N: int = np.inf,
+        t: float = 1 / 2,
+        random_order: bool = True,
+        **kwargs,
+    ):
+        """
+        kwargs can be used to set attributes such as `betting` and parameters later used by
+        `test`, `estim`, or `bet`, for instance, `eta` and to pass `c`, `d`, `f`, and `minsd` to
         `shrink_trunc()` or other estimators or betting strategies.
-        '''
-        if test is None:   # default to alpha_mart
+        """
+        if test is None:  # default to alpha_mart
             test = self.alpha_mart
         if estim is None:
             estim = self.fixed_alternative_mean
-            self.eta = kwargs.get('eta', t+(u-t)/2) # initial estimate of population mean
+            self.eta = kwargs.get(
+                "eta", t + (u - t) / 2
+            )  # initial estimate of population mean
         if bet is None:
             bet = self.fixed_bet
-            self.lam = kwargs.get('lam', 0.5)       # initial fraction of fortune to bet
+            self.lam = kwargs.get("lam", 0.5)  # initial fraction of fortune to bet
         self.test = test.__get__(self)
         self.estim = estim.__get__(self)
         self.bet = bet.__get__(self)
@@ -60,16 +73,17 @@ class NonnegMean:
         self.N = N
         self.t = t
         self.random_order = random_order
-        self.kwargs = kwargs # preserving these for __str__()
+        self.kwargs = kwargs  # preserving these for __str__()
         self.__dict__.update(kwargs)
 
     def __str__(self):
-        return (f'test: {self.test} estim: {self.estim} upper bound u: {self.u} '
-                f'N: {self.N} null mean t: {self.t} kwargs: {self.kwargs}'
-               )
-        
-    def alpha_mart(self, x: np.array, **kwargs) -> tuple[float, np.array] :
-        '''
+        return (
+            f"test: {self.test} estim: {self.estim} upper bound u: {self.u} "
+            f"N: {self.N} null mean t: {self.t} kwargs: {self.kwargs}"
+        )
+
+    def alpha_mart(self, x: np.array, **kwargs) -> tuple[float, np.array]:
+        """
         Finds the ALPHA martingale for the hypothesis that the population
         mean is less than or equal to t using a martingale method,
         for a population of size N, based on a series of draws x.
@@ -97,31 +111,37 @@ class NonnegMean:
             sequentially valid p-value of the hypothesis that the population mean is less than or equal to t
         p_history: numpy array
             sample by sample history of p-values. Not meaningful unless the sample is in random order.
-        '''
+        """
         N = self.N
         t = self.t
         u = self.u
-        atol = kwargs.get('atol',2*np.finfo(float).eps)
-        rtol = kwargs.get('rtol',10**-6)
-        S = np.insert(np.cumsum(x),0,0)        # 0, x_1, x_1+x_2, ...,
-        Stot = S[-1]                           # sample total
-        S = S[0:-1]                            # same length as the data
-        j = np.arange(1,len(x)+1)              # 1, 2, 3, ..., len(x)
-        m = (N*t-S)/(N-j+1) if np.isfinite(N) else t   # mean of population after (j-1)st draw, if null is true
+        atol = kwargs.get("atol", 2 * np.finfo(float).eps)
+        rtol = kwargs.get("rtol", 10**-6)
+        S = np.insert(np.cumsum(x), 0, 0)  # 0, x_1, x_1+x_2, ...,
+        Stot = S[-1]  # sample total
+        S = S[0:-1]  # same length as the data
+        j = np.arange(1, len(x) + 1)  # 1, 2, 3, ..., len(x)
+        m = (
+            (N * t - S) / (N - j + 1) if np.isfinite(N) else t
+        )  # mean of population after (j-1)st draw, if null is true
         x = np.array(x)
-        with np.errstate(divide='ignore', invalid='ignore', over='ignore'):
+        with np.errstate(divide="ignore", invalid="ignore", over="ignore"):
             etaj = self.estim(x)
-            terms = np.cumprod((x*etaj/m + (u-x)*(u-etaj)/(u-m))/u)
-        terms[m>u] = 0                                       # true mean is certainly less than hypothesized
-        terms[np.isclose(0, m, atol=atol)] = 1               # ignore
-        terms[np.isclose(u, m, atol=atol, rtol=rtol)] = 1    # ignore
-        terms[np.isclose(0, terms, atol=atol)] = 1           # martingale effectively vanishes; p-value 1
-        terms[m<0] = np.inf                                  # true mean certainly greater than hypothesized
-        terms[-1] = (np.inf if Stot > N*t else terms[-1])    # final sample makes the total greater than the null
-        return min(1, 1/np.max(terms)), np.minimum(1,1/terms)
+            terms = np.cumprod((x * etaj / m + (u - x) * (u - etaj) / (u - m)) / u)
+        terms[m > u] = 0  # true mean is certainly less than hypothesized
+        terms[np.isclose(0, m, atol=atol)] = 1  # ignore
+        terms[np.isclose(u, m, atol=atol, rtol=rtol)] = 1  # ignore
+        terms[np.isclose(0, terms, atol=atol)] = (
+            1  # martingale effectively vanishes; p-value 1
+        )
+        terms[m < 0] = np.inf  # true mean certainly greater than hypothesized
+        terms[-1] = (
+            np.inf if Stot > N * t else terms[-1]
+        )  # final sample makes the total greater than the null
+        return min(1, 1 / np.max(terms)), np.minimum(1, 1 / terms)
 
-    def betting_mart(self, x: np.array, **kwargs) -> tuple[float, np.array] :
-        '''
+    def betting_mart(self, x: np.array, **kwargs) -> tuple[float, np.array]:
+        """
         Finds the betting martingale for the hypothesis that the population
         mean is less than or equal to t using a martingale method,
         for a population of size N, based on a series of draws x.
@@ -149,37 +169,42 @@ class NonnegMean:
             sequentially valid p-value of the hypothesis that the population mean is less than or equal to t
         p_history: numpy array
             sample by sample history of p-values. Not meaningful unless the sample is in random order.
-        '''
+        """
         N = self.N
         t = self.t
         u = self.u
-        atol = kwargs.get('atol',2*np.finfo(float).eps)
-        rtol = kwargs.get('rtol',10**-6)
-        S = np.insert(np.cumsum(x),0,0)        # 0, x_1, x_1+x_2, ...,
-        Stot = S[-1]                           # sample total
-        S = S[0:-1]                            # same length as the data
-        j = np.arange(1,len(x)+1)              # 1, 2, 3, ..., len(x)
-        m = (N*t-S)/(N-j+1) if np.isfinite(N) else t   # mean of population after (j-1)st draw, if null is true
+        atol = kwargs.get("atol", 2 * np.finfo(float).eps)
+        rtol = kwargs.get("rtol", 10**-6)
+        S = np.insert(np.cumsum(x), 0, 0)  # 0, x_1, x_1+x_2, ...,
+        Stot = S[-1]  # sample total
+        S = S[0:-1]  # same length as the data
+        j = np.arange(1, len(x) + 1)  # 1, 2, 3, ..., len(x)
+        m = (
+            (N * t - S) / (N - j + 1) if np.isfinite(N) else t
+        )  # mean of population after (j-1)st draw, if null is true
         x = np.array(x)
-        with np.errstate(divide='ignore', invalid='ignore', over='ignore'):
+        with np.errstate(divide="ignore", invalid="ignore", over="ignore"):
             lam = self.bet(x)
-            terms = np.cumprod(1+lam*(x-m))
-        terms[m>u] = 0                                       # true mean is certainly less than hypothesized
-        terms[np.isclose(0, m, atol=atol)] = 1               # ignore
-        terms[np.isclose(u, m, atol=atol, rtol=rtol)] = 1    # ignore
-        terms[np.isclose(0, terms, atol=atol)] = 1           # martingale effectively vanishes; p-value 1
-        terms[m<0] = np.inf                                  # true mean certainly greater than hypothesized
-        terms[-1] = (np.inf if Stot > N*t else terms[-1])    # final sample makes the total greater than the null
-        return min(1, 1/np.max(terms)), np.minimum(1,1/terms)
-
+            terms = np.cumprod(1 + lam * (x - m))
+        terms[m > u] = 0  # true mean is certainly less than hypothesized
+        terms[np.isclose(0, m, atol=atol)] = 1  # ignore
+        terms[np.isclose(u, m, atol=atol, rtol=rtol)] = 1  # ignore
+        terms[np.isclose(0, terms, atol=atol)] = (
+            1  # martingale effectively vanishes; p-value 1
+        )
+        terms[m < 0] = np.inf  # true mean certainly greater than hypothesized
+        terms[-1] = (
+            np.inf if Stot > N * t else terms[-1]
+        )  # final sample makes the total greater than the null
+        return min(1, 1 / np.max(terms)), np.minimum(1, 1 / terms)
 
     def fixed_alternative_mean(self, x: np.array, **kwargs) -> np.array:
-        '''
-        Compute the alternative mean just before the jth draw, for a fixed alternative that the original population 
+        """
+        Compute the alternative mean just before the jth draw, for a fixed alternative that the original population
         mean is eta.
         Throws a warning if the sample implies that the fixed alternative is false (because the population would
         have negative values or values greater than u.
-        
+
         S_1 := 0
         S_j := \sum_{i=1}^{j-1} x_i, j >= 1
         eta_j := (N*eta-S_j)/(N-j+1) if np.isfinite(N) else t
@@ -193,21 +218,27 @@ class NonnegMean:
                 alternative hypothethesized value for the population mean
             u: float > 0 (default 1)
                 upper bound on the population values
-        '''
+        """
         u = self.u
         N = self.N
-        eta = getattr(self, 'eta', u*(1-np.finfo(float).eps))
-        S = np.insert(np.cumsum(x),0,0)[0:-1]  # 0, x_1, x_1+x_2, ...,
-        j = np.arange(1,len(x)+1)              # 1, 2, 3, ..., len(x)
-        m = (N*eta-S)/(N-j+1) if np.isfinite(N) else eta   # mean of population after (j-1)st draw, if eta is the mean
-        if (negs:= np.sum(m<0)) > 0:
-            warnings.warn(f'Implied population mean is negative in {negs} of {len(x)} terms')
-        if (pos:= np.sum(m>u)) > 0:
-            warnings.warn(f'Implied population mean is greater than {u=} in {pos} of {len(x)} terms')
+        eta = getattr(self, "eta", u * (1 - np.finfo(float).eps))
+        S = np.insert(np.cumsum(x), 0, 0)[0:-1]  # 0, x_1, x_1+x_2, ...,
+        j = np.arange(1, len(x) + 1)  # 1, 2, 3, ..., len(x)
+        m = (
+            (N * eta - S) / (N - j + 1) if np.isfinite(N) else eta
+        )  # mean of population after (j-1)st draw, if eta is the mean
+        if (negs := np.sum(m < 0)) > 0:
+            warnings.warn(
+                f"Implied population mean is negative in {negs} of {len(x)} terms"
+            )
+        if (pos := np.sum(m > u)) > 0:
+            warnings.warn(
+                f"Implied population mean is greater than {u=} in {pos} of {len(x)} terms"
+            )
         return m
-    
+
     def shrink_trunc(self, x: np.array, **kwargs) -> np.array:
-        '''
+        """
         apply shrinkage/truncation estimator to an array to construct a sequence of "alternative" values
 
         sample mean is shrunk towards eta, with relative weight d compared to a single observation,
@@ -244,95 +275,99 @@ class NonnegMean:
             minsd: positive float
                 lower threshold for the standard deviation of the sample, to avoid divide-by-zero errors and
                 to limit the weight of u
-                
-        '''
+
+        """
         # set the parameters
         u = self.u
         N = self.N
         t = self.t
-        eta = getattr(self, 'eta', u*(1-np.finfo(float).eps))      
-        c = getattr(self, 'c', 1/2)
-        d = getattr(self, 'd', 100)
-        f = getattr(self, 'f', 0)
-        minsd = getattr(self, 'minsd', 10**-6)
+        eta = getattr(self, "eta", u * (1 - np.finfo(float).eps))
+        c = getattr(self, "c", 1 / 2)
+        d = getattr(self, "d", 100)
+        f = getattr(self, "f", 0)
+        minsd = getattr(self, "minsd", 10**-6)
         #
-        S = np.insert(np.cumsum(x),0,0)[0:-1]  # 0, x_1, x_1+x_2, ...,
-        j = np.arange(1,len(x)+1)              # 1, 2, 3, ..., len(x)
-        m = (N*t-S)/(N-j+1) if np.isfinite(N) else t   # mean of population after (j-1)st draw, if null is true
+        S = np.insert(np.cumsum(x), 0, 0)[0:-1]  # 0, x_1, x_1+x_2, ...,
+        j = np.arange(1, len(x) + 1)  # 1, 2, 3, ..., len(x)
+        m = (
+            (N * t - S) / (N - j + 1) if np.isfinite(N) else t
+        )  # mean of population after (j-1)st draw, if null is true
         # Welford's algorithm for running mean and running sd
-        mj = [x[0]]                        
+        mj = [x[0]]
         sdj = [0]
         for i, xj in enumerate(x[1:]):
-            mj.append(mj[-1]+(xj-mj[-1])/(i+1))
-            sdj.append(sdj[-1]+(xj-mj[-2])*(xj-mj[-1]))
-        sdj = np.sqrt(sdj/j)
-        # end of Welford's algorithm. 
+            mj.append(mj[-1] + (xj - mj[-1]) / (i + 1))
+            sdj.append(sdj[-1] + (xj - mj[-2]) * (xj - mj[-1]))
+        sdj = np.sqrt(sdj / j)
+        # end of Welford's algorithm.
         # threshold the sd, set first two sds to 1
-        sdj = np.insert(np.maximum(sdj,minsd),0,1)[0:-1] 
-        sdj[1]=1
-        weighted = ((d*eta+S)/(d+j-1) + u*f/sdj)/(1+f/sdj)
-        return np.minimum(u*(1-np.finfo(float).eps), np.maximum(weighted,m+c/np.sqrt(d+j-1)))
+        sdj = np.insert(np.maximum(sdj, minsd), 0, 1)[0:-1]
+        sdj[1] = 1
+        weighted = ((d * eta + S) / (d + j - 1) + u * f / sdj) / (1 + f / sdj)
+        return np.minimum(
+            u * (1 - np.finfo(float).eps),
+            np.maximum(weighted, m + c / np.sqrt(d + j - 1)),
+        )
 
     def optimal_comparison(self, x: np.array, **kwargs) -> np.array:
-        '''
-        The value of eta corresponding to the "bet" that is optimal for ballot-level comparison audits, 
-        for which overstatement assorters take a small number of possible values and are concentrated 
+        """
+        The value of eta corresponding to the "bet" that is optimal for ballot-level comparison audits,
+        for which overstatement assorters take a small number of possible values and are concentrated
         on a single value when the CVRs have no errors.
-        
+
         Let p0 be the rate of error-free CVRs, p1=0 the rate of 1-vote overstatements,
         and p2= 1-p0-p1 = 1-p0 the rate of 2-vote overstatements. Then
-        
+
         eta = (1-u*p0)/(2-2*u) + u*p0 - 1/2, where p0 is the rate of error-free CVRs.
-        
+
         Translating to p2=1-p0 gives:
-        
+
         eta = (1-u*(1-p2))/(2-2*u) + u*(1-p2) - 1/2.
-        
+
         Parameters
         ----------
         x: np.array
             input data
         rate_error_2: float
-            hypothesized rate of two-vote overstatements 
-            
+            hypothesized rate of two-vote overstatements
+
         Returns
         -------
         eta: float
             estimated alternative mean to use in alpha
-        '''
+        """
         # set the parameters
         # TO DO: double check where rate_error_2 is set
-        p2 = getattr(self, 'rate_error_2', 1e-4) # rate of 2-vote overstatement errors 
-        return (1-self.u*(1-p2))/(2-2*self.u) + self.u*(1-p2) - 1/2
-    
+        p2 = getattr(self, "rate_error_2", 1e-4)  # rate of 2-vote overstatement errors
+        return (1 - self.u * (1 - p2)) / (2 - 2 * self.u) + self.u * (1 - p2) - 1 / 2
+
     def fixed_bet(self, x: np.array, **kwargs) -> np.array:
-        '''
-        Return a fixed value of lambda, the fraction of the current fortune to bet. 
+        """
+        Return a fixed value of lambda, the fraction of the current fortune to bet.
 
         Parameters
         ----------
         x: np.array
             input data
-        
-        Assumes the instance variable `lam` has been set.
-        '''
-        return self.lam*np.ones_like(x)
 
+        Assumes the instance variable `lam` has been set.
+        """
+        return self.lam * np.ones_like(x)
 
     def agrapa(self, x: np.array, **kwargs) -> np.array:
-        '''
+        """
         maximize approximate growth rate adapted to the particular alternative (aGRAPA) bet of Waudby-Smith & Ramdas (WSR)
-        
-        This implementation alters the method from support \mu \in [0, 1] to \mu \in [0, u], and to constrain 
+
+        This implementation alters the method from support \mu \in [0, 1] to \mu \in [0, u], and to constrain
         the bets to be positive (for one-sided tests against the alternative that the true mean is larger than
         hypothesized)
-        
+
         lam_j := 0 \vee (\hat{\mu}_{j-1}-t)/(\hat{\sigma}_{j-1}^2 + (t-\hat{\mu})^2) \wedge c_grapa/t
-        
+
         \hat{\sigma} is the standard deviation of the sample.
-        
+
         \hat{\mu} is the mean of the sample
-        
+
         The value of c_grapa \in (0, 1) is passed as an instance variable of Class NonnegMean
 
         The running standard deviation is calculated using Welford's method.
@@ -355,80 +390,85 @@ class NonnegMean:
             c_grapa_max: float in (1, 1-np.finfo(float).eps]
                 asymptotic limit of the value of c_j
             c_grapa_grow: float in [0, np.infty)
-                rate at which to allow c to grow towards c_grapa_max. 
+                rate at which to allow c to grow towards c_grapa_max.
                 c_j := c_grapa_0 + (c_grapa_max-c_grapa_0)*(1-1/(1+c_grapa_grow*np.sqrt(j)))
                 A value of 0 keeps c_j equal to c_grapa for all j.
-               
-        '''
+
+        """
         # set the parameters
-        u = self.u     # population upper bound
-        N = self.N     # population size
-        t = self.t     # hypothesized population mean
-        lam = getattr(self, 'lam', 0.5)   # initial bet  
-        c_g_0 = getattr(self, 'c_grapa_0', (1-np.finfo(float).eps))   # initial truncation value c for agrapa
-        c_g_m = getattr(self, 'c_grapa_max', (1-np.finfo(float).eps)) # asymptotic limit of c
-        c_g_g = getattr(self, 'c_grapa_grow', 0)                      # rate to let c grow towards c_g_m
+        u = self.u  # population upper bound
+        N = self.N  # population size
+        t = self.t  # hypothesized population mean
+        lam = getattr(self, "lam", 0.5)  # initial bet
+        c_g_0 = getattr(
+            self, "c_grapa_0", (1 - np.finfo(float).eps)
+        )  # initial truncation value c for agrapa
+        c_g_m = getattr(
+            self, "c_grapa_max", (1 - np.finfo(float).eps)
+        )  # asymptotic limit of c
+        c_g_g = getattr(self, "c_grapa_grow", 0)  # rate to let c grow towards c_g_m
         #
-        j = np.arange(1,len(x)+1)              # 1, 2, 3, ..., len(x)
+        j = np.arange(1, len(x) + 1)  # 1, 2, 3, ..., len(x)
         # Welford's algorithm for running mean and running sd
-        mj = [x[0]]                        
+        mj = [x[0]]
         sdj2 = [0]
         for i, xj in enumerate(x[1:]):
-            mj.append(mj[-1]+(xj-mj[-1])/(i+1))
-            sdj2.append(sdj2[-1]+(xj-mj[-2])*(xj-mj[-1]))
-        sdj2 = sdj2/j
-        # end of Welford's algorithm. 
+            mj.append(mj[-1] + (xj - mj[-1]) / (i + 1))
+            sdj2.append(sdj2[-1] + (xj - mj[-2]) * (xj - mj[-1]))
+        sdj2 = sdj2 / j
+        # end of Welford's algorithm.
         mj = np.array(mj)
         sdj2 = np.array(sdj2)
-        t_adj = ((N*t - np.insert(np.cumsum(x), 0, 0)[0:-1])/(N-np.arange(len(x))) if np.isfinite(N) 
-                 else 
-                 t*np.ones(len(x))
-                )
-        lamj = (mj-t_adj)/(sdj2 + (t_adj-mj)**2)  # agrapa bet
+        t_adj = (
+            (N * t - np.insert(np.cumsum(x), 0, 0)[0:-1]) / (N - np.arange(len(x)))
+            if np.isfinite(N)
+            else t * np.ones(len(x))
+        )
+        lamj = (mj - t_adj) / (sdj2 + (t_adj - mj) ** 2)  # agrapa bet
         #  shift and set first bet to self.lam
-        lamj = np.insert(lamj,0,lam)[0:-1]
-        c = c_g_0 + (c_g_m-c_g_0)*(1-1/(1+c_g_g*np.sqrt(np.arange(len(x)))))
-        lamj = np.maximum(0, np.minimum(c/t_adj, lamj))
+        lamj = np.insert(lamj, 0, lam)[0:-1]
+        c = c_g_0 + (c_g_m - c_g_0) * (1 - 1 / (1 + c_g_g * np.sqrt(np.arange(len(x)))))
+        lamj = np.maximum(0, np.minimum(c / t_adj, lamj))
         return lamj
-                    
+
     def lam_to_eta(self, lam: np.array, mu: np.array) -> np.array:
-        '''
+        """
         Convert bets (lam) for betting martingale to their implied estimates of the mean, eta, for ALPHA
-        
+
         Parameters
         ----------
         lam: float or numpy array
             the value(s) of lam (the fraction of the current fortune to bet on the next draw)
         mu: float or numpy array
             sequence of population mean(s) if the null is true, adjusted for values already seen
-            
+
         Returns
         -------
         eta: float or numpy array
             the corresponding value(s) of the mean
-        '''
-        return mu*(1+lam*(self.u-mu))
-    
+        """
+        return mu * (1 + lam * (self.u - mu))
+
     def eta_to_lam(self, eta: np.array, mu: np.array) -> np.array:
-        '''
+        """
         Convert eta for ALPHA to corresponding bet lam for the betting martingale parametrization
-        
+
         Parameters
         ----------
         eta: float or numpy array
             the value(s) of lam (the fraction of the current fortune to bet on the next draw)
         mu: float or numpy array
             sequence of population mean(s) if the null is true, adjusted for values already seen
-            
+
         Returns
         -------
         lam: float or numpy array
             the corresponding betting fractions
-        '''
-        return (eta/mu-1)/(self.u-mu)
+        """
+        return (eta / mu - 1) / (self.u - mu)
 
     def kaplan_kolmogorov(self, x: np.array, **kwargs) -> tuple[float, np.array]:
-        '''
+        """
         p-value for the hypothesis that the mean of a nonnegative population with N
         elements is t. The alternative is that the mean is less than t.
         If the random sample x is in the order in which the sample was drawn, it is
@@ -450,7 +490,7 @@ class NonnegMean:
             g: float
                 "padding" in case there any values in the sample are zero
             random_order: Boolean
-                if the sample is in random order, it is legitimate to stop early, which can yield a 
+                if the sample is in random order, it is legitimate to stop early, which can yield a
                 more powerful test. See above.
 
         Returns
@@ -459,28 +499,30 @@ class NonnegMean:
            the p-value
         p_history: numpy array
             sample by sample history of p-values. Not meaningful unless the sample is in random order.
-        '''
+        """
         N = self.N
         t = self.t
-        g = getattr(self, 'g', 0)
-        random_order = getattr(self, 'random_order', True)
+        g = getattr(self, "g", 0)
+        random_order = getattr(self, "random_order", True)
         x = np.array(x)
-        assert all(x >=0),  'Negative value in a nonnegative population!'
-        assert len(x) <= N, 'Sample size is larger than the population!'
-        assert N > 0,       'Population size not positive!'
-        assert N == int(N), 'Non-integer population size!'
+        assert all(x >= 0), "Negative value in a nonnegative population!"
+        assert len(x) <= N, "Sample size is larger than the population!"
+        assert N > 0, "Population size not positive!"
+        assert N == int(N), "Non-integer population size!"
 
-        S = np.insert(np.cumsum(x+g),0,0)[0:-1]  # 0, x_1, x_1+x_2, ...,
-        j = np.arange(1,len(x)+1)                # 1, 2, 3, ..., len(x)
-        m = (N*(t+g)-S)/(N-j+1) if np.isfinite(N) else t+g   # mean of population after (j-1)st draw, if null is true
-        with np.errstate(divide='ignore', invalid='ignore', over='ignore'):
-            terms = np.cumprod((x+g)/m)
-        terms[m<0] = np.inf
-        p = min((1/np.max(terms) if random_order else 1/terms[-1]),1)
-        return p, np.minimum(1/terms, 1)
+        S = np.insert(np.cumsum(x + g), 0, 0)[0:-1]  # 0, x_1, x_1+x_2, ...,
+        j = np.arange(1, len(x) + 1)  # 1, 2, 3, ..., len(x)
+        m = (
+            (N * (t + g) - S) / (N - j + 1) if np.isfinite(N) else t + g
+        )  # mean of population after (j-1)st draw, if null is true
+        with np.errstate(divide="ignore", invalid="ignore", over="ignore"):
+            terms = np.cumprod((x + g) / m)
+        terms[m < 0] = np.inf
+        p = min((1 / np.max(terms) if random_order else 1 / terms[-1]), 1)
+        return p, np.minimum(1 / terms, 1)
 
     def kaplan_markov(self, x: np.array, **kwargs) -> tuple[float, np.array]:
-        '''
+        """
         Kaplan-Markov p-value for the hypothesis that the sample x is drawn IID from a population
         with mean t against the alternative that the mean is less than t.
 
@@ -499,7 +541,7 @@ class NonnegMean:
             g: float
                 "padding" so that if there are any zeros in the sample, the martingale doesn't vanish forever
             random_order: Boolean
-                if the sample is in random order, it is legitimate to stop early, which can yield a 
+                if the sample is in random order, it is legitimate to stop early, which can yield a
                 more powerful test. See above.
 
         Returns:
@@ -508,18 +550,21 @@ class NonnegMean:
            the p-value
         p_history: numpy array
             sample by sample history of p-values. Not meaningful unless the sample is in random order.
-        '''
+        """
         t = self.t
-        g = getattr(self, 'g', 0)
-        random_order = getattr(self, 'random_order', True)
-        if negs:= sum(xx < 0 for xx in x) > 0:
-            raise ValueError('{negs} negative values in sample from a nonnegative population.')
-        p_history = np.cumprod((t+g)/(x+g))
-        return np.min([1, np.min(p_history) if random_order else p_history[-1]]), \
-               np.minimum(p_history,1)
+        g = getattr(self, "g", 0)
+        random_order = getattr(self, "random_order", True)
+        if negs := sum(xx < 0 for xx in x) > 0:
+            raise ValueError(
+                "{negs} negative values in sample from a nonnegative population."
+            )
+        p_history = np.cumprod((t + g) / (x + g))
+        return np.min(
+            [1, np.min(p_history) if random_order else p_history[-1]]
+        ), np.minimum(p_history, 1)
 
     def kaplan_wald(self, x: np.array, **kwargs) -> tuple[float, np.array]:
-        '''
+        """
         Kaplan-Wald p-value for the hypothesis that the sample x is drawn IID from a population
         with mean t against the alternative that the mean is less than t.
 
@@ -548,21 +593,21 @@ class NonnegMean:
         p_history: numpy array
             sample by sample history of p-values. Not meaningful unless the sample is in random order.
 
-        '''
-        g = getattr(self, 'g', 0)
-        random_order = getattr(self, 'random_order', True)
+        """
+        g = getattr(self, "g", 0)
+        random_order = getattr(self, "random_order", True)
         t = self.t
-        if g < 0 or g>1:
-            raise ValueError(f'{g=}, but g must be between 0 and 1. ')
+        if g < 0 or g > 1:
+            raise ValueError(f"{g=}, but g must be between 0 and 1. ")
         if any(xx < 0 for xx in x):
-            raise ValueError('Negative value in sample from a nonnegative population.')
-        p_history = np.cumprod((1-g)*x/t + g)
-        return np.min([1, 1/np.max(p_history) if random_order \
-                       else 1/p_history[-1]]), np.minimum(1/p_history, 1)
+            raise ValueError("Negative value in sample from a nonnegative population.")
+        p_history = np.cumprod((1 - g) * x / t + g)
+        return np.min(
+            [1, 1 / np.max(p_history) if random_order else 1 / p_history[-1]]
+        ), np.minimum(1 / p_history, 1)
 
-    
     def wald_sprt(self, x: np.array, **kwargs) -> tuple[float, np.array]:
-        '''
+        """
         Finds the p value for the hypothesis that the population
         mean is less than or equal to t against the alternative that it is eta,
         for a population of size N of values in the interval [0, u].
@@ -579,7 +624,7 @@ class NonnegMean:
         Parameters
         ----------
         x: list
-            values between 0 and u 
+            values between 0 and u
         kwargs:
             eta: float in (0,u)
                 alternative hypothesized population mean
@@ -594,43 +639,57 @@ class NonnegMean:
                 p-value
             p_history: numpy array
                 sample by sample history of p-values. Not meaningful unless the sample is in random order.
-        '''
+        """
         u = self.u
         N = self.N
         t = self.t
-        eta = getattr(self, 'eta', u*(1-np.finfo(float).eps))
-        random_order = getattr(self, 'random_order', True)
+        eta = getattr(self, "eta", u * (1 - np.finfo(float).eps))
+        random_order = getattr(self, "random_order", True)
         if any((xx < 0 or xx > u) for xx in x):
-            raise ValueError(f'Data out of range [0,{u}]')
+            raise ValueError(f"Data out of range [0,{u}]")
         if np.isfinite(N):
             if not random_order:
-                raise ValueError("data must be in random order for samples without replacement")
-            S = np.insert(np.cumsum(x),0,0)[0:-1]  # 0, x_1, x_1+x_2, ...,
-            j = np.arange(1,len(x)+1)              # 1, 2, 3, ..., len(x)
-            m = (N*t-S)/(N-j+1)                    # mean of population after (j-1)st draw, if null is true
-            etas = (N*eta-S)/(N-j+1)
+                raise ValueError(
+                    "data must be in random order for samples without replacement"
+                )
+            S = np.insert(np.cumsum(x), 0, 0)[0:-1]  # 0, x_1, x_1+x_2, ...,
+            j = np.arange(1, len(x) + 1)  # 1, 2, 3, ..., len(x)
+            m = (N * t - S) / (
+                N - j + 1
+            )  # mean of population after (j-1)st draw, if null is true
+            etas = (N * eta - S) / (N - j + 1)
         else:
             m = t
             etas = eta
-        with np.errstate(divide='ignore', invalid='ignore', over='ignore'):
-            terms = np.cumprod((x*etas/m + (u-x)*(u-etas)/(u-m))/u) # generalization of Bernoulli SPRT
-        terms[m<0] = np.inf                        # the null is surely false
+        with np.errstate(divide="ignore", invalid="ignore", over="ignore"):
+            terms = np.cumprod(
+                (x * etas / m + (u - x) * (u - etas) / (u - m)) / u
+            )  # generalization of Bernoulli SPRT
+        terms[m < 0] = np.inf  # the null is surely false
         terms = np.cumprod(terms)
-        return 1/np.max(terms) if random_order else 1/terms[-1], np.minimum(1,1/terms)
+        return 1 / np.max(terms) if random_order else 1 / terms[-1], np.minimum(
+            1, 1 / terms
+        )
 
     def sample_size(
-                    self, x: list=None, alpha: float=0.05, reps: int=None, prefix: bool=False, 
-                    quantile: float=0.5, **kwargs) -> int:
-        '''
-        Estimate the sample size to reject the null hypothesis that the population mean of a population of size 
+        self,
+        x: list = None,
+        alpha: float = 0.05,
+        reps: int = None,
+        prefix: bool = False,
+        quantile: float = 0.5,
+        **kwargs,
+    ) -> int:
+        """
+        Estimate the sample size to reject the null hypothesis that the population mean of a population of size
         `N` is `<=t` at significance level `alpha`, using pilot data `x`.
 
         If `reps is None`, tiles copies of `x` to produce a list of length `N`.
 
-        If `reps is not None`, samples at random from `x` to produce `reps` lists of length `N` and reports 
+        If `reps is not None`, samples at random from `x` to produce `reps` lists of length `N` and reports
         the `quantile` quantile of the resulting sample sizes.
 
-        If `prefix == True`, starts every list with `x` as given, then samples from `x` to produce the 
+        If `prefix == True`, starts every list with `x` as given, then samples from `x` to produce the
         remaining `N-len(x)` entries.
 
         Parameters
@@ -647,29 +706,30 @@ class NonnegMean:
             desired quantile of the sample sizes from simulations. Not used if `reps is None`
         kwargs:
             keyword args passed to self.test()
-            
+
         Returns
         -------
         sam_size: int
             estimated sample size
-        '''
+        """
         N = self.N
         if reps is None:
-            pop = np.repeat(np.array(x), math.ceil(N/len(x)))[0:N]  # tile data to make the population
+            pop = np.repeat(np.array(x), math.ceil(N / len(x)))[
+                0:N
+            ]  # tile data to make the population
             p = self.test(pop, **kwargs)[1]
-            crossed = (p<=alpha)
-            sam_size = int(N if np.sum(crossed)==0 else (np.argmax(crossed)+1))
+            crossed = p <= alpha
+            sam_size = int(N if np.sum(crossed) == 0 else (np.argmax(crossed) + 1))
         else:  # estimate the quantile by a bootstrap-like simulation
-            seed = kwargs.get('seed',1234567890)
+            seed = kwargs.get("seed", 1234567890)
             prng = np.random.RandomState(seed)  # use the Mersenne Twister for speed
             sams = np.zeros(int(reps))
             pfx = np.array(x) if prefix else []
-            ran_len = (N-len(x)) if prefix else N
+            ran_len = (N - len(x)) if prefix else N
             for r in range(reps):
                 pop = np.append(pfx, prng.choice(x, size=ran_len, replace=True))
                 p = self.test(pop, **kwargs)[1]
-                crossed = (p<=alpha)
-                sams[r] = N if np.sum(crossed)==0 else (np.argmax(crossed)+1)
+                crossed = p <= alpha
+                sams[r] = N if np.sum(crossed) == 0 else (np.argmax(crossed) + 1)
             sam_size = int(np.quantile(sams, quantile))
         return sam_size
-

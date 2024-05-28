@@ -1,6 +1,7 @@
 """
 Tools to read and parse Hart Intercivic CVRs
 """
+
 import os
 import re
 import numpy as np
@@ -15,6 +16,7 @@ import xml.dom.minidom
 
 from zipfile import ZipFile, Path
 from .Audit import CVR, Contest
+
 
 class Hart:
 
@@ -51,25 +53,37 @@ class Hart:
         phantoms: int
             the number of phantom cards required
         """
-        cols = ['Container', 'Tabulator', 'Batch Name', 'Number of Ballots']
+        cols = ["Container", "Tabulator", "Batch Name", "Number of Ballots"]
         assert set(cols).issubset(manifest.columns), "missing columns"
-        manifest_cards = manifest['Number of Ballots'].sum()
-        assert manifest_cards <= max_cards, f'cards in manifest {manifest_cards} exceeds max possible {max_cards}'
-        assert manifest_cards >= n_cvrs, f'number of cvrs {n_cvrs} exceeds number of cards in the manifest {manifest_cards}'
+        manifest_cards = manifest["Number of Ballots"].sum()
+        assert (
+            manifest_cards <= max_cards
+        ), f"cards in manifest {manifest_cards} exceeds max possible {max_cards}"
+        assert (
+            manifest_cards >= n_cvrs
+        ), f"number of cvrs {n_cvrs} exceeds number of cards in the manifest {manifest_cards}"
         phantoms = 0
         if manifest_cards < max_cards:
-            phantoms = max_cards-manifest_cards
-            warnings.warn(f'manifest does not account for every card; appending batch of {phantoms} phantom cards to the manifest')
-            r = {'Container': None, 'Tabulator': 'phantom', 'Batch Name': 1, 'Number of Ballots': phantoms}
+            phantoms = max_cards - manifest_cards
+            warnings.warn(
+                f"manifest does not account for every card; appending batch of {phantoms} phantom cards to the manifest"
+            )
+            r = {
+                "Container": None,
+                "Tabulator": "phantom",
+                "Batch Name": 1,
+                "Number of Ballots": phantoms,
+            }
             manifest = pd.concat([manifest, pd.DataFrame([r])])
-        manifest['cum_cards'] = manifest['Number of Ballots'].cumsum()
-        for c in ['Container', 'Tabulator', 'Batch Name', 'Number of Ballots']:
-            manifest[c] = manifest[c].astype(str) #<- why is this a str instead of a float? weird behavior when e.g. summing to get total ballots
+        manifest["cum_cards"] = manifest["Number of Ballots"].cumsum()
+        for c in ["Container", "Tabulator", "Batch Name", "Number of Ballots"]:
+            manifest[c] = manifest[c].astype(
+                str
+            )  # <- why is this a str instead of a float? weird behavior when e.g. summing to get total ballots
         return manifest, manifest_cards, phantoms
 
-
     @classmethod
-    def read_cvr(cls, cvr_string: str=None) -> CVR:
+    def read_cvr(cls, cvr_string: str = None) -> CVR:
         """
         read a single Hart CVR from XML into python
 
@@ -82,11 +96,13 @@ class Hart:
         --------
         CVR object with unique identifier, contests, and votes
         """
-        namespaces = {'xsi': "http://www.w3.org/2001/XMLSchema-instance",
-                  "xsd": "http://www.w3.org/2001/XMLSchema",
-                  "xmlns": "http://tempuri.org/CVRDesign.xsd"}
-        #pat = re.compile('[^\w\-\<\>\[\]"\\\']+') # match "word" characters and hyphens
-        pat = re.compile('\n/ +/')
+        namespaces = {
+            "xsi": "http://www.w3.org/2001/XMLSchema-instance",
+            "xsd": "http://www.w3.org/2001/XMLSchema",
+            "xmlns": "http://tempuri.org/CVRDesign.xsd",
+        }
+        # pat = re.compile('[^\w\-\<\>\[\]"\\\']+') # match "word" characters and hyphens
+        pat = re.compile("\n/ +/")
         cleaned_string = re.sub(pat, " ", cvr_string)
         cvr_root = ET.fromstring(cleaned_string)
         batch_sequence = cvr_root.findall("xmlns:BatchSequence", namespaces)[0].text
@@ -97,25 +113,26 @@ class Hart:
         contests = []
         votes = {}
         undervotes = []
-        #contests are contained in "Contests", the first element of cvr_root, loop through each contest
+        # contests are contained in "Contests", the first element of cvr_root, loop through each contest
         for contest in cvr_root[0]:
-            #record the name of the contest
+            # record the name of the contest
             con = contest.findall("xmlns:Name", namespaces)[0].text
             votes[con] = {}
-            options = contest.find("xmlns:Options", namespaces).findall("xmlns:Option", namespaces)
+            options = contest.find("xmlns:Options", namespaces).findall(
+                "xmlns:Option", namespaces
+            )
             for candidate in options:
-                #look for write-ins before name; sometimes write-ins have empty nametags
+                # look for write-ins before name; sometimes write-ins have empty nametags
                 if candidate.find("xmlns:WriteInData", namespaces) is not None:
                     cand = Contest.CANDIDATES.WRITE_IN
                 elif candidate.find("xmlns:Name", namespaces) is not None:
-                        cand = candidate.find("xmlns:Name", namespaces).text
+                    cand = candidate.find("xmlns:Name", namespaces).text
                 else:
                     raise Warning("Option with no candidate name or write in:\n" + con)
                     cand = Contest.CANDIDATES.NO_CANDIDATE
                 votes[con][cand] = candidate.find("xmlns:Value", namespaces).text
 
         return CVR(id=batch_sequence + "_" + sheet_number, votes=votes)
-
 
     @classmethod
     def read_cvrs_directory(cls, cvr_directory):
@@ -132,17 +149,19 @@ class Hart:
         cvr_list: list of CVRs as returned by read_CVR()
         """
         cvr_list = []
-        for file in [f for f in os.listdir(cvr_directory) if f.endswith('.xml')]:
+        for file in [f for f in os.listdir(cvr_directory) if f.endswith(".xml")]:
             cvr_path = cvr_directory + "/" + file
-            with open(cvr_path, 'r', encoding='latin-1') as xml_file: #latin-1 encoding?
+            with open(
+                cvr_path, "r", encoding="latin-1"
+            ) as xml_file:  # latin-1 encoding?
                 raw_string = xml_file.read()
             cvr_list.append(cls.read_cvr(raw_string))
 
         return cvr_list
 
-    #add new function to wrap read_cvr that reads from ZIPs instead of from a directory
+    # add new function to wrap read_cvr that reads from ZIPs instead of from a directory
     @classmethod
-    def read_cvrs_zip(cls, cvr_zip, size = None):
+    def read_cvrs_zip(cls, cvr_zip, size=None):
         """
         read a batch of Hart CVRs from a zipfile of XMLs to a list
 
@@ -156,9 +175,9 @@ class Hart:
         cvr_list: list of CVRs as returned by read_CVR()
         """
         cvr_list = []
-        with ZipFile(cvr_zip, 'r') as data:
+        with ZipFile(cvr_zip, "r") as data:
             file_list = data.namelist()
-            if(size is None):
+            if size is None:
                 size = len(file_list)
             for cvr in file_list[0:size]:
                 if cvr.endswith(".xml"):
@@ -168,9 +187,8 @@ class Hart:
                         cvr_list.append(cvr_object)
         return cvr_list
 
-
     @classmethod
-    def sample_from_manifest(cls, manifest: object=None, sample: list=None):
+    def sample_from_manifest(cls, manifest: object = None, sample: list = None):
         """
         Sample from the ballot manifest. Assumes manifest has been augmented to include phantoms.
         Create list of sampled cards, with identifiers.
@@ -199,25 +217,30 @@ class Hart:
         cards = []
         sample_order = {}
         mvr_phantoms = []
-        lookup = np.array([0] + list(manifest['cum_cards']))
-        #TODO: Fix this, doesn't work
+        lookup = np.array([0] + list(manifest["cum_cards"]))
+        # TODO: Fix this, doesn't work
         for i, s in enumerate(sample):
-            batch_num = int(np.searchsorted(lookup, s, side='right')) # switch from left to right
-            card_in_batch = int(s-lookup[batch_num - 1])
-            tab = manifest.iloc[batch_num - 1]['Tabulator']
-            batch = manifest.iloc[batch_num - 1]['Batch Name']
-            card_id = f'{tab}-{batch}-{card_in_batch}'
-            card = list(manifest.iloc[batch_num - 1][['Container']]) \
-                    + [tab, batch, card_in_batch, card_id]
+            batch_num = int(
+                np.searchsorted(lookup, s, side="right")
+            )  # switch from left to right
+            card_in_batch = int(s - lookup[batch_num - 1])
+            tab = manifest.iloc[batch_num - 1]["Tabulator"]
+            batch = manifest.iloc[batch_num - 1]["Batch Name"]
+            card_id = f"{tab}-{batch}-{card_in_batch}"
+            card = list(manifest.iloc[batch_num - 1][["Container"]]) + [
+                tab,
+                batch,
+                card_in_batch,
+                card_id,
+            ]
             cards.append(card)
-            if tab == 'phantom':
+            if tab == "phantom":
                 mvr_phantoms.append(CVR(id=card_id, votes={}, phantom=True))
             sample_order[card_id] = {}
             sample_order[card_id]["selection_order"] = i
-            sample_order[card_id]["serial"] = s+1
-        cards.sort(key=lambda x: x[-2]) # Check this
+            sample_order[card_id]["serial"] = s + 1
+        cards.sort(key=lambda x: x[-2])  # Check this
         return cards, sample_order, mvr_phantoms
-
 
     @classmethod
     def sample_from_cvrs(cls, cvr_list: list, manifest: list, sample: np.array):
@@ -249,24 +272,23 @@ class Hart:
         sample_order = {}
         cvr_sample = []
         mvr_phantoms = []
-        for i,s in enumerate(sample):
+        for i, s in enumerate(sample):
             cvr_sample.append(cvr_list[s])
             cvr_id = cvr_list[s].id
             if not cvr_list[s].phantom:
                 batch, card_num = cvr_id.split("_")
-                card_id = f'{batch}_{card_num}'
-                manifest_row = manifest[(manifest['Batch Name'] == str(batch))].iloc[0]
-                card = [manifest_row['Tabulator']]\
-                        + [batch, card_num, card_id]
+                card_id = f"{batch}_{card_num}"
+                manifest_row = manifest[(manifest["Batch Name"] == str(batch))].iloc[0]
+                card = [manifest_row["Tabulator"]] + [batch, card_num, card_id]
             else:
                 word, batch, card_num = cvr_id.split("-")
-                card_id = f'phantom-{batch}-{card_num}'
-                card = ["","", batch, card_num, card_id]
-                mvr_phantoms.append(CVR(id=cvr_id, votes = {}, phantom=True))
+                card_id = f"phantom-{batch}-{card_num}"
+                card = ["", "", batch, card_num, card_id]
+                mvr_phantoms.append(CVR(id=cvr_id, votes={}, phantom=True))
             cards.append(card)
             sample_order[card_id] = {}
             sample_order[card_id]["selection_order"] = i
-            sample_order[card_id]["serial"] = s+1
+            sample_order[card_id]["serial"] = s + 1
         # sort by id
-        cards.sort(key = lambda x: x[3])
+        cards.sort(key=lambda x: x[3])
         return cards, sample_order, cvr_sample, mvr_phantoms

@@ -1,6 +1,7 @@
 """
 Tools to read and parse Dominion ballot manifests and CVRs
 """
+
 import json
 import numpy as np
 import csv
@@ -11,6 +12,7 @@ import re
 import glob
 from collections.abc import Collection
 from .Audit import CVR
+
 
 class Dominion:
 
@@ -44,30 +46,49 @@ class Dominion:
         phantoms: int
             the number of phantom cards required
         """
-        cols = ['Tray #', 'Tabulator Number', 'Batch Number', 'Total Ballots', 'VBMCart.Cart number']
+        cols = [
+            "Tray #",
+            "Tabulator Number",
+            "Batch Number",
+            "Total Ballots",
+            "VBMCart.Cart number",
+        ]
         assert set(cols).issubset(manifest.columns), "missing columns"
-        manifest_cards = manifest['Total Ballots'].sum()
-        assert manifest_cards <= max_cards, f"cards in manifest {manifest_cards} exceeds max possible {max_cards}"
-        assert manifest_cards >= n_cvrs, f"number of cvrs {n_cvrs} exceeds number of cards in the manifest {manifest_cards}"
+        manifest_cards = manifest["Total Ballots"].sum()
+        assert (
+            manifest_cards <= max_cards
+        ), f"cards in manifest {manifest_cards} exceeds max possible {max_cards}"
+        assert (
+            manifest_cards >= n_cvrs
+        ), f"number of cvrs {n_cvrs} exceeds number of cards in the manifest {manifest_cards}"
         phantoms = 0
         if manifest_cards < max_cards:
-            phantoms = max_cards-manifest_cards
-            warnings.warn(f'manifest does not account for every card; appending batch of {phantoms} '
-                          + f'phantom cards to the manifest')
-            r = {'Tray #': None, 'Tabulator Number': 'phantom', 'Batch Number': 1, \
-                 'Total Ballots': phantoms, 'VBMCart.Cart number': None}
-            manifest = manifest.append(r, ignore_index = True)
-        manifest['cum_cards'] = manifest['Total Ballots'].cumsum()
-        for c in ['Tray #', 'Tabulator Number', 'Batch Number', 'VBMCart.Cart number']:
+            phantoms = max_cards - manifest_cards
+            warnings.warn(
+                f"manifest does not account for every card; appending batch of {phantoms} "
+                + f"phantom cards to the manifest"
+            )
+            r = {
+                "Tray #": None,
+                "Tabulator Number": "phantom",
+                "Batch Number": 1,
+                "Total Ballots": phantoms,
+                "VBMCart.Cart number": None,
+            }
+            manifest = manifest.append(r, ignore_index=True)
+        manifest["cum_cards"] = manifest["Total Ballots"].cumsum()
+        for c in ["Tray #", "Tabulator Number", "Batch Number", "VBMCart.Cart number"]:
             manifest[c] = manifest[c].astype(str)
         return manifest, manifest_cards, phantoms
 
     @classmethod
-    def read_cvrs(cls, 
-                  cvr_file: str, 
-                  use_adjudicated: bool=False, 
-                  include_groups: Collection=[], 
-                  pool_groups: Collection=[]):
+    def read_cvrs(
+        cls,
+        cvr_file: str,
+        use_adjudicated: bool = False,
+        include_groups: Collection = [],
+        pool_groups: Collection = [],
+    ):
         """
         Read CVRs in Dominion format.
         Dominion uses:
@@ -94,20 +115,22 @@ class Dominion:
         # Image mask is used if the RecordId has been obfuscated (see below)
         image_mask_pattern = re.compile(r"[0-9]{5}_[0-9]{5}_[0-9]{6}")
 
-        with open(cvr_file, 'r') as f:
+        with open(cvr_file, "r") as f:
             cvr_json = json.load(f)
         # Dominion export wraps the CVRs under several layers; unwrap
         # Desired output format is
         # {"ID": "A-001-01", "votes": {"mayor": {"Alice": 1, "Bob": 2, "Candy": 3, "Dan": 4}}}
         cvr_list = []
-        for c in cvr_json['Sessions']:
+        for c in cvr_json["Sessions"]:
             votes = {}
             # Skip CVRs not in the desired include_group (if set)
             if include_groups and c["CountingGroupId"] not in include_groups:
                 continue
             # Use adjudicated CVR data (if present and requested)
             _ckey = (
-                "Modified" if ("Modified" in c.keys() and use_adjudicated) else "Original"
+                "Modified"
+                if ("Modified" in c.keys() and use_adjudicated)
+                else "Original"
             )
             # Dominion somewhere between 5.2.18.2 and 5.10.50.85 added another hierarchical level, "Cards"
             if "Cards" in c[_ckey].keys():
@@ -126,18 +149,27 @@ class Dominion:
                     record_id = int(image_match.group(0).split("_")[-1])
             else:
                 record_id = c["RecordId"]
-            cvr_list.append(CVR(id = str(c["TabulatorId"]) + '_' + str(c["BatchId"]) + '_' + str(record_id),
-                                tally_pool = str(c["TabulatorId"]) + '_' + str(c["BatchId"]),
-                                pool = (c["CountingGroupId"] in pool_groups),
-                                votes = votes))
+            cvr_list.append(
+                CVR(
+                    id=str(c["TabulatorId"])
+                    + "_"
+                    + str(c["BatchId"])
+                    + "_"
+                    + str(record_id),
+                    tally_pool=str(c["TabulatorId"]) + "_" + str(c["BatchId"]),
+                    pool=(c["CountingGroupId"] in pool_groups),
+                    votes=votes,
+                )
+            )
         return cvr_list
 
     @classmethod
-    def read_cvrs_directory(cls, 
-                            cvr_directory: str, 
-                            use_adjudicated: bool=False, 
-                            include_groups: Collection=[], 
-                            pool_groups: Collection=[]
+    def read_cvrs_directory(
+        cls,
+        cvr_directory: str,
+        use_adjudicated: bool = False,
+        include_groups: Collection = [],
+        pool_groups: Collection = [],
     ):
         """
         Read CVRs in Dominion format from a given directory.
@@ -158,12 +190,14 @@ class Dominion:
         """
         cvr_list = []
         for file in [f for f in sorted(glob.glob(f"{cvr_directory}/CvrExport_*.json"))]:
-            cvr_list.extend(Dominion.read_cvrs(file, use_adjudicated, include_groups, pool_groups))
+            cvr_list.extend(
+                Dominion.read_cvrs(file, use_adjudicated, include_groups, pool_groups)
+            )
         return cvr_list
 
     @classmethod
-    def raire_to_dominion(cls, cvr_list: list=None):
-        '''
+    def raire_to_dominion(cls, cvr_list: list = None):
+        """
         translate raire-style identifiers to Dominion-style identifiers by substituting "-" for "_"
 
         Parameters
@@ -174,9 +208,9 @@ class Dominion:
         Returns
         -------
         cvrs: list of CVR objects with "-" substituted for "_" in the id attribute.
-        '''
+        """
         for c in cvr_list:
-            c.id = str(c.id).replace("_","-")
+            c.id = str(c.id).replace("_", "-")
         return cvr_list
 
     @classmethod
@@ -208,21 +242,22 @@ class Dominion:
         cards = []
         sample_order = {}
         mvr_phantoms = []
-        lookup = np.array([0] + list(manifest['cum_cards']))
+        lookup = np.array([0] + list(manifest["cum_cards"]))
         for i, s in enumerate(sample):
-            batch_num = int(np.searchsorted(lookup, s, side='left'))
-            card_in_batch = int(s-lookup[batch_num-1])
-            tab = manifest.iloc[batch_num-1]['Tabulator Number']
-            batch = manifest.iloc[batch_num-1]['Batch Number']
-            card_id = f'{tab}-{batch}-{card_in_batch}'
-            card = list(manifest.iloc[batch_num-1][['VBMCart.Cart number','Tray #']]) \
-                    + [tab, batch, card_in_batch, card_id, s]
+            batch_num = int(np.searchsorted(lookup, s, side="left"))
+            card_in_batch = int(s - lookup[batch_num - 1])
+            tab = manifest.iloc[batch_num - 1]["Tabulator Number"]
+            batch = manifest.iloc[batch_num - 1]["Batch Number"]
+            card_id = f"{tab}-{batch}-{card_in_batch}"
+            card = list(
+                manifest.iloc[batch_num - 1][["VBMCart.Cart number", "Tray #"]]
+            ) + [tab, batch, card_in_batch, card_id, s]
             cards.append(card)
-            if tab == 'phantom':
+            if tab == "phantom":
                 mvr_phantoms.append(CVR(id=card_id, votes={}, phantom=True))
             sample_order[card_id] = {}
             sample_order[card_id]["selection_order"] = i
-            sample_order[card_id]["serial"] = s+1
+            sample_order[card_id]["serial"] = s + 1
         cards.sort(key=lambda x: x[-1])
         return cards, sample_order, mvr_phantoms
 
@@ -261,26 +296,33 @@ class Dominion:
             cvr_sample.append(cvr_list[s])
             cvr_id = cvr_list[s].id
             tab, batch, card_num = cvr_id.split("-")
-            card_id = f'{tab}-{batch}-{card_num}'
+            card_id = f"{tab}-{batch}-{card_num}"
             if not cvr_list[s].phantom:
-                manifest_row = manifest[(manifest['Tabulator Number'] == str(tab)) \
-                                        & (manifest['Batch Number'] == str(batch))].iloc[0]
-                card = [manifest_row['VBMCart.Cart number'],\
-                        manifest_row['Tray #']] \
-                        + [tab, batch, card_num, card_id ]
+                manifest_row = manifest[
+                    (manifest["Tabulator Number"] == str(tab))
+                    & (manifest["Batch Number"] == str(batch))
+                ].iloc[0]
+                card = [manifest_row["VBMCart.Cart number"], manifest_row["Tray #"]] + [
+                    tab,
+                    batch,
+                    card_num,
+                    card_id,
+                ]
             else:
-                card = ["","", tab, batch, card_num, card_id]
-                mvr_phantoms.append(CVR(id=cvr_id, votes = {}, phantom=True))
+                card = ["", "", tab, batch, card_num, card_id]
+                mvr_phantoms.append(CVR(id=cvr_id, votes={}, phantom=True))
             cards.append(card)
             sample_order[card_id] = {}
             sample_order[card_id]["selection_order"] = i
-            sample_order[card_id]["serial"] = s+1
+            sample_order[card_id]["serial"] = s + 1
         # sort by id
-        cards.sort(key = lambda x: x[5])
+        cards.sort(key=lambda x: x[5])
         return cards, sample_order, cvr_sample, mvr_phantoms
 
     @classmethod
-    def write_cards_sampled(cls, sample_file: str, cards: list, print_phantoms: bool=True):
+    def write_cards_sampled(
+        cls, sample_file: str, cards: list, print_phantoms: bool = True
+    ):
         """
         Write the identifiers of the sampled CVRs to a file.
 
@@ -302,10 +344,19 @@ class Dominion:
         -------
 
         """
-        with open(sample_file, 'a') as f:
+        with open(sample_file, "a") as f:
             writer = csv.writer(f)
-            writer.writerow(["cart", "tray", "tabulator", "batch",\
-                             "card in batch", "imprint", "absolute card index"])
+            writer.writerow(
+                [
+                    "cart",
+                    "tray",
+                    "tabulator",
+                    "batch",
+                    "card in batch",
+                    "imprint",
+                    "absolute card index",
+                ]
+            )
             if print_phantoms:
                 for row in cards:
                     writer.writerow(row)
