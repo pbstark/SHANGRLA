@@ -1,0 +1,50 @@
+{
+    "Version": "5.10.50.85",
+    "ElectionId": "GENERAL ELECTION",
+    "Sessions": [
+        {
+            "TabulatorId": 1,
+            "BatchId": 2,
+            "RecordId": 13,
+            "CountingGroupId": 1,
+            "ImageMask": "D:\\NAS\\GENERAL ELECTION\\Results\\Tabulator01\\Batch002\\Images\\00001_00002_000013*.*",
+            "SessionType": "ScannedVote",
+            "VotingSessionIdentifier": "",
+            "UniqueVotingIdentifier": "",
+            "Original": {
+                "PrecinctPortionId": 23,
+                "BallotTypeId": 3,
+                "IsCurrent": true,
+                "Cards": [
+                    {
+                        "Id": 12345,
+                        "KeyInId": 12345,
+                        "PaperIndex": 0,
+                        "Contests": [
+                            {
+                                "Id": 1,
+                                "ManifestationId": 123456,
+                                "Undervotes": 0,
+                                "Overvotes": 0,
+                                "OutstackConditionIds": [],
+                                "Marks": [
+                                    {
+                                        "CandidateId": 5,
+                                        "ManifestationId": 654321,
+                                        "PartyId": 1,
+                                        "Rank": 1,
+                                        "MarkDensity": 83,
+                                        "IsAmbiguous": false,
+                                        "IsVote": true,
+                                        "OutstackConditionIds": []
+                                    }
+                                ]
+                            }
+                        ],
+                        "OutstackConditionIds": []
+                    }
+                ]
+            }
+        }
+    ]
+}

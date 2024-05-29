@@ -1,9 +1,7 @@
 """
-The SHANGRLA package.
+The SHANGRLA library.
 """
 
-__version__ = "0.0.1"
-
-__all__ = ["Audit", "Dominion", "Hart", "IRVVisualisationUtils", "NonnegMean"]
+__all__ = ["core", "raire"]
 
 from . import *
