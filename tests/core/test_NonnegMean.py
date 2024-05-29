@@ -216,9 +216,48 @@ class TestNonnegMean:
                 lam_t = np.minimum(cj/t_adj, lam_t)
                 np.testing.assert_almost_equal(lam_0, lam_t)
 
-    def test_alpha_with_agrapa(self):
-        # TODO
-        pass
+    def test_agrapa_as_estim(self):
+        t = 0.5
+        c_g_0 = 0.5
+        c_g_m = 0.99
+        c_g_g = 0
+        N = np.infty
+        u = 1
+        n=10
+        # test for sampling with replacement, constant c
+        for val in [0.6, 0.7]:
+            for lam in [0.2, 0.5]:
+                test = NonnegMean(N=N, u=u, bet="AGRAPA", estim="TRANSFORM BET",
+                                  c_grapa_0=c_g_0, c_grapa_m=c_g_m, c_grapa_grow=c_g_g, 
+                                  lam=lam)
+                x = val*np.ones(n)
+                lam_0 = test.agrapa(x)
+                term = max(0, min(c_g_0/t, (val-t)/(val-t)**2))
+                lam_t = term*np.ones_like(x)
+                lam_t[0] = lam
+                np.testing.assert_almost_equal(lam_0, lam_t)
+        # test for sampling without replacement, growing c, but zero sample variance
+        N = 10
+        n = 5
+        t = 0.5
+        c_g_0 = 0.6
+        c_g_m = 0.9
+        c_g_g = 2
+        for val in [0.75, 0.9]:
+            for lam in [0.25, 0.5]:
+                test = NonnegMean(N=N, u=u, bet="AGRAPA",
+                                  c_grapa_0=c_g_0, c_grapa_max=c_g_m, c_grapa_grow=c_g_g, 
+                                  lam=lam)
+                x = val*np.ones(n)
+                lam_0 = test.agrapa(x)
+                t_adj = np.array([(N*t - i*val)/(N-i) for i in range(n)])
+                mj = val
+                lam_t = (mj-t_adj)/(mj-t_adj)**2
+                lam_t = np.insert(lam_t, 0, lam)[0:-1]
+                j = np.arange(n)
+                cj = c_g_0 + (c_g_m-c_g_0)*(1-1/(1+c_g_g*np.sqrt(j)))
+                lam_t = np.minimum(cj/t_adj, lam_t)
+                np.testing.assert_almost_equal(lam_0, lam_t)
         
     def test_betting_mart(self):
         N = np.infty
