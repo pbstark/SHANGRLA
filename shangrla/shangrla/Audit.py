@@ -1162,7 +1162,7 @@ class Assertion:
             "loser": self.loser,
             "p_value": self.p_value,
             "margin": self.margin,
-            "length_p_history": len(self.p_history),
+            "p_history_length": len(self.p_history),
             "proved": self.proved,
             "sample_size": self.sample_size,
             "assorter_upper_bound": self.assorter.upper_bound,
