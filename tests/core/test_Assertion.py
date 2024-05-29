@@ -20,7 +20,7 @@ class TestAssertion:
                  'winner': ['Alice'],
                  'audit_type': Audit.AUDIT_TYPE.CARD_COMPARISON,
                  'share_to_win': 2/3,
-                 'test': NonnegMean.alpha_mart,
+                 'test': "ALPHA MART",
                  'use_style': True
                 })
 
@@ -41,8 +41,8 @@ class TestAssertion:
                  'candidates': ['Alice','Bob','Candy'],
                  'winner': ['Alice'],
                  'audit_type': Audit.AUDIT_TYPE.CARD_COMPARISON,
-                 'test': NonnegMean.alpha_mart,
-                 'estim': NonnegMean.optimal_comparison,
+                 'test': "ALPHA MART",
+                 'estim': "OPTIMAL COMPARISON",
                  'use_style': True
                 })
 
@@ -72,8 +72,8 @@ class TestAssertion:
                                           'use_style':   True,
                                           'replacement': False,
                                           'audit_type':  Audit.AUDIT_TYPE.CARD_COMPARISON,
-                                          'test':        NonnegMean.alpha_mart,
-                                          'estimator':   NonnegMean.optimal_comparison,
+                                          'test':        "ALPHA MART",
+                                          'estimator':   "OPTIMAL COMPARISON",
                                           'test_kwargs': {}
                                          }
                            }
@@ -201,7 +201,7 @@ class TestAssertion:
                      'cards': 10**4,
                      'choice_function': Contest.SOCIAL_CHOICE_FUNCTION.IRV,
                      'n_winners': 1,
-                     'test': NonnegMean.alpha_mart,
+                     'test': "ALPHA MART",
                      'use_style': True
                 })
             assertions = {}
@@ -468,7 +468,7 @@ class TestAssertion:
                              'candidates': ['Alice','Bob', 'Carol'],
                              'winner': ['Alice'],
                              'audit_type': Audit.AUDIT_TYPE.CARD_COMPARISON,
-                             'test': NonnegMean.kaplan_markov,
+                             'test': "KAPLAN MARKOV",
                              'tally': {'Alice': 3000, 'Bob': 2000, 'Carol': 1000},
                              'g': 0.1,
                              'use_style': True
@@ -514,7 +514,7 @@ class TestAssertion:
                      'winner': ['Alice'],
                      'audit_type': Audit.AUDIT_TYPE.CARD_COMPARISON,
                      'tally': {'Alice': 3000, 'Bob': 2000, 'Carol': 1000},
-                     'test': NonnegMean.kaplan_markov,
+                     'test': "KAPLAN MARKOV",
                      'g': 0.1,
                      'use_style': True
                 })

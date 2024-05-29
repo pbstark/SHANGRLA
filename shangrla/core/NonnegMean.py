@@ -4,7 +4,6 @@ import warnings
 
 ##########################################################################################
 
-
 class NonnegMean:
     """
     Tests of the hypothesis that the mean of a population of values in [0, u] is less than or equal to t.
@@ -22,20 +21,33 @@ class NonnegMean:
       lead to different heuristics for selecting the parameters.
     """
 
-    TESTS = (
-        ALPHA_MART := "ALPHA_MART",
-        BETTING_MART := "BETTING_MART",
-        KAPLAN_KOLMOGOROV := "KAPLAN_KOLMOGOROV",
-        KAPLAN_MARKOV := "KAPLAN_MARKOV",
-        KAPLAN_WALD := "KAPLAN_WALD",
-        WALD_SPRT := "WALD_SPRT",
-    )
+    TESTS = {
+        "ALPHA MART": "alpha_mart",
+        "BETTING MART": "betting_mart",
+        "KAPLAN KOLMOGOROV": "kaplan_kolmogorov",
+        "KAPLAN MARKOV": "kaplan_markov",
+        "KAPLAN WALD": "kaplan_wald",
+        "WALD SPRT": "wald_sprt"
+    }
+
+    ESTIMATORS = {
+        "OPTIMAL COMPARISON": "optimal_comparison",
+        "SRHINK TRUNC": "shrink_trunc",
+        "FIXED ALTERNATIVE MEAN": "fixed_alternative_mean",
+        "TRANSFORM BET": "estim_via_bet"
+    }
+
+    BETS = {
+        "FIXED BET": "fixed_bet",
+        "AGRAPA": "agrapa",
+        "TRANSFORM ESTIMATOR": "bet_via_estim"
+    }
 
     def __init__(
         self,
-        test: callable = None,
-        estim: callable = None,
-        bet: callable = None,
+        test: str = None,
+        estim: str = None,
+        bet: str = None,
         u: float = 1,
         N: int = np.inf,
         t: float = 1 / 2,
@@ -48,24 +60,54 @@ class NonnegMean:
         `shrink_trunc()` or other estimators or betting strategies.
         """
         if test is None:  # default to alpha_mart
-            test = self.alpha_mart
+            test = "ALPHA MART"
         if estim is None:
-            estim = self.fixed_alternative_mean
+            estim = "FIXED ALTERNATIVE MEAN"
             self.eta = kwargs.get(
                 "eta", t + (u - t) / 2
             )  # initial estimate of population mean
         if bet is None:
-            bet = self.fixed_bet
+            bet = "FIXED BET"
             self.lam = kwargs.get("lam", 0.5)  # initial fraction of fortune to bet
-        self.test = test.__get__(self)
-        self.estim = estim.__get__(self)
-        self.bet = bet.__get__(self)
+        if test in self.TESTS.keys():
+          self._test = test
+        else:
+          raise InvalidTestException(
+              f"Expected one of {self.TESTS.keys()}, but got {test}."
+          )
+        if estim in self.ESTIMATORS.keys():
+            self._estim = estim
+        else:
+          raise InvalidEstimatorException(
+              f"Expected one of {self.ESTIMATORS.keys()}, but got {estim}."
+          )
+        if bet in self.BETS.keys():
+            self._bet = bet
+        else:
+            raise InvalidBetException(
+                f"Expected one of {self.BETS.keys()}, but got {bet}."
+            )
         self.u = u
         self.N = N
         self.t = t
         self.random_order = random_order
         self.kwargs = kwargs  # preserving these for __str__()
         self.__dict__.update(kwargs)
+    
+    def test(self, *args, **kwargs):
+        return getattr(self, self.TESTS[self._test])(*args, **kwargs)
+
+    def estim(self, *args, **kwargs):
+        return getattr(self, self.ESTIMATORS[self._estim])(*args, **kwargs)
+
+    def bet(self, *args, **kwargs):
+        return getattr(self, self.BETS[self._bet])(*args, **kwargs)
+
+    def estim_via_bet(self, x: np.array, **kwargs):
+        return getattr(self, self.ESTIMATORS[self._estim])(x, **kwargs)
+
+    def bet_via_estim(self, x: np.array, **kwargs):
+        return getattr(self, self.BETS[self._bet])(x, **kwargs)
 
     def __str__(self):
         return (
@@ -729,3 +771,14 @@ class NonnegMean:
                 sams[r] = N if np.sum(crossed) == 0 else (np.argmax(crossed) + 1)
             sam_size = int(np.quantile(sams, quantile))
         return sam_size
+
+
+
+class InvalidTestException(ValueError):
+    pass
+
+class InvalidEstimatorException(ValueError):
+    pass
+
+class InvalidBetException(ValueError):
+    pass

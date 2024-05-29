@@ -125,8 +125,8 @@ class TestNonnegMean:
         reps=None
         prefix=False
 
-        test = NonnegMean(test=NonnegMean.alpha_mart,
-                              estim=NonnegMean.fixed_alternative_mean,
+        test = NonnegMean(test="ALPHA MART",
+                              estim="FIXED ALTERNATIVE MEAN",
                               u=u, N=N, t=t, eta=eta)
 
         x = np.ones(math.floor(N/200))
@@ -144,8 +144,8 @@ class TestNonnegMean:
         g = 0.1
         x = np.ones(math.floor(N/200))
 
-        test = NonnegMean(test=NonnegMean.kaplan_wald,
-                              estim=NonnegMean.fixed_alternative_mean,
+        test = NonnegMean(test="KAPLAN WALD",
+                              estim="FIXED ALTERNATIVE MEAN",
                               u=u, N=N, t=t, eta=eta, g=g)
         sam_size = test.sample_size(x=x, alpha=alpha, reps=None, prefix=prefix, quantile=quantile)
     #   p-value is \prod ((1-g)*x/t + g), so
@@ -184,8 +184,8 @@ class TestNonnegMean:
         # test for sampling with replacement, constant c
         for val in [0.6, 0.7]:
             for lam in [0.2, 0.5]:
-                test = NonnegMean(N=N, u=u, bet=NonnegMean.fixed_bet,
-                                  c_grapa_0=c_g_0, c_grapa_m=c_g_m, c_grapa_grow=c_g_g,
+                test = NonnegMean(N=N, u=u, bet="FIXED BET",
+                                  c_grapa_0=c_g_0, c_grapa_m=c_g_m, c_grapa_grow=c_g_g, 
                                   lam=lam)
                 x = val*np.ones(n)
                 lam_0 = test.agrapa(x)
@@ -202,8 +202,8 @@ class TestNonnegMean:
         c_g_g = 2
         for val in [0.75, 0.9]:
             for lam in [0.25, 0.5]:
-                test = NonnegMean(N=N, u=u, bet=NonnegMean.agrapa,
-                                  c_grapa_0=c_g_0, c_grapa_max=c_g_m, c_grapa_grow=c_g_g,
+                test = NonnegMean(N=N, u=u, bet="AGRAPA",
+                                  c_grapa_0=c_g_0, c_grapa_max=c_g_m, c_grapa_grow=c_g_g, 
                                   lam=lam)
                 x = val*np.ones(n)
                 lam_0 = test.agrapa(x)
@@ -216,6 +216,10 @@ class TestNonnegMean:
                 lam_t = np.minimum(cj/t_adj, lam_t)
                 np.testing.assert_almost_equal(lam_0, lam_t)
 
+    def test_alpha_with_agrapa(self):
+        # TODO
+        pass
+        
     def test_betting_mart(self):
         N = np.infty
         n = 20
@@ -223,7 +227,7 @@ class TestNonnegMean:
         u = 1
         for val in [0.75, 0.9]:
             for lam in [0.25, 0.5]:
-                test = NonnegMean(N=N, u=u, bet=NonnegMean.fixed_bet, lam=lam)
+                test = NonnegMean(N=N, u=u, bet="FIXED BET", lam=lam)
                 x = val*np.ones(n)
                 np.testing.assert_almost_equal(test.betting_mart(x)[0], 1/(1+lam*(val-t))**n)
 
