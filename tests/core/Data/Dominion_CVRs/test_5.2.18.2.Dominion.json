@@ -1,0 +1,123 @@
+{
+    "Version": "5.2.18.2",
+    "ElectionId": "GENERAL ELECTION",
+    "Sessions": [
+        {
+            "TabulatorId": 60001,
+            "BatchId": 1,
+            "RecordId": 1,
+            "CountingGroupId": 1,
+            "ImageMask": "E:\\NAS\\GENERAL ELECTION\\Results\\Tabulator60001\\Batch001\\Images\\60001_00001_000001*.*",
+            "Original": {
+                "PrecinctPortionId": 123,
+                "BallotTypeId": 2,
+                "IsCurrent": true,
+                "Contests": [
+                    {
+                        "Id": 111,
+                        "Marks": [
+                            {
+                                "CandidateId": 6,
+                                "PartyId": 0,
+                                "Rank": 1,
+                                "MarkDensity": 85,
+                                "IsAmbiguous": false,
+                                "IsVote": true
+                            },
+                            {
+                                "CandidateId": 1,
+                                "PartyId": 0,
+                                "Rank": 2,
+                                "MarkDensity": 94,
+                                "IsAmbiguous": false,
+                                "IsVote": false
+                            }
+                        ]
+                    }
+                ]
+            }
+        },
+        {
+            "TabulatorId": 60009,
+            "BatchId": 3,
+            "RecordId": 21,
+            "CountingGroupId": 2,
+            "ImageMask": "E:\\NAS\\GENERAL ELECTION\\Results\\Tabulator60009\\Batch003\\Images\\60009_00003_000021*.*",
+            "Original": {
+                "PrecinctPortionId": 456,
+                "BallotTypeId": 2,
+                "IsCurrent": false,
+                "Contests": [
+                    {
+                        "Id": 111,
+                        "Marks": [
+                            {
+                                "CandidateId": 6,
+                                "PartyId": 0,
+                                "Rank": 1,
+                                "MarkDensity": 75,
+                                "IsAmbiguous": false,
+                                "IsVote": true
+                            }
+                        ]
+                    },
+                    {
+                        "Id": 122,
+                        "Marks": [
+                            {
+                                "CandidateId": 9,
+                                "PartyId": 0,
+                                "Rank": 1,
+                                "MarkDensity": 82,
+                                "IsAmbiguous": false,
+                                "IsVote": true
+                            },
+                            {
+                                "CandidateId": 48,
+                                "Rank": 2,
+                                "WriteinIndex": 0,
+                                "MarkDensity": 71,
+                                "WriteinDensity": 0,
+                                "IsAmbiguous": false,
+                                "IsVote": false
+                            }
+                        ]
+                    }
+                ]
+            },
+            "Modified": {
+                "PrecinctPortionId": 456,
+                "BallotTypeId": 2,
+                "IsCurrent": true,
+                "Contests": [
+                    {
+                        "Id": 111,
+                        "Marks": [
+                            {
+                                "CandidateId": 6,
+                                "PartyId": 0,
+                                "Rank": 1,
+                                "MarkDensity": 75,
+                                "IsAmbiguous": false,
+                                "IsVote": true
+                            }
+                        ]
+                    },
+                    {
+                        "Id": 122,
+                        "Marks": [
+                            {
+                                "CandidateId": 9,
+                                "PartyId": 0,
+                                "Rank": 1,
+                                "MarkDensity": 82,
+                                "IsAmbiguous": false,
+                                "IsVote": true
+                            }
+                        ]
+                    }
+                ]
+            }
+        }
+    ]
+}
