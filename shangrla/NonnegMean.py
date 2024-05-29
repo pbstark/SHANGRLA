@@ -110,13 +110,7 @@ class NonnegMean:
         u = self.u
         atol = kwargs.get("atol", 2 * np.finfo(float).eps)
         rtol = kwargs.get("rtol", 10**-6)
-        S = np.insert(np.cumsum(x), 0, 0)  # 0, x_1, x_1+x_2, ...,
-        Stot = S[-1]  # sample total
-        S = S[0:-1]  # same length as the data
-        j = np.arange(1, len(x) + 1)  # 1, 2, 3, ..., len(x)
-        m = (
-            (N * t - S) / (N - j + 1) if np.isfinite(N) else t
-        )  # mean of population after (j-1)st draw, if null is true
+        _S, Stot, _j, m = self.sjm(N, t, x)
         x = np.array(x)
         with np.errstate(divide="ignore", invalid="ignore", over="ignore"):
             etaj = self.estim(x)
@@ -132,6 +126,16 @@ class NonnegMean:
             np.inf if Stot > N * t else terms[-1]
         )  # final sample makes the total greater than the null
         return min(1, 1 / np.max(terms)), np.minimum(1, 1 / terms)
+
+    def sjm(self, N, t, x):
+        S = np.insert(np.cumsum(x), 0, 0)  # 0, x_1, x_1+x_2, ...,
+        Stot = S[-1]  # sample total
+        S = S[0:-1]  # same length as the data
+        j = np.arange(1, len(x) + 1)  # 1, 2, 3, ..., len(x)
+        m = (
+            (N * t - S) / (N - j + 1) if np.isfinite(N) else t
+        )  # mean of population after (j-1)st draw, if null is true (t=eta is the mean)
+        return S, Stot, j, m
 
     def betting_mart(self, x: np.array, **kwargs) -> tuple[float, np.array]:
         """
@@ -168,13 +172,7 @@ class NonnegMean:
         u = self.u
         atol = kwargs.get("atol", 2 * np.finfo(float).eps)
         rtol = kwargs.get("rtol", 10**-6)
-        S = np.insert(np.cumsum(x), 0, 0)  # 0, x_1, x_1+x_2, ...,
-        Stot = S[-1]  # sample total
-        S = S[0:-1]  # same length as the data
-        j = np.arange(1, len(x) + 1)  # 1, 2, 3, ..., len(x)
-        m = (
-            (N * t - S) / (N - j + 1) if np.isfinite(N) else t
-        )  # mean of population after (j-1)st draw, if null is true
+        _S, Stot, _j, m = self.sjm(N, t, x)
         x = np.array(x)
         with np.errstate(divide="ignore", invalid="ignore", over="ignore"):
             lam = self.bet(x)
@@ -215,11 +213,7 @@ class NonnegMean:
         u = self.u
         N = self.N
         eta = getattr(self, "eta", u * (1 - np.finfo(float).eps))
-        S = np.insert(np.cumsum(x), 0, 0)[0:-1]  # 0, x_1, x_1+x_2, ...,
-        j = np.arange(1, len(x) + 1)  # 1, 2, 3, ..., len(x)
-        m = (
-            (N * eta - S) / (N - j + 1) if np.isfinite(N) else eta
-        )  # mean of population after (j-1)st draw, if eta is the mean
+        _S, _Stot, _j, m = self.sjm(N, eta, x)
         if (negs := np.sum(m < 0)) > 0:
             warnings.warn(
                 f"Implied population mean is negative in {negs} of {len(x)} terms"
@@ -279,12 +273,7 @@ class NonnegMean:
         d = getattr(self, "d", 100)
         f = getattr(self, "f", 0)
         minsd = getattr(self, "minsd", 10**-6)
-        #
-        S = np.insert(np.cumsum(x), 0, 0)[0:-1]  # 0, x_1, x_1+x_2, ...,
-        j = np.arange(1, len(x) + 1)  # 1, 2, 3, ..., len(x)
-        m = (
-            (N * t - S) / (N - j + 1) if np.isfinite(N) else t
-        )  # mean of population after (j-1)st draw, if null is true
+        S, _Stot, j, m = self.sjm(N, t, x)
         # Welford's algorithm for running mean and running sd
         mj = [x[0]]
         sdj = [0]
@@ -401,6 +390,7 @@ class NonnegMean:
         )  # asymptotic limit of c
         c_g_g = getattr(self, "c_grapa_grow", 0)  # rate to let c grow towards c_g_m
         #
+        # TODO: can the below be rafactored to use sjm()?
         j = np.arange(1, len(x) + 1)  # 1, 2, 3, ..., len(x)
         # Welford's algorithm for running mean and running sd
         mj = [x[0]]
@@ -503,11 +493,7 @@ class NonnegMean:
         assert N > 0, "Population size not positive!"
         assert N == int(N), "Non-integer population size!"
 
-        S = np.insert(np.cumsum(x + g), 0, 0)[0:-1]  # 0, x_1, x_1+x_2, ...,
-        j = np.arange(1, len(x) + 1)  # 1, 2, 3, ..., len(x)
-        m = (
-            (N * (t + g) - S) / (N - j + 1) if np.isfinite(N) else t + g
-        )  # mean of population after (j-1)st draw, if null is true
+        _S, _Stot, _j, m = self.sjm(N, t+g, x+g)
         with np.errstate(divide="ignore", invalid="ignore", over="ignore"):
             terms = np.cumprod((x + g) / m)
         terms[m < 0] = np.inf
