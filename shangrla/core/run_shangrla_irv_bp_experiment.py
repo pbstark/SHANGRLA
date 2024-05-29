@@ -108,8 +108,8 @@ def main():
                          'assertion_file'   : args.ASSERTIONS,
                          'assertion_json'   : assertion_json,
                          'audit_type'       : Audit.AUDIT_TYPE.POLLING,
-                         'test'             : NonnegMean.alpha_mart,
-                         'estim'            : NonnegMean.shrink_trunc
+                         'test'             : 'ALPHA MART',
+                         'estim'            : 'SHRINK TRUNC'
                          }
                     }
     contests = Contest.from_dict_of_dicts(contest_dict)
