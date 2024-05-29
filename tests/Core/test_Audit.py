@@ -16,10 +16,10 @@ from cryptorandom.sample import random_permutation
 from cryptorandom.sample import sample_by_index
 
 
-from shangrla.Audit import Audit, Assertion, Assorter, Contest, CVR, Stratum
-from shangrla.NonnegMean import NonnegMean
-from shangrla.Dominion import Dominion
-from shangrla.Hart import Hart
+from shangrla.core.Audit import Audit, Assertion, Assorter, Contest, CVR, Stratum
+from shangrla.core.NonnegMean import NonnegMean
+from shangrla.core.Dominion import Dominion
+from shangrla.core.Hart import Hart
 
 #######################################################################################################
 
