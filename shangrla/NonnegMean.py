@@ -1,8 +1,6 @@
 import math
 import numpy as np
 import warnings
-from cryptorandom.sample import random_permutation
-from cryptorandom.sample import sample_by_index
 
 ##########################################################################################
 
@@ -127,11 +125,37 @@ class NonnegMean:
         )  # final sample makes the total greater than the null
         return min(1, 1 / np.max(terms)), np.minimum(1, 1 / terms)
 
-    def sjm(self, N, t, x):
+    def sjm(self, N: int, t: float, x: np.array) -> tuple[np.array, float, np.array, np.array]:
+        """
+        This method calculates the cumulative sum of the input array `x`, the total sum of `x`,
+        an array of indices, and the mean of the population after each draw if the null hypothesis is true.
+
+        Parameters
+        ----------
+        N : int or float
+            The size of the population. If N is np.inf, it means the sampling is with replacement.
+        t : float
+            The hypothesized population mean under the null hypothesis.
+        x : np.array
+            The input data array.
+
+        Returns
+        -------
+        S : np.array
+            The cumulative sum of the input array `x`, excluding the last element.
+        Stot : float
+            The total sum of the input array `x`.
+        j : np.array
+            An array of indices from 1 to the length of `x`.
+        m : np.array
+            The mean of the population after each draw if the null hypothesis is true.
+        """
+        assert isinstance(N, int) or (math.isinf(N) and N > 0), "Population size is not an integer!"
         S = np.insert(np.cumsum(x), 0, 0)  # 0, x_1, x_1+x_2, ...,
         Stot = S[-1]  # sample total
         S = S[0:-1]  # same length as the data
         j = np.arange(1, len(x) + 1)  # 1, 2, 3, ..., len(x)
+        assert j[-1] <= N, "Sample size is larger than the population!"
         m = (
             (N * t - S) / (N - j + 1) if np.isfinite(N) else t
         )  # mean of population after (j-1)st draw, if null is true (t=eta is the mean)
@@ -650,15 +674,8 @@ class NonnegMean:
             1, 1 / terms
         )
 
-    def sample_size(
-        self,
-        x: list = None,
-        alpha: float = 0.05,
-        reps: int = None,
-        prefix: bool = False,
-        quantile: float = 0.5,
-        **kwargs,
-    ) -> int:
+    def sample_size(self, x: list = None, alpha: float = 0.05, reps: int = None, prefix: bool = False,
+                    quantile: float = 0.5, **kwargs) -> int:
         """
         Estimate the sample size to reject the null hypothesis that the population mean of a population of size
         `N` is `<=t` at significance level `alpha`, using pilot data `x`.
