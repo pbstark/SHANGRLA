@@ -52,3 +52,6 @@ test = [
     "flake8",
     "openpyxl"
 ]
+
+[project.scripts]
+raire = "shangrla.raire.run_raire:main"
