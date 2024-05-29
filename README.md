@@ -58,8 +58,6 @@ pip install -e .[test,examples]
 
 ## Step-by-step guide to San Francisco RLA pilots
 
-----------------------------------------------------
-
 You can recompute for yourself every step of the San Francsicso 2019 RLA pilot audit, except the retrieval of paper ballots.
 
 1. Download the latest cvr export zip file from 
