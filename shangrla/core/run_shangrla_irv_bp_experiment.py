@@ -35,26 +35,7 @@ def main():
             help="risk limit (default: 0.05)",
             type=int,
             default=0.05)
-    parser.add_argument("-r", "--risk_function",
-            help="risk function to use (default: alpha_mart)",
-            choices=["alpha_mart", "kaplan_mart"],
-            default="alpha_mart")
     args = parser.parse_args()
-
-
-    # -------------------------------------------------------------------------
-    # Define other parameters (these should not need changing).
-
-    if args.risk_function != 'alpha_mart':
-        raise ValueError(f'risk_function value "{args.risk_function}" not implemented')
-
-    def estim_fn(x, N, mu, eta, u):
-        return(NonnegMean.shrink_trunc(x, N, mu, eta, d=args.eta_d_value))
-
-    def risk_fn(x, m):
-        return(NonnegMean.alpha_mart(x, eta=(m+1)/2, N=max_cards, estim=estim_fn))
-    #def risk_fn(x, m, N):
-    #    return(NonnegMean.alpha_mart(x, eta=(m+1)/2, N=N, estim=estim_fn))
 
 
     # -------------------------------------------------------------------------
