@@ -1,5 +1,5 @@
 """
-The raire package.
+RAIRE
 """
 
 __all__ = ["raire_utils", "raire", "sample_estimator", "simp_assertions"]
