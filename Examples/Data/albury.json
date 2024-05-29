@@ -1,0 +1,55 @@
+{
+    "Overall Expected Polls (#)": "4",
+    "Ballots involved in audit (#)": "46357",
+    "parameters": {
+        "risk_limit": "0.050000000000000003"
+    },
+    "audits": [
+        {
+            "contest": "1",
+            "winner": "3",
+            "eliminated": [
+                "2",
+                "1",
+                "4",
+                "0"
+            ],
+            "Expected Polls (#)": "4",
+            "Expected Polls (%)": "1",
+            "assertions": [
+                {
+                    "winner": "3",
+                    "loser": "0",
+                    "already_eliminated": [
+                        "1",
+                        "2",
+                        "4"
+                    ],
+                    "assertion_type": "IRV_ELIMINATION",
+                    "explanation": "Rules out outcomes with tail [... 3 0]"
+                },
+                {
+                    "winner": "3",
+                    "loser": "2",
+                    "already_eliminated": "",
+                    "assertion_type": "WINNER_ONLY",
+                    "explanation": "Rules out case where 3 is eliminated before 2"
+                },
+                {
+                    "winner": "3",
+                    "loser": "1",
+                    "already_eliminated": "",
+                    "assertion_type": "WINNER_ONLY",
+                    "explanation": "Rules out case where 3 is eliminated before 1"
+                },
+                {
+                    "winner": "3",
+                    "loser": "4",
+                    "already_eliminated": "",
+                    "assertion_type": "WINNER_ONLY",
+                    "explanation": "Rules out case where 3 is eliminated before 4"
+                }
+            ]
+        }
+    ]
+}
