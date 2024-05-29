@@ -16,17 +16,17 @@ from cryptorandom.sample import random_permutation
 from cryptorandom.sample import sample_by_index
 
 
-from shangrla.Audit import Audit, Assertion, Assorter, Contest, CVR, Stratum
-from shangrla.NonnegMean import NonnegMean
-from shangrla.Dominion import Dominion
-from shangrla.Hart import Hart
+from shangrla.core.Audit import Audit, Assertion, Assorter, Contest, CVR, Stratum
+from shangrla.core.NonnegMean import NonnegMean
+from shangrla.core.Dominion import Dominion
+from shangrla.core.Hart import Hart
 
 
 
 ######################################################################################
 class TestHart:
     def test_read_cvrs_directory(self):
-        cvr_list = Hart.read_cvrs_directory("tests/Data/Hart_CVRs")
+        cvr_list = Hart.read_cvrs_directory("tests/Core/Data/Hart_CVRs")
         cvr_1 = cvr_list[0]
         cvr_2 = cvr_list[1]
         assert list(cvr_1.votes.keys()) == ["PRESIDENT","GOVERNOR","MAYOR"]
@@ -35,7 +35,7 @@ class TestHart:
         assert cvr_2.get_vote_for("PRESIDENT", "George Washington")
 
     def test_read_cvrs_zip(self):
-        cvr_list = Hart.read_cvrs_zip("tests/Data/Hart_CVRs.zip")
+        cvr_list = Hart.read_cvrs_zip("tests/Core/Data/Hart_CVRs.zip")
         cvr_1 = cvr_list[0]
         cvr_2 = cvr_list[1]
         assert list(cvr_1.votes.keys()) == ["PRESIDENT","GOVERNOR","MAYOR"]
@@ -46,14 +46,14 @@ class TestHart:
 
     def test_prep_manifest(self):
         # without phantoms
-        manifest_f = pd.read_excel("tests/Data/Hart_manifest.xlsx")
+        manifest_f = pd.read_excel("tests/Core/Data/Hart_manifest.xlsx")
         max_cards = 1141765
         n_cvrs = 1141765
         manifest, manifest_cards, phantoms = Hart.prep_manifest(manifest_f, max_cards, n_cvrs)
         assert manifest['Number of Ballots'].astype(int).sum() == max_cards
         assert phantoms == 0
         # with phantoms
-        manifest_f = pd.read_excel("tests/Data/Hart_manifest.xlsx")
+        manifest_f = pd.read_excel("tests/Core/Data/Hart_manifest.xlsx")
         max_cards = 1500000
         manifest, manifest_cards, phantoms = Hart.prep_manifest(manifest_f, max_cards, n_cvrs)
         assert manifest['Number of Ballots'].astype(int).sum() == max_cards

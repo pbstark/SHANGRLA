@@ -15,10 +15,10 @@ from cryptorandom.cryptorandom import SHA256, random, int_from_hash
 from cryptorandom.sample import random_permutation
 from cryptorandom.sample import sample_by_index
 
-from shangrla.Audit import Audit, Assertion, Assorter, Contest, CVR, Stratum
-from shangrla.NonnegMean import NonnegMean
-from shangrla.Dominion import Dominion
-from shangrla.Hart import Hart
+from shangrla.core.Audit import Audit, Assertion, Assorter, Contest, CVR, Stratum
+from shangrla.core.NonnegMean import NonnegMean
+from shangrla.core.Dominion import Dominion
+from shangrla.core.Hart import Hart
 
 ######################################################################################
 class TestAssertion:
@@ -207,7 +207,7 @@ class TestAssertion:
 
     def test_rcv_assorter(self):
         import json
-        with open('./tests/Data/334_361_vbm.json') as fid:
+        with open('./tests/Core/Data/334_361_vbm.json') as fid:
             data = json.load(fid)
             AvB = Contest.from_dict({'id': 'AvB',
                      'name': 'AvB',
