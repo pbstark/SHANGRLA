@@ -32,7 +32,7 @@ class NonnegMean:
 
     ESTIMATORS = {
         "OPTIMAL COMPARISON": "optimal_comparison",
-        "SRHINK TRUNC": "shrink_trunc",
+        "SHRINK TRUNC": "shrink_trunc",
         "FIXED ALTERNATIVE MEAN": "fixed_alternative_mean",
         "TRANSFORM BET": "estim_via_bet"
     }
