@@ -184,14 +184,14 @@ class TestNonnegMean:
         # test for sampling with replacement, constant c
         for val in [0.6, 0.7]:
             for lam in [0.2, 0.5]:
-                test = NonnegMean(N=N, u=u, bet=NonnegMean.fixed_bet, 
-                                  c_grapa_0=c_g_0, c_grapa_m=c_g_m, c_grapa_grow=c_g_g, 
+                test = NonnegMean(N=N, u=u, bet=NonnegMean.fixed_bet,
+                                  c_grapa_0=c_g_0, c_grapa_m=c_g_m, c_grapa_grow=c_g_g,
                                   lam=lam)
                 x = val*np.ones(n)
-                lam_0 = test.agrapa(x) 
+                lam_0 = test.agrapa(x)
                 term = max(0, min(c_g_0/t, (val-t)/(val-t)**2))
                 lam_t = term*np.ones_like(x)
-                lam_t[0] = lam 
+                lam_t[0] = lam
                 np.testing.assert_almost_equal(lam_0, lam_t)
         # test for sampling without replacement, growing c, but zero sample variance
         N = 10
@@ -203,10 +203,10 @@ class TestNonnegMean:
         for val in [0.75, 0.9]:
             for lam in [0.25, 0.5]:
                 test = NonnegMean(N=N, u=u, bet=NonnegMean.agrapa,
-                                  c_grapa_0=c_g_0, c_grapa_max=c_g_m, c_grapa_grow=c_g_g, 
+                                  c_grapa_0=c_g_0, c_grapa_max=c_g_m, c_grapa_grow=c_g_g,
                                   lam=lam)
                 x = val*np.ones(n)
-                lam_0 = test.agrapa(x) 
+                lam_0 = test.agrapa(x)
                 t_adj = np.array([(N*t - i*val)/(N-i) for i in range(n)])
                 mj = val
                 lam_t = (mj-t_adj)/(mj-t_adj)**2
@@ -215,7 +215,7 @@ class TestNonnegMean:
                 cj = c_g_0 + (c_g_m-c_g_0)*(1-1/(1+c_g_g*np.sqrt(j)))
                 lam_t = np.minimum(cj/t_adj, lam_t)
                 np.testing.assert_almost_equal(lam_0, lam_t)
-        
+
     def test_betting_mart(self):
         N = np.infty
         n = 20
@@ -227,6 +227,32 @@ class TestNonnegMean:
                 x = val*np.ones(n)
                 np.testing.assert_almost_equal(test.betting_mart(x)[0], 1/(1+lam*(val-t))**n)
 
+    def test_sjm(self):
+        # test_sjm_with_replacement:
+        test = NonnegMean()
+        S, Stot, j, m = test.sjm(np.inf, 0.52, np.array([1, 0, 0.5, 4, 0.5]))
+        np.testing.assert_array_equal(S, np.array([0, 1, 1, 1.5, 5.5]))
+        assert Stot == 6
+        np.testing.assert_array_equal(j, np.array([1, 2, 3, 4, 5]))
+        np.testing.assert_array_equal(m, np.array([0.52, 0.52, 0.52, 0.52, 0.52]))
+
+        # test_sjm_without_replacement:
+        test = NonnegMean()
+        S, Stot, j, m = test.sjm(5, 1.53, np.array([1, 2, 0.5, 1, 4]))
+        np.testing.assert_array_equal(S, np.array([0, 1, 3, 3.5, 4.5]))
+        assert Stot == 8.5
+        np.testing.assert_array_equal(j, np.array([1, 2, 3, 4, 5]))
+        np.testing.assert_array_almost_equal(m, np.array([1.53, 1.6625, 1.55, 2.075, 3.15]))
+
+        # test_sjm_with_sample_larger_than_population:
+        test = NonnegMean()
+        with pytest.raises(AssertionError):
+            test.sjm(4, 0.55, np.array([1, 2, 3, 4, 5]))
+
+        # test_sjm_with_non_integer_population:
+        test = NonnegMean()
+        with pytest.raises(AssertionError):
+            test.sjm(4.5, 0.56, np.array([1, 2, 3, 4, 5]))
 
 ##########################################################################################
 if __name__ == "__main__":
