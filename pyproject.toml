@@ -18,9 +18,9 @@ authors = [
   {name = "Philip B. Stark", email = "pbstark@berkeley.edu"},
   {name = "Vanessa Teague"},
   {name = "Michelle Blom"},
-  {name = "Alexander Ek"),
-  {name = "Floyd Everest"),
-  {name = "Damjan Vukcevic")
+  {name = "Alexander Ek"},
+  {name = "Floyd Everest"},
+  {name = "Damjan Vukcevic"}
 ]
 maintainers = [
   {name = "Philip B. Stark", email = "pbstark@berkeley.edu"},
