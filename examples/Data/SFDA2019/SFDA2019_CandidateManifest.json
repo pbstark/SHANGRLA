@@ -1,0 +1,40 @@
+{
+    "Version": "5.2.18.2",
+    "List": [
+        {
+            "Description": "SUZY LOFTUS",
+            "Id": 15,
+            "ExternalId": null,
+            "ContestId": 339,
+            "Type": "Regular"
+        },
+        {
+            "Description": "LEIF DAUTCH",
+            "Id": 16,
+            "ExternalId": null,
+            "ContestId": 339,
+            "Type": "Regular"
+        },
+        {
+            "Description": "NANCY TUNG",
+            "Id": 17,
+            "ExternalId": null,
+            "ContestId": 339,
+            "Type": "Regular"
+        },
+        {
+            "Description": "CHESA BOUDIN",
+            "Id": 18,
+            "ExternalId": null,
+            "ContestId": 339,
+            "Type": "Regular"
+        },
+        {
+            "Description": "Write-in",
+            "Id": 45,
+            "ExternalId": "",
+            "ContestId": 339,
+            "Type": "WriteIn"
+        }
+    ]
+}
