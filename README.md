@@ -71,15 +71,13 @@ Damjan Vukcevic, David Wu, Alexander Ek, Floyd Everest.
 [![GNU AGPL][agpl-img]][agpl]  
 The software, and documentation of the software, in this repository is provided
 under the [GNU Affero General Public License][agpl] (AGPL).
-
 You can redistribute and/or modify the software and documentation under the
 terms of the AGPL as published by the Free Software Foundation, either version
 3 of the License, or (at your option) any later version.
 
-This program is distributed in the hope that it will be useful, but WITHOUT ANY
+The software is distributed in the hope that it will be useful, but WITHOUT ANY
 WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
 PARTICULAR PURPOSE. See the AGPL for more details.
-
 A copy of the AGPL is provided in `LICENSE`.
 
 ### Other files
