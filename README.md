@@ -59,7 +59,7 @@ Additional development by Amanda Glazer, Jake Spertus, Ian Waudby-Smith,
 David Wu, Alexander Ek, Floyd Everest and Damjan Vukcevic.
 
 
-## Licence
+## Licences
 
 Copyright (C) 2019-2024  Philip B. Stark, Vanessa Teague, Michelle Blom,
 Peter Stuckey, Ian Waudby-Smith, Jacob Spertus, Amanda Glazer,
