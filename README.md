@@ -1,8 +1,5 @@
 # Sets of Half-Average Nulls Generate Risk-Limiting Audits (SHANGRLA)
 
-initial code by Michelle Blom, Andrew Conway, Philip B. Stark, Peter J. Stuckey and Vanessa Teague.   
-additional development by Amanda Glazer, Jake Spertus, Alexander Ek, Floyd Everest and Damjan Vukcevic
-
 Risk-limiting audits (RLAs) offer a statistical guarantee: if a full manual tally of the paper ballots would show that the reported election outcome is wrong, an RLA has a known minimum chance of leading to a full manual tally.
 RLAs generally rely on random samples.
 
@@ -52,6 +49,52 @@ Also include the optional dependencies for tests and examples:
 ```
 pip install -e .[test,examples]
 ```
+
+## Authors and contributors
+
+The initial code was written by Michelle Blom, Andrew Conway, Philip B. Stark,
+Peter J. Stuckey and Vanessa Teague.
+
+Additional development by Amanda Glazer, Jake Spertus, Ian Waudby-Smith,
+David Wu, Alexander Ek, Floyd Everest and Damjan Vukcevic.
+
+
+## Licence
+
+Copyright (C) 2019-2024  Philip B. Stark, Vanessa Teague, Michelle Blom,
+Peter Stuckey, Ian Waudby-Smith, Jacob Spertus, Amanda Glazer,
+Damjan Vukcevic, David Wu, Alexander Ek, Floyd Everest.
+
+
+### Software
+
+[![GNU AGPL][agpl-img]][agpl]  
+The software, and documentation of the software, in this repository is provided
+under the [GNU Affero General Public License][agpl] (AGPL).
+
+You can redistribute and/or modify the software and documentation under the
+terms of the AGPL as published by the Free Software Foundation, either version
+3 of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See the AGPL for more details.
+
+A copy of the AGPL is provided in `LICENSE`.
+
+### Other files
+
+[![Creative Commons License][cc-img]][cc]  
+The other documents in this repository (not including the software and
+documentation of the software) are provided under a [Creative Commons
+Attribution-NoDerivs 4.0 International License][cc] (CC BY-ND 4.0).
+
+
+[agpl]: https://www.gnu.org/licenses/agpl-3.0.en.html
+[agpl-img]: https://www.gnu.org/graphics/agplv3-88x31.png
+
+[cc]: https://creativecommons.org/licenses/by-nd/4.0/
+[cc-img]: https://i.creativecommons.org/l/by-nd/4.0/88x31.png
 
 
 ----------------------------------------------------
