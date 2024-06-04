@@ -78,7 +78,6 @@ def main():
                                   'replacement' : True}
             }
         })
-    print(audit)
     contest_dict = {'1':{'name'             : 'Contest1',
                          'risk_limit'       : args.risk_limit,
                          'cards'            : max_cards,
