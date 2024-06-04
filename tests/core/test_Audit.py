@@ -11,11 +11,11 @@ class TestAudit:
     def test_from_dict(self):
         d = {
          'seed':           12345678901234567890,
-         'cvr_file':       './Data/SFDA2019_PrelimReport12VBMJustDASheets.raire',
-         'manifest_file':  './Data/N19 ballot manifest with WH location for RLA Upload VBM 11-14.xlsx',
-         'sample_file':    './Data/sample.csv',
-         'mvr_file':       './Data/mvr.json',
-         'log_file':       './Data/log.json',
+         'cvr_file':       './data/SFDA2019_PrelimReport12VBMJustDASheets.raire',
+         'manifest_file':  './data/N19 ballot manifest with WH location for RLA Upload VBM 11-14.xlsx',
+         'sample_file':    './data/sample.csv',
+         'mvr_file':       './data/mvr.json',
+         'log_file':       './data/log.json',
          'quantile':       0.8,
          'error_rate_1':   0.001,
          'error_rate_2':   0.0001,
