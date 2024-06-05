@@ -1,0 +1,137 @@
+N_cards: 146627
+contests:
+  '339':
+    assertion_file: ./Data/SFDA2019_PrelimReport11VBMJustDAAssertions.json
+    assertion_json:
+    - already_eliminated: ''
+      assertion_type: WINNER_ONLY
+      explanation: Rules out case where 15 is eliminated before 16
+      loser: '16'
+      winner: '15'
+    - already_eliminated:
+      - '16'
+      - '17'
+      assertion_type: IRV_ELIMINATION
+      explanation: Rules out outcomes with tail [... 15 18]
+      loser: '18'
+      winner: '15'
+    - already_eliminated:
+      - '15'
+      - '16'
+      assertion_type: IRV_ELIMINATION
+      explanation: Rules out outcomes with tail [... 18 17]
+      loser: '17'
+      winner: '18'
+    - already_eliminated:
+      - '16'
+      assertion_type: IRV_ELIMINATION
+      explanation: Rules out outcomes with tail [... 15 17 18]
+      loser: '17'
+      winner: '15'
+    - already_eliminated:
+      - '16'
+      - '18'
+      assertion_type: IRV_ELIMINATION
+      explanation: Rules out outcomes with tail [... 15 17]
+      loser: '17'
+      winner: '15'
+    candidates:
+    - '15'
+    - '16'
+    - '17'
+    - '18'
+    - '45'
+    choice_function: IRV
+    margins:
+      15 v 16: !!python/object/apply:numpy.core.multiarray.scalar
+      - &id001 !!python/object/apply:numpy.dtype
+        args:
+        - f8
+        - 0
+        - 1
+        state: !!python/tuple
+        - 3
+        - <
+        - null
+        - null
+        - null
+        - -1
+        - -1
+        - 0
+      - !!binary |
+        AKhK0mvsWT8=
+      15 v 17 elim 16: !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        UAD/E4GntD8=
+      15 v 17 elim 16 18: !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        kInAPl4MvD8=
+      15 v 18 elim 16 17: !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        wAN304ujnT8=
+      18 v 17 elim 15 16: !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        gC7WL5N7pz8=
+    max_p: !!python/object/apply:numpy.core.multiarray.scalar
+    - *id001
+    - !!binary |
+      /6jDdmMIaz8=
+    n_winners: 1
+    p_values:
+      15 v 16: !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        AAAAAAAAAAA=
+      15 v 17 elim 16: !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        /6jDdmMIaz8=
+      15 v 17 elim 16 18: !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        zjq1UzbwMD8=
+      15 v 18 elim 16 17: !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        AAAAAAAAAAA=
+      18 v 17 elim 15 16: !!python/object/apply:numpy.core.multiarray.scalar
+      - *id001
+      - !!binary |
+        AAAAAAAAAAA=
+    proved:
+      15 v 16: &id002 !!python/object/apply:numpy.core.multiarray.scalar
+      - !!python/object/apply:numpy.dtype
+        args:
+        - b1
+        - 0
+        - 1
+        state: !!python/tuple
+        - 3
+        - '|'
+        - null
+        - null
+        - null
+        - -1
+        - -1
+        - 0
+      - !!binary |
+        AQ==
+      15 v 17 elim 16: *id002
+      15 v 17 elim 16 18: *id002
+      15 v 18 elim 16 17: *id002
+      18 v 17 elim 15 16: *id002
+    reported_winners:
+    - '15'
+    risk_limit: 0.05
+error_rate: 0.002
+g: 0.1
+manifest_cards: 293485
+n_cvrs: 146627
+phantom_cards: 0
+replacement: true
+risk_function: kaplan_martingale
+seed: 12345678901234567890
