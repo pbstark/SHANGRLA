@@ -5,6 +5,19 @@ import warnings
 ##########################################################################################
 
 
+def welford_mean_var(x: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Welford's algorithm for running mean and running sd
+    """
+    m = [x[0]]
+    v = [0]
+    for i, xi in enumerate(x[1:]):
+        m.append(m[-1] + (xi - m[-1]) / (i + 2))
+        v.append(v[-1] + (xi - m[-2]) * (xi - m[-1]))
+    v = v / np.arange(1, len(x) + 1)
+    return m, v
+
+
 class NonnegMean:
     """
     Tests of the hypothesis that the mean of a population of values in [0, u] is less than or equal to t.
@@ -286,7 +299,6 @@ class NonnegMean:
             minsd: positive float
                 lower threshold for the standard deviation of the sample, to avoid divide-by-zero errors and
                 to limit the weight of u
-
         """
         # set the parameters
         u = self.u
@@ -297,15 +309,9 @@ class NonnegMean:
         d = getattr(self, "d", 100)
         f = getattr(self, "f", 0)
         minsd = getattr(self, "minsd", 10**-6)
-        S, _Stot, j, m = self.sjm(N, t, x)
-        # Welford's algorithm for running mean and running sd
-        mj = [x[0]]
-        sdj = [0]
-        for i, xj in enumerate(x[1:]):
-            mj.append(mj[-1] + (xj - mj[-1]) / (i + 1))
-            sdj.append(sdj[-1] + (xj - mj[-2]) * (xj - mj[-1]))
-        sdj = np.sqrt(sdj / j)
-        # end of Welford's algorithm.
+        S, _, j, m = self.sjm(N, t, x)
+        _, v = welford_mean_var(x)
+        sdj = np.sqrt(v)
         # threshold the sd, set first two sds to 1
         sdj = np.insert(np.maximum(sdj, minsd), 0, 1)[0:-1]
         sdj[1] = 1
@@ -413,19 +419,7 @@ class NonnegMean:
             self, "c_grapa_max", (1 - np.finfo(float).eps)
         )  # asymptotic limit of c
         c_g_g = getattr(self, "c_grapa_grow", 0)  # rate to let c grow towards c_g_m
-        #
-        # TODO: can the below be rafactored to use sjm()?
-        j = np.arange(1, len(x) + 1)  # 1, 2, 3, ..., len(x)
-        # Welford's algorithm for running mean and running sd
-        mj = [x[0]]
-        sdj2 = [0]
-        for i, xj in enumerate(x[1:]):
-            mj.append(mj[-1] + (xj - mj[-1]) / (i + 1))
-            sdj2.append(sdj2[-1] + (xj - mj[-2]) * (xj - mj[-1]))
-        sdj2 = sdj2 / j
-        # end of Welford's algorithm.
-        mj = np.array(mj)
-        sdj2 = np.array(sdj2)
+        mj, sdj2 = welford_mean_var(x)
         t_adj = (
             (N * t - np.insert(np.cumsum(x), 0, 0)[0:-1]) / (N - np.arange(len(x)))
             if np.isfinite(N)
