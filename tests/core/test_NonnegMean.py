@@ -178,7 +178,7 @@ class TestNonnegMean:
         c_g_0 = 0.5
         c_g_m = 0.99
         c_g_g = 0
-        N = np.infty
+        N = np.inf
         u = 1
         n=10
         # test for sampling with replacement, constant c
@@ -217,7 +217,7 @@ class TestNonnegMean:
                 np.testing.assert_almost_equal(lam_0, lam_t)
 
     def test_betting_mart(self):
-        N = np.infty
+        N = np.inf
         n = 20
         t = 0.5
         u = 1
