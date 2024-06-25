@@ -7,7 +7,7 @@ import warnings
 
 def welford_mean_var(x: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """
-    Welford's algorithm for running mean and running sd
+    Welford's algorithm for running mean and variance
     """
     m = [x[0]]
     v = [0]
@@ -15,7 +15,7 @@ def welford_mean_var(x: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         m.append(m[-1] + (xi - m[-1]) / (i + 2))
         v.append(v[-1] + (xi - m[-2]) * (xi - m[-1]))
     v = v / np.arange(1, len(x) + 1)
-    return m, v
+    return np.array(m), v
 
 
 class NonnegMean:
