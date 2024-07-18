@@ -2,7 +2,7 @@ import pandas as pd
 import sys
 import pytest
 
-from shangrla.core.Dominion import Dominion
+from shangrla.formats.Dominion import Dominion
 
 ##########################################################################################
 

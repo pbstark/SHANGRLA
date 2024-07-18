@@ -9,7 +9,7 @@ import warnings
 import re
 import glob
 from collections.abc import Collection
-from .Audit import CVR
+from shangrla.core.Audit import CVR
 
 
 class Dominion:

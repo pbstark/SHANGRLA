@@ -10,7 +10,7 @@ import warnings
 import xml.etree.ElementTree as ET
 
 from zipfile import ZipFile
-from .Audit import CVR, Contest
+from shangrla.core.Audit import CVR, Contest
 
 
 class Hart:

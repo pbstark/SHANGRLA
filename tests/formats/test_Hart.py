@@ -3,7 +3,7 @@ import sys
 import pytest
 
 from shangrla.core.Audit import CVR
-from shangrla.core.Hart import Hart
+from shangrla.formats.Hart import Hart
 
 
 
