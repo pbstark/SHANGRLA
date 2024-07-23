@@ -2,6 +2,6 @@
 Core SHANGRLA functionality.
 """
 
-__all__ = ["Audit", "Dominion", "Hart", "IRVVisualisationUtils", "NonnegMean"]
+__all__ = ["Audit", "IRVVisualisationUtils", "NonnegMean"]
 
 from . import *
