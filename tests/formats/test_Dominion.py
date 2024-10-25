@@ -1,6 +1,7 @@
 import pandas as pd
 import sys
 import pytest
+from pathlib import Path
 
 from shangrla.formats.Dominion import Dominion
 
@@ -43,7 +44,7 @@ class TestDominion:
         """
         cvr_list = Dominion.read_cvrs(
             "tests/core/data/Dominion_CVRs/test_5.2.18.2.Dominion.json",
-            use_adjudicated=True,
+            use_current=True,
         )
         assert len(cvr_list) == 2
         cvr_1, cvr_2 = cvr_list
@@ -96,7 +97,7 @@ class TestDominion:
         """
         cvr_list = Dominion.read_cvrs(
             "tests/core/data/Dominion_CVRs/test_5.10.50.85.Dominion.json",
-            use_adjudicated=True
+            use_current=True
         )
         assert len(cvr_list) == 2
         cvr_1, cvr_2 = cvr_list
@@ -177,7 +178,80 @@ class TestDominion:
         assert cards[5] == [2, 2, 18, 2, 100, "18-2-100",200]
         assert cards[6] == [3, 3, 19, 3, 1, "19-3-1",201]
         assert len(mvr_phantoms) == 0
-        
+
+    def test_make_contest_dict():
+        cvr_dir = Path("data/SF_CVR_Export_20240311150227")
+        contest_manifest = cvr_dir / "ContestManifest.json"
+        candidate_manifest = cvr_dir / "CandidateManifest.json"
+    
+        cvr_list = Dominion.read_cvrs_directory(
+            cvr_dir, use_current=True, include_groups=(2,)
+        )
+    
+        c = make_contest_dict(
+            cvr_list,
+            contest_manifest,
+            candidate_manifest,
+            {},
+        )
+    
+        assert c["8"]["name"] == "DEM CCC DISTRICT 17"
+        assert c["8"]["risk_limit"] == pytest.approx(0.05)
+        assert c["8"]["cards"] == 82019
+        assert c["8"]["choice_function"] == Contest.SOCIAL_CHOICE_FUNCTION.PLURALITY
+        assert c["8"]["n_winners"] == 14
+        assert c["8"]["candidates"] == [
+            "24",
+            "25",
+            "26",
+            "27",
+            "28",
+            "29",
+            "30",
+            "31",
+            "32",
+            "33",
+            "34",
+            "35",
+            "36",
+            "37",
+            "38",
+            "39",
+            "40",
+            "41",
+            "42",
+            "43",
+            "44",
+            "45",
+            "46",
+            "47",
+            "48",
+            "49",
+            "50",
+            "51",
+            "52",
+            "53",
+            "241",
+        ]
+        assert c["8"]["winner"] == [
+            "49",
+            "30",
+            "27",
+            "52",
+            "36",
+            "26",
+            "32",
+            "45",
+            "28",
+            "51",
+            "39",
+            "29",
+            "44",
+            "35",
+        ]
+        assert c["8"]["assertion_file"] is None
+        assert c["8"]["audit_type"] == "CARD_COMPARISON"
+
 ##########################################################################################
 if __name__ == "__main__":
     sys.exit(pytest.main(["-qq"], plugins=None))

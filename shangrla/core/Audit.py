@@ -131,17 +131,17 @@ class CVR:
 
     Ranked votes also have simple representation, e.g., if the CVR is
             {"id": "A-001-01", "votes": {"mayor": {"Alice": 1, "Bob": 2, "Candy": 3, "Dan": ''}}}
-    Then int(vote_for("Candy","mayor"))=3, Candy's rank in the "mayor" contest.
+    Then int(get_vote_for("Candy","mayor"))=3, Candy's rank in the "mayor" contest.
 
     CVRs can be flagged as `phantoms` to account for ballot cards not listed in the manifest using the boolean
     `phantom` attribute.
 
     CVRs can be assigned to a `tally_pool`, useful for the ONEAudit method or batch-level comparison audits
-    using the `batch` attribute (batch-level comparison audits are not currently implemented)
+    using the `pool` attribute (batch-level comparison audits are not currently implemented)
 
     CVRs can be flagged for use in ONEAudit "pool" assorter means. When a CVR is flagged this way, the
     value of the assorter applied to the MVR is compared to the mean value of the assorter applied to the
-    CVRs in the tally batch the CVR belongs to.
+    CVRs in the tally pool the CVR belongs to.
 
     CVRs can include sampling probabilities `p` and sample numbers `sample_num` (pseudo-random numbers
     to facilitate consistent sampling)
@@ -439,7 +439,7 @@ class CVR:
         per the later mention.
 
         If any of the CVRs has phantom==False, sets phantom=False in the result.
-        If only one of a multiple has `tally_pool`, set the tally_pool to that value; if they disagree, throw an error
+        If only one of a multiple has `tally_pool`, set the tally_pool to that value; if they disagree, throw an error.
         Set `pool=True` if any CVR with the ID has `pool=True`
 
 
@@ -1121,10 +1121,7 @@ class Audit:
                 assert (
                     w in con.candidates
                 ), f"reported winner {w} is not a candidate in contest {c}"
-            if con.choice_function in [
-                Contest.SOCIAL_CHOICE_FUNCTION.IRV,
-                Contest.SOCIAL_CHOICE_FUNCTION.SUPERMAJORITY,
-            ]:
+            if con.choice_function in [Contest.SOCIAL_CHOICE_FUNCTION.IRV,]:
                 assert (
                     con.n_winners == 1
                 ), f"{con.choice_function} can have only 1 winner in contest {c}"
@@ -2271,7 +2268,7 @@ class Assorter:
         a priori upper bound on the value the assorter assigns to any dict of selections
 
     tally_pool_means: dict
-        mean of the assorter over each tally_pool of CVRs, for ONEAuditr
+        mean of the assorter over each tally_pool of CVRs, for ONEAudit
 
     The basic method is assort, but the constructor can be called with (winner, loser)
     instead. In that case,
@@ -2468,14 +2465,18 @@ class Assorter:
         # assort the MVR
         mvr_assort = (
             0
-            if mvr.phantom or (use_style and not mvr.has_contest(self.contest.id))
-            else self.assort(mvr)
+            if 
+                mvr.phantom or (use_style and not mvr.has_contest(self.contest.id))
+            else 
+                self.assort(mvr)
         )
         # assort the CVR
         cvr_assort = (
-            self.tally_pool_means[cvr.tally_pool]
-            if cvr.pool and self.tally_pool_means is not None
-            else int(cvr.phantom) / 2 + (1 - int(cvr.phantom)) * self.assort(cvr)
+            self.tally_pool_means[cvr.tally_pool] 
+            if 
+                cvr.pool and self.tally_pool_means is not None
+            else 
+                int(cvr.phantom) / 2 + (1 - int(cvr.phantom)) * self.assort(cvr)
         )
         return cvr_assort - mvr_assort
 
@@ -2660,10 +2661,12 @@ class Contest:
             assn.find_margin_from_tally()
 
     @classmethod
-    def tally(cls, con_dict: dict = None, cvr_list: "Collection[CVR]" = None) -> dict:
+    def tally(cls, con_dict: dict = None, cvr_list: "Collection[CVR]" = None, enforce_rules: bool = True) -> dict:
         """
         Tally the votes in the contests in con_dict from a collection of CVRs.
-        Only tallies plurality, multi-winner plurality, supermajority, and approval contests
+        Only tallies plurality, multi-winner plurality, supermajority, and approval contests.
+
+        If 
 
         Parameters
         ----------
@@ -2671,6 +2674,11 @@ class Contest:
             dict of Contest objects to find tallies for
         cvr_list: list[CVR]
             list of CVRs containing the votes to tally
+        enforce_rules: bool
+            Enforce the voting rules for the social choice function?
+            For instance, if the contest is a vote-for-k plurality and the CVR has more than k votes, 
+            then if `enforce_rules`, no candidate's total is incremented, but if `not enforce_rules`,
+            the tally for every candidate with a vote is incremented.
 
         Returns
         -------
@@ -2697,9 +2705,15 @@ class Contest:
         for cvr in cvr_list:
             for c in cons:
                 if cvr.has_contest(c.id):
-                    for candidate, vote in cvr.votes[c.id].items():
-                        if candidate:
-                            c.tally[candidate] += int(bool(vote))
+                    if enforce_rules:
+                        n_votes = 0
+                        for candidate, vote in cvr.votes[c.id].items():
+                            if candidate:
+                                n_votes += int(bool(vote))
+                    if (not enforce_rules) or (n_votes <= c.n_winners):
+                        for candidate, vote in cvr.votes[c.id].items():
+                            if candidate:
+                                c.tally[candidate] += int(bool(vote))
 
     @classmethod
     def from_dict(cls, d: dict) -> dict:

@@ -3,9 +3,10 @@ import sys
 import pytest
 from cryptorandom.cryptorandom import SHA256
 
-from shangrla.core.Audit import Audit, Contest, CVR
+from shangrla.core.Audit import Audit, Assertion, Contest, CVR
 
 #######################################################################################################
+
 
 class TestCVR:
 
@@ -126,9 +127,26 @@ class TestCVR:
         for i in range(3,5):
             assert set(cvr_list[i].votes.keys()) == {'AvB', 'CvD', 'EvF'} 
         assert not CVR.add_pool_contests(cvr_list, tally_pools)
+
+    def test_oneaudit_overstatement(self):
+        cvr_dicts = [{'id': 1, 'tally_pool': 1, 'votes': {'AvB': {}, 'CvD': {'Candy':True}}},
+                     {'id': 2, 'tally_pool': 1, 'votes': {'CvD': {'Elvis':True, 'Candy':False}, 'EvF': {}}},
+                     {'id': 3, 'tally_pool': 1, 'votes': {'GvH': {}}},
+                     {'id': 4, 'tally_pool': 2, 'votes': {'AvB': {}, 'CvD': {'Candy':True}}},
+                     {'id': 5, 'tally_pool': 2, 'votes': {'CvD': {'Elvis':True, 'Candy':False}, 'EvF': {}}}
+                   ]
+        cvr_list = CVR.from_dict(cvr_dicts)
+        tally_pool_set = set(c.tally_pool for c in cvr_list)
+        tally_pools = {}
+        for p in tally_pool_set:
+            tally_pools[p] = CVR.pool_contests(list([c for c in cvr_list if c.tally_pool == p]))  
+        assert CVR.add_pool_contests(cvr_list, tally_pools)
+        for i in range(3):
+            assert set(cvr_list[i].votes.keys()) == {'AvB', 'CvD', 'EvF', 'GvH'}  
+        for i in range(3,5):
+            assert set(cvr_list[i].votes.keys()) == {'AvB', 'CvD', 'EvF'} 
+        assert not CVR.add_pool_contests(cvr_list, tally_pools)
         
-
-
     
     def test_cvr_from_raire(self):
         raire_cvrs = [['1'],
