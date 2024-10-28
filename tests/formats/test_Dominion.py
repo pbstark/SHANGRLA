@@ -84,8 +84,8 @@ class TestDominion:
             use_current=False,
             enforce_rules=False,
         )
-        assert len(cvr_list) == 2
-        cvr_1, cvr_2 = cvr_list
+        assert len(cvr_list) == 3
+        cvr_1, cvr_2, cvr_3 = cvr_list
         assert cvr_1.id == "1_2_13"
         assert cvr_1.tally_pool == "1_2"
         assert list(cvr_1.votes.keys()) == ["1"]
@@ -107,8 +107,8 @@ class TestDominion:
         cvr_list = Dominion.read_cvrs(
             "tests/core/data/Dominion_CVRs/test_5.10.50.85.Dominion.json",
         )
-        assert len(cvr_list) == 2
-        cvr_1, cvr_2 = cvr_list
+        assert len(cvr_list) == 3
+        cvr_1, cvr_2, cvr_3 = cvr_list
         assert cvr_1.id == "1_2_13"
         assert cvr_1.tally_pool == "1_2"
         assert not cvr_1.pool
@@ -123,6 +123,13 @@ class TestDominion:
         assert cvr_2.votes["1"] == {}
         assert cvr_2.get_vote_for("1", "6") is False
         assert cvr_2.get_vote_for("1", "999") is False
+        # CVR 3 tests the updated image_mask regex and the fix for multiple "Cards" entries
+        assert cvr_3.id == "1_17_123456789"
+        assert list(cvr_3.votes.keys()) == ["12", "13", "19", "20"]
+        assert cvr_3.votes["12"] == {"17": 1}
+        assert cvr_3.get_vote_for("13", "18") == 1
+        assert cvr_3.votes["19"] == {"26": 2, "27": 1}
+        assert cvr_3.get_vote_for("20", "192") == 1
 
     def test_read_cvrs_new_format_vbm_only(self):
         """

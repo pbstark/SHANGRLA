@@ -118,6 +118,125 @@
                     }
                 ]
             }
+        },
+        {
+            "TabulatorId": 1,
+            "BatchId": 17,
+            "RecordId": "X",
+            "CountingGroupId": 1,
+            "ImageMask": "D:\\GENERAL ELECTION\\Results\\Tabulator01\\Batch005\\Images\\00001_00017_123456789_*.*",
+            "SessionType": "QRVote",
+            "VotingSessionIdentifier": "",
+            "UniqueVotingIdentifier": "",
+            "Original": {
+                "PrecinctPortionId": 214,
+                "BallotTypeId": 100,
+                "IsCurrent": true,
+                "Cards": [
+                    {
+                        "Id": 34567,
+                        "KeyInId": 34567,
+                        "PaperIndex": 0,
+                        "Contests": [
+                            {
+                                "Id": 12,
+                                "ManifestationId": 345678,
+                                "Undervotes": 0,
+                                "Overvotes": 0,
+                                "OutstackConditionIds": [],
+                                "Marks": [
+                                    {
+                                        "CandidateId": 17,
+                                        "ManifestationId": 3456789,
+                                        "PartyId": 1,
+                                        "Rank": 1,
+                                        "MarkDensity": 100,
+                                        "IsAmbiguous": false,
+                                        "IsVote": true,
+                                        "OutstackConditionIds": []
+                                    }
+                                ]
+                            },
+                            {
+                                "Id": 13,
+                                "ManifestationId": 3456788,
+                                "Undervotes": 0,
+                                "Overvotes": 0,
+                                "OutstackConditionIds": [],
+                                "Marks": [
+                                    {
+                                        "CandidateId": 18,
+                                        "ManifestationId": 3456788,
+                                        "PartyId": 1,
+                                        "Rank": 1,
+                                        "MarkDensity": 100,
+                                        "IsAmbiguous": false,
+                                        "IsVote": true,
+                                        "OutstackConditionIds": []
+                                    }
+                                ]
+                            }
+                        ],
+                        "OutstackConditionIds": []
+                    },
+                    {
+                        "Id": 45678,
+                        "KeyInId": 45678,
+                        "PaperIndex": 1,
+                        "Contests": [
+                            {
+                                "Id": 19,
+                                "ManifestationId": 456789,
+                                "Undervotes": 0,
+                                "Overvotes": 0,
+                                "OutstackConditionIds": [],
+                                "Marks": [
+                                    {
+                                        "CandidateId": 26,
+                                        "ManifestationId": 456789,
+                                        "PartyId": 7,
+                                        "Rank": 2,
+                                        "MarkDensity": 100,
+                                        "IsAmbiguous": false,
+                                        "IsVote": true,
+                                        "OutstackConditionIds": []
+                                    },
+                                    {
+                                        "CandidateId": 27,
+                                        "ManifestationId": 456779,
+                                        "PartyId": 8,
+                                        "Rank": 1,
+                                        "MarkDensity": 96,
+                                        "IsAmbiguous": false,
+                                        "IsVote": true,
+                                        "OutstackConditionIds": []
+                                    }
+                                ]
+                            },
+                            {
+                                "Id": 20,
+                                "ManifestationId": 456788,
+                                "Undervotes": 0,
+                                "Overvotes": 0,
+                                "OutstackConditionIds": [],
+                                "Marks": [
+                                    {
+                                        "CandidateId": 192,
+                                        "ManifestationId": 456788,
+                                        "PartyId": 1,
+                                        "Rank": 1,
+                                        "MarkDensity": 100,
+                                        "IsAmbiguous": false,
+                                        "IsVote": true,
+                                        "OutstackConditionIds": []
+                                    }
+                                ]
+                            }
+                        ],
+                        "OutstackConditionIds": []
+                    }
+                ]
+            }
         }
     ]
 }

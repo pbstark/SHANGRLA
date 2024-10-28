@@ -142,7 +142,13 @@ class Dominion:
             ]:
                 # Dominion somewhere between 5.2.18.2 and 5.10.50.85 added another hierarchical level, "Cards"
                 if "Cards" in c[k].keys():
-                    _selector = c[k]["Cards"][0]["Contests"]
+                    # List comprehension to combine a list of lists of contests, which is essentially
+                    # the contents of c[k]["Cards"][0:n]["Contests"], where n is the number of "Card" entries
+                    _selector = [
+                        _con
+                        for _eachlist in [_c["Contests"] for _c in c[k]["Cards"]]
+                        for _con in _eachlist
+                    ]
                 else:
                     _selector = c[k]["Contests"]
                 for con in _selector:
