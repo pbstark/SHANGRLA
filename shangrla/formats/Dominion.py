@@ -135,29 +135,29 @@ class Dominion:
             if include_groups and c["CountingGroupId"] not in include_groups:
                 continue
             # Use adjudicated/updated CVR data (if present and requested)
-            for k in [j for j in c.keys() if j in ["Original", "Modified"]]:
-                if c[k]["IsCurrent"]:
-            # Dominion somewhere between 5.2.18.2 and 5.10.50.85 added another hierarchical level, "Cards"
-                    if "Cards" in c[k].keys():
-                        _selector = c[k]["Cards"][0]["Contests"]
-                    else:
-                        _selector = c[k]["Contests"]
-                    for con in _selector:
-                        contest_votes = {}
-                        for mark in con["Marks"]:
-                            contest_votes[str(mark["CandidateId"])] = (
-                                mark["Rank"] 
-                                if (mark["IsVote"] or not enforce_rules) 
-                                else 0
-                            )
-                        votes[str(con["Id"])] = contest_votes
+            for k in [
+                j
+                for j in c.keys()
+                if j in (["Original", "Modified"] if use_current else ["Original"])
+            ]:
+                # Dominion somewhere between 5.2.18.2 and 5.10.50.85 added another hierarchical level, "Cards"
+                if "Cards" in c[k].keys():
+                    _selector = c[k]["Cards"][0]["Contests"]
+                else:
+                    _selector = c[k]["Contests"]
+                for con in _selector:
+                    contest_votes = {}
+                    for mark in con["Marks"]:
+                        contest_votes[str(mark["CandidateId"])] = (
+                            mark["Rank"] if (mark["IsVote"] or not enforce_rules) else 0
+                        )
+                    votes[str(con["Id"])] = contest_votes
             # If RecordId is obfuscated, extract it from the ImageMask
-            if c["RecordId"] == "X":
+            record_id = c["RecordId"]
+            if record_id == "X":
                 image_match = image_mask_pattern.search(c["ImageMask"])
                 if image_match is not None:
                     record_id = int(image_match.group(0).split("_")[-1])
-                else:
-                    record_id = c["RecordId"]
             cvr_list.append(
                 CVR(
                     id=str(c["TabulatorId"])
@@ -203,7 +203,9 @@ class Dominion:
         cvr_list = []
         for file in [f for f in sorted(glob.glob(f"{cvr_directory}/CvrExport_*.json"))]:
             cvr_list.extend(
-                Dominion.read_cvrs(file, use_current, enforce_rules, include_groups, pool_groups)
+                Dominion.read_cvrs(
+                    file, use_current, enforce_rules, include_groups, pool_groups
+                )
             )
         return cvr_list
 
@@ -231,12 +233,12 @@ class Dominion:
         candidate_manifest,
         tallies,
         exclude_groups=("WriteIn",),
-        ):
+    ):
         """Extract Contest and Candidate information from the manifest files and
         build a dict of contests which for each contest contains the contest name,
         number of winners, list of candidates (ids and names), list of winners
         (ids and names), and vote and card tallies, looking something like this:
-    
+
         {
             "1": {
                   "name": "GOVERNER",
@@ -262,20 +264,20 @@ class Dominion:
             }
         }
         """
-    
+
         # Init some counters, dicts, etc.
         candidate_list = []
         candidate_dict = {}
         contest_dict = {}
-    
+
         # Ingest ContestManifest.json
         with open(contest_manifest) as fp:
             contestdata = json.load(fp)
-    
+
         # Ingest CandidateManifest.json
         with open(candidate_manifest) as fp:
             candidatedata = json.load(fp)
-    
+
         # Build a list of candidate dicts containing candidate id, candidate name and contest id,
         # along with a dict mapping candidate id to name, making lookup by id easier
         for tuple in [
@@ -283,9 +285,11 @@ class Dominion:
             for c in candidatedata["List"]
             if c["Type"] not in exclude_groups
         ]:
-            candidate_list.append({"id": tuple[0], "name": tuple[1], "contest": tuple[2]})
+            candidate_list.append(
+                {"id": tuple[0], "name": tuple[1], "contest": tuple[2]}
+            )
             candidate_dict[tuple[0]] = tuple[1]
-    
+
         # Now build a list of contests by contest id, each populating the contest name, number of
         # winners, social choice function, and candidate list to start
         for tuple in [
@@ -306,13 +310,13 @@ class Dominion:
                     if cn["contest"] == tuple[0]
                 ],
             }
-    
+
         # Now use the provided tallies to determine the winning candidates in each contest,
         # as well as the number of ballot cards containing each contest
-    
+
         votes = tallies["votes"]
         cards = tallies["cards"]
-    
+
         for c in contest_dict.keys():
             try:
                 v = votes[c].items()
@@ -328,9 +332,8 @@ class Dominion:
                 contest_dict[c]["cards"] = cards[c]
             except KeyError:
                 contest_dict[c]["cards"] = 0
-    
-        return contest_dict
 
+        return contest_dict
 
     @classmethod
     def make_contest(
@@ -362,7 +365,6 @@ class Dominion:
             "estim": estim,
         }
 
-
     @classmethod
     def generate_contest_dict(
         cvr_list,
@@ -373,11 +375,11 @@ class Dominion:
         """Given a list of CVRs, a contest manifest and a candidate manifest, and optionally a dict
         of assertion files (where the key is the contest ID and the value, a filename, is a string),
         return a dict of contests ready to process with SHANGRLA"""
-    
+
         # First, get the vote and card tallies from the CVR list.  The returned value is a dict of
         # dicts with two top level keys "votes" and "cards".
         tallies = tally_cvrs(cvr_list)
-    
+
         # Next, pull the candidate/contest data together and use the tallies to determine each
         # contest winner
         cdict = get_contest_data(
@@ -386,15 +388,15 @@ class Dominion:
             tallies,
             exclude_groups=(),
         )
-    
+
         # Finally, use the consolidated contest/candidate data to generate the contest dicts
         # ready for SHANGRLA
         c = {}
         for k, v in cdict.items():
             c[k] = make_contest(k, v, risk_limit=0.05, assertion_files=assertion_files)
-    
+
         return c
-    
+
     @classmethod
     def sample_from_manifest(cls, manifest, sample):
         """
