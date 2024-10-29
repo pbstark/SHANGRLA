@@ -1881,6 +1881,7 @@ class Assertion:
         contest,
         winner: str = None,
         loser: list = None,
+        share_to_win: float = None,
         test: callable = None,
         estim: callable = None,
         bet: callable = None,
@@ -2165,7 +2166,7 @@ class Assertion:
            `assertion.contest.audit_type==Audit.AUDIT_TYPE.POLLING`
            or `assertion.contest.audit_type in [Audit.AUDIT_TYPE.CARD_COMPARISON, Audit.AUDIT_TYPE.ONEAUDIT]`
         """
-        min_margin = np.infty
+        min_margin = np.inf
         for c, con in contests.items():
             con.margins = {}
             for a, asn in con.assertions.items():
