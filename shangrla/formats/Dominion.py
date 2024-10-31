@@ -198,8 +198,10 @@ class Dominion:
             if set, ignores votes unless `IsCurrent == True`
         enforce_rules: bool [optional], default True
             if set, ignores votes unless `IsVote == True`
-        include_groups: tuple of ints [optional], default ()
+        include_groups: collection of ints [optional], default []
             if set, use to select only CVRs with specified "CountingGroupId" (see read_cvrs)
+        pool_groups: collection of ints [optional], default []
+            if set, mark CVRs for pooling with ONEAudit
 
         Returns:
         --------
@@ -513,7 +515,7 @@ class Dominion:
 
     @classmethod
     def write_cards_sampled(
-        cls, sample_file: str, cards: list, print_phantoms: bool = True
+        cls, sample_file: str, cards: list, print_phantoms: bool=True
     ):
         """
         Write the identifiers of the sampled CVRs to a file.
@@ -525,9 +527,9 @@ class Dominion:
 
         cards: list of lists
             'VBMCart.Cart number','Tray #','Tabulator Number','Batch Number', 'ballot_in_batch',
-                  'imprint', 'absolute_card_index'
+                  'imprint'
 
-        print_phantoms: Boolean
+        print_phantoms: bool
             if print_phantoms, prints all sampled cards, including "phantom" cards that were not in
             the original manifest.
             if not print_phantoms, suppresses "phantom" cards
@@ -545,8 +547,7 @@ class Dominion:
                     "tabulator",
                     "batch",
                     "card in batch",
-                    "imprint",
-                    "absolute card index",
+                    "imprint"
                 ]
             )
             if print_phantoms:
