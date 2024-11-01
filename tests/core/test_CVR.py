@@ -314,24 +314,24 @@ class TestCVR:
     def test_set_card_in_batch_lex(self):
         cvrs = [CVR(id="B-100", votes={"city_council": {"Alice": 1}, "measure_1": {"yes": 1}}, phantom=False,
                    tally_pool="A"),
-                CVR(id="B-90", votes={"city_council": {"Bob": 1}, "measure_1": {"yes": 1}}, phantom=False),
+                CVR(id="B-90", votes={"city_council": {"Bob": 1}, "measure_1": {"yes": 1}}, phantom=False,
                    tally_pool="A"),
-                CVR(id="A-1", votes={"city_council": {"Bob": 1}, "measure_1": {"no": 1}}, phantom=False),
+                CVR(id="A-1", votes={"city_council": {"Bob": 1}, "measure_1": {"no": 1}}, phantom=False,
                    tally_pool="A"),
-                CVR(id="A-20", votes={"city_council": {"Charlie": 1}}, phantom=False),
+                CVR(id="A-20", votes={"city_council": {"Charlie": 1}}, phantom=False,
                    tally_pool="A"),
-                CVR(id="C-50", votes={"city_council": {"Doug": 1}}, phantom=False),
+                CVR(id="C-50", votes={"city_council": {"Doug": 1}}, phantom=False,
                    tally_pool="B"),
-                CVR(id="6", votes={"measure_1": {"no": 1}}, phantom=False),
+                CVR(id="6", votes={"measure_1": {"no": 1}}, phantom=False,
                    tally_pool="B"),
                 CVR(id="7-B", votes={"city_council": {"Alice": 1}, "measure_1": {"yes": 1}, "measure_2": {"no":1}},
-                          phantom=False),
-                   tally_pool="B"),
+                    phantom=False, 
+                    tally_pool="B"),
                 CVR(id="7-A", votes={"measure_1": {"no": 1}, "measure_2": {"yes": 1}}, phantom=False,
                    tally_pool="B")
             ]
         tally_pool = {"A": ""}
-        tally_pool_dict = CVR.set_card_in_batch_lex(cls, cvr_list=cvrs)
+        tally_pool_dict = CVR.set_card_in_batch_lex(cvr_list=cvrs)
         assert cvrs[0].card_in_batch == 2
         assert cvrs[1].card_in_batch == 3
         assert cvrs[2].card_in_batch == 0

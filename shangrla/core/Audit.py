@@ -607,7 +607,7 @@ class CVR:
         cvrs : list of CVR objects
             the set to update with additional contests as needed
 
-        tally_pools : dict
+        tally_pools dict
             keys are tally_pool ids, values are sets of contests every CVR in that pool should have
 
         Returns
@@ -615,7 +615,7 @@ class CVR:
         bool : True if any contest is added to any CVR
         """
         added = False
-        for c in cvrs:
+        for c in [d for d in cvrs if d.tally_pool in tally_pools.keys()]:
             added = (
                 c.update_votes({con: {} for con in tally_pools[c.tally_pool]}) or added
             )  # note: order of terms matters!
@@ -2426,7 +2426,7 @@ class Assorter:
         sets self.tally_pool_means
         """
         if not tally_pool:
-            tally_pool = set(c.tally_pool for c in cvr_list)
+            tally_pool = set(c.tally_pool for c in cvr_list if c.pool)
         tally_pool_dict = {}
         for p in tally_pool:
             tally_pool_dict[p] = {}
@@ -2436,7 +2436,7 @@ class Assorter:
             filtr = lambda c: c.has_contest(self.contest.id)
         else:
             filtr = lambda c: True
-        for c in [cvr for cvr in cvr_list if filtr(cvr)]:
+        for c in [cvr for cvr in cvr_list if (filtr(cvr) and cvr.pool)]:
             tally_pool_dict[c.tally_pool]["n"] += 1
             tally_pool_dict[c.tally_pool]["tot"] += self.assort(c)
         self.tally_pool_means = {}

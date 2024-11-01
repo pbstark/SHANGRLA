@@ -489,6 +489,7 @@ class Dominion:
         for i, s in enumerate(sample):
             cvr_sample.append(cvr_list[s])
             cvr_id = cvr_list[s].id
+            card_in_batch = cvr_list[s].card_in_batch
             tab, batch, card_num = cvr_id.split("-")
             card_id = f"{tab}-{batch}-{card_num}"
             if not cvr_list[s].phantom:
@@ -499,7 +500,7 @@ class Dominion:
                 card = [manifest_row["VBMCart.Cart number"], manifest_row["Tray #"]] + [
                     tab,
                     batch,
-                    card_num,
+                    card_in_batch,
                     card_id,
                 ]
             else:

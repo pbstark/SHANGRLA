@@ -319,11 +319,11 @@ class TestAssertion:
             assert assorter.assort(votes) == 0.5, f'{assorter.assort(votes)=}'
 
     def test_set_tally_pool_means(self):
-        cvr_dicts = [{'id': 1, 'tally_pool': '1', 'votes': {'AvB': {'Alice': 1}, 'CvD': {'Candy':True}}},
-                     {'id': 2, 'tally_pool': '1', 'votes': {'CvD': {'Elvis':True, 'Candy':False}, 'EvF': {}}},
-                     {'id': 3, 'tally_pool': '1', 'votes': {'GvH': {}}},
-                     {'id': 4, 'tally_pool': '2', 'votes': {'AvB': {'Bob': 1}, 'CvD': {'Candy':True}}},
-                     {'id': 5, 'tally_pool': '2', 'votes': {'CvD': {'Elvis':True, 'Candy':False}, 'EvF': {}}}
+        cvr_dicts = [{'id': 1, 'tally_pool': '1', 'pool': True, 'votes': {'AvB': {'Alice': 1}, 'CvD': {'Candy':True}}},
+                     {'id': 2, 'tally_pool': '1', 'pool': True, 'votes': {'CvD': {'Elvis':True, 'Candy':False}, 'EvF': {}}},
+                     {'id': 3, 'tally_pool': '1', 'pool': True, 'votes': {'GvH': {}}},
+                     {'id': 4, 'tally_pool': '2', 'pool': True, 'votes': {'AvB': {'Bob': 1}, 'CvD': {'Candy':True}}},
+                     {'id': 5, 'tally_pool': '2', 'pool': True, 'votes': {'CvD': {'Elvis':True, 'Candy':False}, 'EvF': {}}}
                    ]
         cvr_list = CVR.from_dict(cvr_dicts)
         pool_set = set(c.tally_pool for c in cvr_list)
@@ -343,11 +343,11 @@ class TestAssertion:
         np.testing.assert_almost_equal(self.raw_AvB_asrtn.assorter.tally_pool_means['2'], (0+1/2)/2)
         #
         # with use_style, without adding contests to every CVR in each pool
-        cvr_dicts = [{'id': 1, 'tally_pool': '1', 'votes': {'AvB': {'Alice': 1}, 'CvD': {'Candy':True}}},
-                     {'id': 2, 'tally_pool': '1', 'votes': {'CvD': {'Elvis':True, 'Candy':False}, 'EvF': {}}},
-                     {'id': 3, 'tally_pool': '1', 'votes': {'GvH': {}}},
-                     {'id': 4, 'tally_pool': '2', 'votes': {'AvB': {'Bob': 1}, 'CvD': {'Candy':True}}},
-                     {'id': 5, 'tally_pool': '2', 'votes': {'CvD': {'Elvis':True, 'Candy':False}, 'EvF': {}}}
+        cvr_dicts = [{'id': 1, 'tally_pool': '1', 'pool': True, 'votes': {'AvB': {'Alice': 1}, 'CvD': {'Candy':True}}},
+                     {'id': 2, 'tally_pool': '1', 'pool': True, 'votes': {'CvD': {'Elvis':True, 'Candy':False}, 'EvF': {}}},
+                     {'id': 3, 'tally_pool': '1', 'pool': True, 'votes': {'GvH': {}}},
+                     {'id': 4, 'tally_pool': '2', 'pool': True, 'votes': {'AvB': {'Bob': 1}, 'CvD': {'Candy':True}}},
+                     {'id': 5, 'tally_pool': '2', 'pool': True, 'votes': {'CvD': {'Elvis':True, 'Candy':False}, 'EvF': {}}}
                    ]
         cvr_list = CVR.from_dict(cvr_dicts)
         print(f'{list([str(c) for c in cvr_list])}')
