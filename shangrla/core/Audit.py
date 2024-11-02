@@ -631,7 +631,7 @@ class CVR:
         cvr_list: "list[CVR]" = None,
         prefix: str = "phantom-",
         tally_pool = None, 
-        pool = None
+        pool = False
         
     ) -> Tuple[list, int]:
         """
@@ -1093,7 +1093,15 @@ class Audit:
                             if cvrs is None:
                                 raise ValueError("ONEAudit sample size estimate requires cvrs.")
                             data, u = asn.mvrs_to_data(cvrs, cvrs, use_all=True)
-                            # TO DO: add additional errors from rates
+                            # the following treatment of overstatement errors is a little crude because it assigns 
+                            # errors to ONEAudit CVRs as if they were "raw" CVRs rather than averages,
+                            # but it should be conservative as a result.
+                            if self.error_rate_1:
+                                idx = np.arange(0, len(data), math.floor(1/self.error_rate_1))
+                                data[idx] = asn.make_overstatement(overs=1/2)
+                            if self.error_rate_2:
+                                idx = np.arange(0, len(data), math.floor(1/self.error_rate_2))
+                                data[idx] = asn.make_overstatement(overs=0)
                         new_size = max(
                             new_size,
                             asn.find_sample_size(
@@ -1750,7 +1758,7 @@ class Assertion:
             small = (
                 0
                 if self.contest.audit_type == Audit.AUDIT_TYPE.POLLING
-                else self.make_overstatement(overs=1 / 2)
+                else self.make_overstatement(overs=1/2)
             )
             rate_1 = (
                 rate_1 if rate_1 is not None else (1 - self.margin) / 2
