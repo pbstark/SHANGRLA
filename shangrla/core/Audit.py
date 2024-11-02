@@ -1101,7 +1101,7 @@ class Audit:
                                 data[idx] = asn.make_overstatement(overs=1/2)
                             if self.error_rate_2:
                                 idx = np.arange(0, len(data), math.floor(1/self.error_rate_2))
-                                data[idx] = asn.make_overstatement(overs=0)
+                                data[idx] = asn.make_overstatement(overs=1)
                         new_size = max(
                             new_size,
                             asn.find_sample_size(
