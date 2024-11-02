@@ -102,25 +102,24 @@ class TestCVR:
         assert not cvr_list[1].get_vote_for('CvD', 'Elvis')        
 
     def test_cvr_pool_contests(self):
-        cvr_dicts = [{'id': 1, 'sample_num': 1, 'votes': {'AvB': {}, 'CvD': {'Candy':True}}},
-                     {'id': 2, 'p': 0.5, 'votes': {'CvD': {'Elvis':True, 'Candy':False}, 'EvF': {}}},
-                     {'id': 3, 'tally_pool': 'abc', 'sampled': True, 'votes': {'GvH': {}}}
+        cvr_dicts = [{'id': 1, 'tally_pool': 'a', 'pool': False, 'votes': {'AvB': {}, 'CvD': {'Candy':True}}},
+                     {'id': 2, 'tally_pool': 'a', 'pool': False, 'votes': {'CvD': {'Elvis':True, 'Candy':False}, 'EvF': {}}},
+                     {'id': 3, 'tally_pool': 'b', 'pool': True, 'votes': {'GvH': {}}},
+                     {'id': 4, 'tally_pool': 'b', 'pool': True, 'votes': {'AvB': {}, 'CvD': {'Candy':True}}},
+                     
                    ]
         cvr_list = CVR.from_dict(cvr_dicts)
-        assert CVR.pool_contests(cvr_list) == {'AvB', 'CvD', 'EvF', 'GvH'}  
+        assert CVR.pool_contests(cvr_list) == {'b':{'AvB', 'CvD', 'GvH'} } 
 
     def test_add_pool_contests(self):
-        cvr_dicts = [{'id': 1, 'tally_pool': 1, 'votes': {'AvB': {}, 'CvD': {'Candy':True}}},
-                     {'id': 2, 'tally_pool': 1, 'votes': {'CvD': {'Elvis':True, 'Candy':False}, 'EvF': {}}},
-                     {'id': 3, 'tally_pool': 1, 'votes': {'GvH': {}}},
-                     {'id': 4, 'tally_pool': 2, 'votes': {'AvB': {}, 'CvD': {'Candy':True}}},
-                     {'id': 5, 'tally_pool': 2, 'votes': {'CvD': {'Elvis':True, 'Candy':False}, 'EvF': {}}}
+        cvr_dicts = [{'id': 1, 'tally_pool': 1, 'pool': True, 'votes': {'AvB': {}, 'CvD': {'Candy':True}}},
+                     {'id': 2, 'tally_pool': 1, 'pool': True, 'votes': {'CvD': {'Elvis':True, 'Candy':False}, 'EvF': {}}},
+                     {'id': 3, 'tally_pool': 1, 'pool': True, 'votes': {'GvH': {}}},
+                     {'id': 4, 'tally_pool': 2, 'pool': True, 'votes': {'AvB': {}, 'CvD': {'Candy':True}}},
+                     {'id': 5, 'tally_pool': 2, 'pool': True, 'votes': {'CvD': {'Elvis':True, 'Candy':False}, 'EvF': {}}}
                    ]
         cvr_list = CVR.from_dict(cvr_dicts)
-        tally_pool_set = set(c.tally_pool for c in cvr_list)
-        tally_pools = {}
-        for p in tally_pool_set:
-            tally_pools[p] = CVR.pool_contests(list([c for c in cvr_list if c.tally_pool == p]))  
+        tally_pools = CVR.pool_contests(cvr_list)  
         assert CVR.add_pool_contests(cvr_list, tally_pools)
         for i in range(3):
             assert set(cvr_list[i].votes.keys()) == {'AvB', 'CvD', 'EvF', 'GvH'}  
@@ -129,17 +128,14 @@ class TestCVR:
         assert not CVR.add_pool_contests(cvr_list, tally_pools)
 
     def test_oneaudit_overstatement(self):
-        cvr_dicts = [{'id': 1, 'tally_pool': 1, 'votes': {'AvB': {}, 'CvD': {'Candy':True}}},
-                     {'id': 2, 'tally_pool': 1, 'votes': {'CvD': {'Elvis':True, 'Candy':False}, 'EvF': {}}},
-                     {'id': 3, 'tally_pool': 1, 'votes': {'GvH': {}}},
-                     {'id': 4, 'tally_pool': 2, 'votes': {'AvB': {}, 'CvD': {'Candy':True}}},
-                     {'id': 5, 'tally_pool': 2, 'votes': {'CvD': {'Elvis':True, 'Candy':False}, 'EvF': {}}}
+        cvr_dicts = [{'id': 1, 'tally_pool': 1, 'pool': True, 'votes': {'AvB': {}, 'CvD': {'Candy':True}}},
+                     {'id': 2, 'tally_pool': 1, 'pool': True, 'votes': {'CvD': {'Elvis':True, 'Candy':False}, 'EvF': {}}},
+                     {'id': 3, 'tally_pool': 1, 'pool': True, 'votes': {'GvH': {}}},
+                     {'id': 4, 'tally_pool': 2, 'pool': True, 'votes': {'AvB': {}, 'CvD': {'Candy':True}}},
+                     {'id': 5, 'tally_pool': 2, 'pool': True, 'votes': {'CvD': {'Elvis':True, 'Candy':False}, 'EvF': {}}}
                    ]
         cvr_list = CVR.from_dict(cvr_dicts)
-        tally_pool_set = set(c.tally_pool for c in cvr_list)
-        tally_pools = {}
-        for p in tally_pool_set:
-            tally_pools[p] = CVR.pool_contests(list([c for c in cvr_list if c.tally_pool == p]))  
+        tally_pools =  CVR.pool_contests(cvr_list)  
         assert CVR.add_pool_contests(cvr_list, tally_pools)
         for i in range(3):
             assert set(cvr_list[i].votes.keys()) == {'AvB', 'CvD', 'EvF', 'GvH'}  

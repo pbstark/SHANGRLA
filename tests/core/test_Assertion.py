@@ -326,19 +326,16 @@ class TestAssertion:
                      {'id': 5, 'tally_pool': '2', 'pool': True, 'votes': {'CvD': {'Elvis':True, 'Candy':False}, 'EvF': {}}}
                    ]
         cvr_list = CVR.from_dict(cvr_dicts)
-        pool_set = set(c.tally_pool for c in cvr_list)
-        tally_pool = {}
-        for p in pool_set:
-            tally_pool[p] = CVR.pool_contests(list([c for c in cvr_list if c.tally_pool == p]))  
-        assert CVR.add_pool_contests(cvr_list, tally_pool) 
+        tally_pools = CVR.pool_contests(cvr_list)  
+        assert CVR.add_pool_contests(cvr_list, tally_pools) 
         #
         # without use_style
-        self.raw_AvB_asrtn.assorter.set_tally_pool_means(cvr_list=cvr_list, tally_pool=tally_pool, use_style=False)
+        self.raw_AvB_asrtn.assorter.set_tally_pool_means(cvr_list=cvr_list, tally_pools=tally_pools, use_style=False)
         np.testing.assert_almost_equal(self.raw_AvB_asrtn.assorter.tally_pool_means['1'], (1+1/2+1/2)/3)
         np.testing.assert_almost_equal(self.raw_AvB_asrtn.assorter.tally_pool_means['2'], (0+1/2)/2)
         #
         # with use_style, but contests have already been added to every CVR in each pool
-        self.raw_AvB_asrtn.assorter.set_tally_pool_means(cvr_list=cvr_list, tally_pool=tally_pool, use_style=True)
+        self.raw_AvB_asrtn.assorter.set_tally_pool_means(cvr_list=cvr_list, tally_pools=tally_pools, use_style=True)
         np.testing.assert_almost_equal(self.raw_AvB_asrtn.assorter.tally_pool_means['1'], (1+1/2+1/2)/3)
         np.testing.assert_almost_equal(self.raw_AvB_asrtn.assorter.tally_pool_means['2'], (0+1/2)/2)
         #
@@ -351,7 +348,7 @@ class TestAssertion:
                    ]
         cvr_list = CVR.from_dict(cvr_dicts)
         print(f'{list([str(c) for c in cvr_list])}')
-        self.raw_AvB_asrtn.assorter.set_tally_pool_means(cvr_list=cvr_list, tally_pool=tally_pool, use_style=True)
+        self.raw_AvB_asrtn.assorter.set_tally_pool_means(cvr_list=cvr_list, tally_pools=tally_pools, use_style=True)
         np.testing.assert_almost_equal(self.raw_AvB_asrtn.assorter.tally_pool_means['1'], 1)
         np.testing.assert_almost_equal(self.raw_AvB_asrtn.assorter.tally_pool_means['2'], 0)
         
