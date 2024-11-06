@@ -101,10 +101,10 @@ class CVR:
     """
     Generic class for cast-vote records.
 
-    The CVR class DOES NOT IMPOSE VOTING RULES. For instance, the social choice
+    The CVR class does not necessarily impose voting rules. For instance, the social choice
     function might consider a CVR that contains two votes in a contest to be an overvote.
 
-    Rather, a CVR is supposed to reflect what the ballot shows, even if the ballot does not
+    Rather, by default a CVR is supposed to reflect what the ballot shows, even if the ballot does not
     contain a valid vote in one or more contests.
 
     Class method get_vote_for returns the vote for a given candidate if the candidate is a
@@ -131,17 +131,17 @@ class CVR:
 
     Ranked votes also have simple representation, e.g., if the CVR is
             {"id": "A-001-01", "votes": {"mayor": {"Alice": 1, "Bob": 2, "Candy": 3, "Dan": ''}}}
-    Then int(vote_for("Candy","mayor"))=3, Candy's rank in the "mayor" contest.
+    Then int(get_vote_for("Candy","mayor"))=3, Candy's rank in the "mayor" contest.
 
     CVRs can be flagged as `phantoms` to account for ballot cards not listed in the manifest using the boolean
     `phantom` attribute.
 
     CVRs can be assigned to a `tally_pool`, useful for the ONEAudit method or batch-level comparison audits
-    using the `batch` attribute (batch-level comparison audits are not currently implemented)
+    using the `pool` attribute (batch-level comparison audits are not currently implemented)
 
     CVRs can be flagged for use in ONEAudit "pool" assorter means. When a CVR is flagged this way, the
     value of the assorter applied to the MVR is compared to the mean value of the assorter applied to the
-    CVRs in the tally batch the CVR belongs to.
+    CVRs in the tally pool the CVR belongs to.
 
     CVRs can include sampling probabilities `p` and sample numbers `sample_num` (pseudo-random numbers
     to facilitate consistent sampling)
@@ -168,6 +168,7 @@ class CVR:
     def __init__(
         self,
         id: object = None,
+        card_in_batch: int = None,
         votes: dict = {},
         phantom: bool = False,
         tally_pool: object = None,
@@ -176,8 +177,9 @@ class CVR:
         p: float = None,
         sampled: bool = False,
     ):
-        self.votes = votes  # contest/vote dict
         self.id = id  # identifier
+        self.card_in_batch = card_in_batch # position of the corresponding card in a physical batch. Used for ONEAudit.
+        self.votes = votes  # contest/vote dict
         self.phantom = phantom  # is this a phantom CVR?
         self.tally_pool = tally_pool  # what tallying pool of cards does this CVR belong to (used by ONEAudit)?
         self.pool = pool  # pool votes on this CVR within its tally_pool?
@@ -187,7 +189,8 @@ class CVR:
 
     def __str__(self) -> str:
         return (
-            f"id: {str(self.id)} votes: {str(self.votes)}\nphantom: {str(self.phantom)} "
+            f"id: {str(self.id)} card_in_batch: {str(self.card_in_batch)} "
+            + f"votes: {str(self.votes)}\nphantom: {str(self.phantom)} "
             + f"tally_pool: {str(self.tally_pool)} pool: {str(self.pool)} sample_num: {self.sample_num} "
             + f"p: {self.p} sampled: {self.sampled}"
         )
@@ -439,7 +442,7 @@ class CVR:
         per the later mention.
 
         If any of the CVRs has phantom==False, sets phantom=False in the result.
-        If only one of a multiple has `tally_pool`, set the tally_pool to that value; if they disagree, throw an error
+        If only one of a multiple has `tally_pool`, set the tally_pool to that value; if they disagree, throw an error.
         Set `pool=True` if any CVR with the ID has `pool=True`
 
 
@@ -492,8 +495,9 @@ class CVR:
 
         Returns:
         -----------
-        tuple: list of CVRs and a bool. The bool is true if `force==True` and any value of `pool` was changed.
+        list of CVRs.
         """
+        od = {}
         for c in cvr_list:
             if c.id not in od:
                 od[c.id] = c
@@ -511,11 +515,40 @@ class CVR:
                     oc[c.id].tally_pool = c.tally_pool
                 else:
                     raise ValueError(
-                        f"two CVRs with the same ID have different tally_pools: \n{str(od)=}\n{str(c)=}"
+                        f"two CVRs with the same ID have different tally_pool values: \n{str(od)=}\n{str(c)=}"
                     )
                 oc[c.id].pool = oc[c.id] or c.pool
         return [v for v in od.values()]
 
+    @classmethod
+    def set_card_in_batch_lex(cls, cvr_list: Collection["CVR"], tally_pool: dict=None ) -> dict:
+        '''
+        For each CVR, set `card_in_batch` to the lexicographic position of its ID within its tally batch.
+        Primarily useful to set a canonical ordering of CVRs for ONEAudit when tally batches are physical batches.
+
+        Parameters
+        ----------
+        cvr_list: list of CVRs
+            the CVRs to assign card_in_batch to
+
+        Returns
+        -------
+        tally_pool_dict: defaultdict 
+            keys are values of tally_pool; values are sorted lists of CVR IDs in that tally_pool
+
+        Side Effects
+        ------------
+        Set `card_in_batch` to the lexicographic position of the CVR ID within its tally_batch     
+        '''
+        tally_pool_dict = defaultdict(list)
+        for c in cvr_list:
+            tally_pool_dict[c.tally_pool].append(c.id)
+        for tp, id_list in tally_pool_dict.items():
+            id_list.sort()
+        for c in cvr_list:
+            c.card_in_batch = tally_pool_dict[c.tally_pool].index(c.id)
+        return tally_pool_dict
+                          
     @classmethod
     def from_vote(
         cls, vote: str, id: object = 1, contest_id: str = "AvB", phantom: bool = False
@@ -546,35 +579,37 @@ class CVR:
         return int(v)
 
     @classmethod
-    def pool_contests(cls, cvrs: list["CVR"]) -> set:
+    def pool_contests(cls, cvrs: list["CVR"]) -> dict:
         """
-        create a set containing all contest ids in the list of CVRs
+        return a dict containing, for each tally_pool that is pooled, a list of all contest ids on any CVR in that pool.
+        
 
         Parameters
         ----------
-        cvrs : list of CVR objects
+        cvrs: list of CVR objects
             the set to collect contests from
 
         Returns
         -------
-        a set containing the ID of every contest mentioned in the CVR list
+        dict: keys are tally_pool with pool==True, values are the set of contests mentioned on any CVR in that tally_pool
         """
-        contests = set()
+        tally_pools = defaultdict(set)
         for c in cvrs:
-            contests = contests.union(c.votes.keys())
-        return contests
+            if c.pool:
+                tally_pools[c.tally_pool] =  tally_pools[c.tally_pool].union(set(c.votes.keys()))
+        return tally_pools
 
     @classmethod
     def add_pool_contests(cls, cvrs: list["CVR"], tally_pools: dict) -> bool:
         """
-        for each tally_pool, ensure every CVR in that pool has every contest in that pool
+        for each tally_pool, ensure every CVR in that tally_pool has every contest mentioned in that pool
 
         Parameters
         ----------
         cvrs : list of CVR objects
             the set to update with additional contests as needed
 
-        tally_pools : dict
+        tally_pools dict
             keys are tally_pool ids, values are sets of contests every CVR in that pool should have
 
         Returns
@@ -582,7 +617,7 @@ class CVR:
         bool : True if any contest is added to any CVR
         """
         added = False
-        for c in cvrs:
+        for c in [d for d in cvrs if (d.tally_pool in tally_pools.keys() and d.pool)]:
             added = (
                 c.update_votes({con: {} for con in tally_pools[c.tally_pool]}) or added
             )  # note: order of terms matters!
@@ -595,6 +630,9 @@ class CVR:
         contests: dict = None,
         cvr_list: "list[CVR]" = None,
         prefix: str = "phantom-",
+        tally_pool = None, 
+        pool = False
+        
     ) -> Tuple[list, int]:
         """
         Make phantom CVRs as needed for phantom cards; set contest parameters `cards` (if not set) and `cvrs`
@@ -618,6 +656,11 @@ class CVR:
             information about each contest under audit
         prefix: String
             prefix for ids for phantom CVRs to be added
+        tally_pool: object
+            label for tally_pool for pooled CVRs for ONEAudit
+        pool: bool
+            pool the votes for the CVRs?
+        
 
         Returns
         -------
@@ -649,7 +692,7 @@ class CVR:
         if not use_style:  #  make (max_cards - len(cvr_list)) phantoms
             phantoms = max_cards - n_cvrs
             for i in range(phantoms):
-                phantom_vrs.append(CVR(id=prefix + str(i + 1), votes={}, phantom=True))
+                phantom_vrs.append(CVR(id=prefix + str(i + 1), votes={}, phantom=True, tally_pool=tally_pool, pool=pool))
         else:  # create phantom CVRs as needed for each contest
             for c, con in contests.items():
                 phantoms_needed = con.cards - con.cvrs
@@ -659,6 +702,8 @@ class CVR:
                             id=prefix + str(len(phantom_vrs) + 1),
                             votes={},
                             phantom=True,
+                            tally_pool=tally_pool, 
+                            pool=pool
                         )
                     )
                 for i in range(phantoms_needed):
@@ -1015,9 +1060,7 @@ class Audit:
         """
         # Currently, only unstratified audits are supported
         if len(self.strata) > 1:
-            raise NotImplementedError(
-                "Stratified audits are not currently implemented."
-            )
+            raise NotImplementedError("Stratified audits are not currently implemented.")
         stratum = next(iter(self.strata.values()))  # the only stratum
         if stratum.use_style and cvrs is None:
             raise ValueError("stratum.use_style==True but cvrs were not provided.")
@@ -1032,9 +1075,7 @@ class Audit:
             new_size = 0
             for a, asn in con.assertions.items():
                 if not asn.proved:
-                    if (
-                        mvr_sample is not None
-                    ):  # use MVRs to estimate the next sample size. Set `prefix=True` to use data
+                    if mvr_sample is not None:  # use MVRs to estimate the next sample size. Set `prefix=True` to use data
                         data, u = asn.mvrs_to_data(mvr_sample, cvr_sample)
                         new_size = max(
                             new_size,
@@ -1048,6 +1089,19 @@ class Audit:
                         )
                     else:
                         data = None
+                        if con.audit_type == Audit.AUDIT_TYPE.ONEAUDIT:
+                            if cvrs is None:
+                                raise ValueError("ONEAudit sample size estimate requires cvrs.")
+                            data, u = asn.mvrs_to_data(cvrs, cvrs, use_all=True)
+                            # the following treatment of overstatement errors is a little crude because it assigns 
+                            # errors to ONEAudit CVRs as if they were "raw" CVRs rather than averages,
+                            # but it should be conservative as a result.
+                            if self.error_rate_1:
+                                idx = np.arange(0, len(data), math.floor(1/self.error_rate_1))
+                                data[idx] = asn.make_overstatement(overs=1/2)
+                            if self.error_rate_2:
+                                idx = np.arange(0, len(data), math.floor(1/self.error_rate_2))
+                                data[idx] = asn.make_overstatement(overs=1)
                         new_size = max(
                             new_size,
                             asn.find_sample_size(
@@ -1056,8 +1110,8 @@ class Audit:
                                 rate_2=self.error_rate_2,
                                 reps=self.reps,
                                 quantile=self.quantile,
-                                seed=self.sim_seed,
-                            ),
+                                seed=self.sim_seed
+                            )
                         )
             con.sample_size = new_size
         if stratum.use_style:
@@ -1071,7 +1125,7 @@ class Audit:
                             cvr.p = max(
                                 con.sample_size / (con.cards - old_sizes[c]), cvr.p
                             )
-            total_size = math.ceil(np.sum([x.p for x in cvrs if not x.phantom]))
+            total_size = math.ceil(np.sum([c.p for c in cvrs if not c.phantom]))
         else:
             total_size = np.max(
                 np.array([con.sample_size for con in contests.values()])
@@ -1121,10 +1175,7 @@ class Audit:
                 assert (
                     w in con.candidates
                 ), f"reported winner {w} is not a candidate in contest {c}"
-            if con.choice_function in [
-                Contest.SOCIAL_CHOICE_FUNCTION.IRV,
-                Contest.SOCIAL_CHOICE_FUNCTION.SUPERMAJORITY,
-            ]:
+            if con.choice_function in [Contest.SOCIAL_CHOICE_FUNCTION.IRV,]:
                 assert (
                     con.n_winners == 1
                 ), f"{con.choice_function} can have only 1 winner in contest {c}"
@@ -1386,7 +1437,7 @@ class Assertion:
         )
 
     def overstatement_assorter(
-        self, mvr: list = None, cvr: list = None, use_style=True
+        self, mvr: CVR = None, cvr: CVR = None, use_style=True
     ) -> float:
         """
         assorter that corresponds to normalized overstatement error for an assertion
@@ -1400,9 +1451,9 @@ class Assertion:
 
         Parameters
         -----------
-        mvr: Cvr
+        mvr: CVR
             the manual interpretation of voter intent
-        cvr: Cvr
+        cvr: CVR
             the machine-reported cast vote record.
 
         Returns
@@ -1474,7 +1525,7 @@ class Assertion:
             dict of tallies for the candidates in the contest. Keys are candidates as listed
             in Contest.candidates. If `tally is None` tries to use the contest.tally.
 
-        The margin for a supermajority contest with a winner is (see SHANRGLA section 2.3)
+        The margin for a supermajority contest with a winner is (see SHANGRLA section 2.3)
               2(pq/(2f) + (1 − q)/2 - 1/2) = q(p/f-1), where:
                      q is the fraction of cards that have valid votes
                      p is the fraction of cards that have votes for the winner
@@ -1540,7 +1591,7 @@ class Assertion:
         )
 
     def mvrs_to_data(
-        self, mvr_sample: list = None, cvr_sample: list = None
+        self, mvr_sample: list = None, cvr_sample: list = None, use_all: bool=False
     ) -> np.array:
         """
         Process mvrs (and, for comparison audits, cvrs) to create data for the assertion's test
@@ -1560,6 +1611,8 @@ class Assertion:
             corresponding MVRs
         cvr_sample: list of CVR objects
             sampled CVRs
+        use_all: bool
+            if True, ignore contest sample_num in determining which pairs to include
 
         Returns
         -------
@@ -1585,7 +1638,7 @@ class Assertion:
                         (not use_style)
                         or (
                             cvr_sample[i].has_contest(con.id)
-                            and cvr_sample[i].sample_num <= con.sample_threshold
+                            and (use_all or (cvr_sample[i].sample_num <= con.sample_threshold))
                         )
                     )
                 ]
@@ -1705,7 +1758,7 @@ class Assertion:
             small = (
                 0
                 if self.contest.audit_type == Audit.AUDIT_TYPE.POLLING
-                else self.make_overstatement(overs=1 / 2)
+                else self.make_overstatement(overs=1/2)
             )
             rate_1 = (
                 rate_1 if rate_1 is not None else (1 - self.margin) / 2
@@ -1727,7 +1780,7 @@ class Assertion:
                             f"contest {self.contest} tally required but not defined"
                         )
             elif (
-                self.contest.audit_type == Audit.AUDIT_TYPE.CARD_COMPARISON
+                self.contest.audit_type in [Audit.AUDIT_TYPE.CARD_COMPARISON, Audit.AUDIT_TYPE.ONEAUDIT]
             ):  # comparison audit
                 rate_1_i = (
                     np.arange(0, self.test.N, step=int(1 / rate_1), dtype=int)
@@ -2225,9 +2278,7 @@ class Assertion:
 
         """
         if cvr_sample is not None:
-            assert len(mvr_sample) == len(
-                cvr_sample
-            ), "unequal numbers of cvrs and mvrs"
+            assert len(mvr_sample) == len(cvr_sample), "unequal numbers of cvrs and mvrs"
         p_max = 0
         for c, con in contests.items():
             con.p_values = {}
@@ -2272,7 +2323,7 @@ class Assorter:
         a priori upper bound on the value the assorter assigns to any dict of selections
 
     tally_pool_means: dict
-        mean of the assorter over each tally_pool of CVRs, for ONEAuditr
+        mean of the assorter over each tally_pool of CVRs, for ONEAudit
 
     The basic method is assort, but the constructor can be called with (winner, loser)
     instead. In that case,
@@ -2335,8 +2386,8 @@ class Assorter:
         return (
             f"contest_id: {self.contest.id}\nupper bound: {self.upper_bound}, "
             + f"winner defined: {callable(self.winner)}, loser defined: {callable(self.loser)}, "
-            + f"assort defined: {callable(self.assort)}"
-            + f"tally_pool_means: {self.tally_pool_means}"
+            + f"assort defined: {callable(self.assort)} "
+            + f"tally_pool_means: {bool(self.tally_pool_means)}"
         )
 
     def mean(self, cvr_list: "Collection[CVR]" = None, use_style: bool = True):
@@ -2366,7 +2417,7 @@ class Assorter:
     def set_tally_pool_means(
         self,
         cvr_list: "Collection[CVR]" = None,
-        tally_pool: Collection = None,
+        tally_pools: Collection = None,
         use_style: bool = True,
     ):
         """
@@ -2388,10 +2439,10 @@ class Assorter:
         ------------
         sets self.tally_pool_means
         """
-        if not tally_pool:
-            tally_pool = set(c.tally_pool for c in cvr_list)
+        if not tally_pools:
+            tally_pools = set(c.tally_pool for c in cvr_list if c.pool)
         tally_pool_dict = {}
-        for p in tally_pool:
+        for p in tally_pools:
             tally_pool_dict[p] = {}
             tally_pool_dict[p]["n"] = 0
             tally_pool_dict[p]["tot"] = 0
@@ -2399,11 +2450,11 @@ class Assorter:
             filtr = lambda c: c.has_contest(self.contest.id)
         else:
             filtr = lambda c: True
-        for c in [cvr for cvr in cvr_list if filtr(cvr)]:
+        for c in [cvr for cvr in cvr_list if (filtr(cvr) and cvr.pool)]:
             tally_pool_dict[c.tally_pool]["n"] += 1
             tally_pool_dict[c.tally_pool]["tot"] += self.assort(c)
         self.tally_pool_means = {}
-        for p in tally_pool:
+        for p in tally_pools:
             self.tally_pool_means[p] = (
                 np.nan
                 if tally_pool_dict[p]["n"] == 0
@@ -2469,14 +2520,18 @@ class Assorter:
         # assort the MVR
         mvr_assort = (
             0
-            if mvr.phantom or (use_style and not mvr.has_contest(self.contest.id))
-            else self.assort(mvr)
+            if 
+                mvr.phantom or (use_style and not mvr.has_contest(self.contest.id))
+            else 
+                self.assort(mvr)
         )
         # assort the CVR
         cvr_assort = (
-            self.tally_pool_means[cvr.tally_pool]
-            if cvr.pool and self.tally_pool_means is not None
-            else int(cvr.phantom) / 2 + (1 - int(cvr.phantom)) * self.assort(cvr)
+            self.tally_pool_means[cvr.tally_pool] 
+            if 
+                cvr.pool and self.tally_pool_means is not None
+            else 
+                int(cvr.phantom) / 2 + (1 - int(cvr.phantom)) * self.assort(cvr)
         )
         return cvr_assort - mvr_assort
 
@@ -2582,7 +2637,7 @@ class Contest:
 
     def __str__(self):
         return str(self.__dict__)
-
+        
     def find_sample_size(
         self,
         audit: object = None,
@@ -2618,10 +2673,10 @@ class Contest:
         self.sample_size = 0
         for a in self.assertions.values():
             data = None
-            if (
-                mvr_sample is not None
-            ):  # process the MVRs/CVRs to get data appropriate to each assertion
+            if mvr_sample is not None:  # process the MVRs/CVRs to get data appropriate to each assertion
                 data, u = a.mvrs_to_data(mvr_sample, cvr_sample)
+            elif self.audit_type == Audit.AUDIT_TYPE.ONEAUDIT:
+                data, u = a.mvrs_to_data(cvr_sample, cvr_sample) 
             self.sample_size = max(
                 self.sample_size,
                 a.find_sample_size(
@@ -2661,10 +2716,40 @@ class Contest:
             assn.find_margin_from_tally()
 
     @classmethod
-    def tally(cls, con_dict: dict = None, cvr_list: "Collection[CVR]" = None) -> dict:
+    def check_cards(cls, contests: Collection["Contest"], cvrs: Collection["CVR"], force: bool = False):
+        '''
+        Check whether the number of CVRs that contain each contest is not greater than the upper bound
+        on the number of cards that contain the contest; optionally, increase the upper bounds to make that so.
+
+        Parameters
+        ----------
+        contests: collection of Contests
+
+        cvrs: collection of CVRs
+
+        force: bool
+            Increase the upper bounds to include all the CVRs. 
+            This is useful for ONEAudit when the original upper bounds were fine but ONEAudit added the contest
+            to some CVRs in some pool batches.
+        '''
+        for c, con in contests.items():
+            found = np.sum([cvr.has_contest(c) for cvr in cvrs])
+            if found > con.cards:
+                if not force:
+                    raise ValueError(f'{found} cards contain contest {c} but upper bound is {con.cards}')
+                else:
+                    warnings.warn(f'{found} cards contain contest {c} but upper bound is {con.cards}')
+                                     
+            con.cards = max(con.cards, found) if force else con.cards
+                
+        
+    @classmethod
+    def tally(cls, con_dict: dict = None, cvr_list: "Collection[CVR]" = None, enforce_rules: bool = True) -> dict:
         """
         Tally the votes in the contests in con_dict from a collection of CVRs.
-        Only tallies plurality, multi-winner plurality, supermajority, and approval contests
+        Only tallies plurality, multi-winner plurality, supermajority, and approval contests.
+
+        If 
 
         Parameters
         ----------
@@ -2672,6 +2757,11 @@ class Contest:
             dict of Contest objects to find tallies for
         cvr_list: list[CVR]
             list of CVRs containing the votes to tally
+        enforce_rules: bool
+            Enforce the voting rules for the social choice function?
+            For instance, if the contest is a vote-for-k plurality and the CVR has more than k votes, 
+            then if `enforce_rules`, no candidate's total is incremented, but if `not enforce_rules`,
+            the tally for every candidate with a vote is incremented.
 
         Returns
         -------
@@ -2698,9 +2788,15 @@ class Contest:
         for cvr in cvr_list:
             for c in cons:
                 if cvr.has_contest(c.id):
-                    for candidate, vote in cvr.votes[c.id].items():
-                        if candidate:
-                            c.tally[candidate] += int(bool(vote))
+                    if enforce_rules:
+                        n_votes = 0
+                        for candidate, vote in cvr.votes[c.id].items():
+                            if candidate:
+                                n_votes += int(bool(vote))
+                    if (not enforce_rules) or (n_votes <= c.n_winners):
+                        for candidate, vote in cvr.votes[c.id].items():
+                            if candidate:
+                                c.tally[candidate] += int(bool(vote))
 
     @classmethod
     def from_dict(cls, d: dict) -> dict:
