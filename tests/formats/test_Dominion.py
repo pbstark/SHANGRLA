@@ -56,12 +56,12 @@ class TestDominion:
         assert not cvr_1.pool, f"{cvr_1.pool=}"
         assert list(cvr_1.votes.keys()) == ["111"]
         # Reading Dominion CVRs now takes "IsVote" and "Modified" values into account,
-        # so {"6": 1, "1": 2} now becomes {"6": 1, "1": 0} (vote for candidate 1 in this
+        # so {"6": 1, "1": 2} now becomes {"6": 1} (vote for candidate 1 in this
         # testcase is marked "IsVote": false).  For the same reason, the call to
-        # get_vote_for("111", "1") is now 0.
-        assert cvr_1.votes["111"] == {"6": 1, "1": 0}
+        # get_vote_for("111", "1") is now False.
+        assert cvr_1.votes["111"] == {"6": 1}
         assert cvr_1.get_vote_for("111", "6")
-        assert cvr_1.get_vote_for("111", "1") == 0
+        assert cvr_1.get_vote_for("111", "1") is False
         assert cvr_1.get_vote_for("111", "999") is False
         assert cvr_2.id == "60009_3_21"
         assert cvr_2.tally_pool == "60009_3"
