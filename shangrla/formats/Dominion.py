@@ -169,7 +169,7 @@ class Dominion:
                                     contest_votes[str(mark["CandidateId"])] = (
                                         min(int(contest_votes[str(mark["CandidateId"])]), int(mark["Rank"]))
                                         if bool(contest_votes[str(mark["CandidateId"])])
-                                        else int(mark["Rank"]
+                                        else int(mark["Rank"])
                             else:
                                 contest_votes[str(mark["CandidateId"])] = mark["Rank"]
                      votes[str(con["Id"])] = contest_votes
