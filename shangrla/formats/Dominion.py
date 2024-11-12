@@ -154,9 +154,8 @@ class Dominion:
                 for con in _selector:
                     contest_votes = {}
                     for mark in con["Marks"]:
-                        contest_votes[str(mark["CandidateId"])] = (
-                            mark["Rank"] if (mark["IsVote"] or not enforce_rules) else 0
-                        )
+                        if (mark["IsVote"] or not enforce_rules):
+                            contest_votes[str(mark["CandidateId"])] =  mark["Rank"]
                     votes[str(con["Id"])] = contest_votes
             # If RecordId is obfuscated, extract it from the ImageMask
             record_id = c["RecordId"]

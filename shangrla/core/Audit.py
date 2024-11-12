@@ -1931,7 +1931,8 @@ class Assertion:
     @classmethod
     def make_supermajority_assertion(
         cls,
-        contest,
+        contest: object=None,
+        share_to_win: float = 1/2,
         winner: str = None,
         loser: list = None,
         test: callable = None,
@@ -1962,12 +1963,12 @@ class Assertion:
         -----------
         contest:
             contest object instance to which the assertion applies
+        share_to_win: float
+            fraction of the valid votes the winner must get to win
         winner:
             identifier of winning candidate
         loser: list
             list of identifiers of losing candidate(s)
-        share_to_win: float
-            fraction of the valid votes the winner must get to win
         test: instance of NonnegMean
             risk function for the contest
         estim: an estimation method of NonnegMean
@@ -2218,7 +2219,7 @@ class Assertion:
            `assertion.contest.audit_type==Audit.AUDIT_TYPE.POLLING`
            or `assertion.contest.audit_type in [Audit.AUDIT_TYPE.CARD_COMPARISON, Audit.AUDIT_TYPE.ONEAUDIT]`
         """
-        min_margin = np.infty
+        min_margin = np.inf
         for c, con in contests.items():
             con.margins = {}
             for a, asn in con.assertions.items():
