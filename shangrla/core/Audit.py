@@ -1935,7 +1935,6 @@ class Assertion:
         share_to_win: float = 1/2,
         winner: str = None,
         loser: list = None,
-        share_to_win: float = None,
         test: callable = None,
         estim: callable = None,
         bet: callable = None,
