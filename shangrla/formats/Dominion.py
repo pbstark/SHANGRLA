@@ -173,7 +173,7 @@ class Dominion:
                                     )
                             else:
                                 contest_votes[str(mark["CandidateId"])] = mark["Rank"]
-                     votes[str(con["Id"])] = contest_votes
+                    votes[str(con["Id"])] = contest_votes
             # If RecordId is obfuscated, extract it from the ImageMask
             record_id = c["RecordId"]
             if record_id == "X":
