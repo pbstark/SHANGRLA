@@ -97,6 +97,12 @@ class Dominion:
            "Marks" as the container for votes
            "Rank" as the rank
 
+        **WARNING**
+        Uses San Francisco's rules for validity of an IRV ballot; in particular, if a CVR gives
+        a candidate more than one rank, the vote is considered valid and the lowest rank is used.
+        
+        **WARNING This may break some scoring rules!**
+
         Parameters:
         -----------
         cvr_file: string
@@ -154,9 +160,19 @@ class Dominion:
                 for con in _selector:
                     contest_votes = {}
                     for mark in con["Marks"]:
-                        contest_votes[str(mark["CandidateId"])] = (
-                            mark["Rank"] if (mark["IsVote"] or not enforce_rules) else 0
-                        )
+                        if mark["IsVote"] or not enforce_rules:
+                            if str(mark["CandidateId"]) in contest_votes.keys():
+                            # replace existing vote/rank if the new rank is lower but still a vote, not 0 or False
+                            # This may break some scoring rules other than IRV, and might not be what local rules
+                            # require. This logic branch matches San Francisco's rules.
+                                if bool(mark["Rank"]):
+                                    contest_votes[str(mark["CandidateId"])] = (
+                                        min(int(contest_votes[str(mark["CandidateId"])]), int(mark["Rank"]))
+                                        if bool(contest_votes[str(mark["CandidateId"])])
+                                        else int(mark["Rank"])
+                                    )
+                            else:
+                                contest_votes[str(mark["CandidateId"])] = mark["Rank"]
                     votes[str(con["Id"])] = contest_votes
             # If RecordId is obfuscated, extract it from the ImageMask
             record_id = c["RecordId"]

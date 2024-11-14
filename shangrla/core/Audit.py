@@ -1931,7 +1931,8 @@ class Assertion:
     @classmethod
     def make_supermajority_assertion(
         cls,
-        contest,
+        contest: object=None,
+        share_to_win: float = 1/2,
         winner: str = None,
         loser: list = None,
         share_to_win: float = None,
@@ -1963,12 +1964,12 @@ class Assertion:
         -----------
         contest:
             contest object instance to which the assertion applies
+        share_to_win: float
+            fraction of the valid votes the winner must get to win
         winner:
             identifier of winning candidate
         loser: list
             list of identifiers of losing candidate(s)
-        share_to_win: float
-            fraction of the valid votes the winner must get to win
         test: instance of NonnegMean
             risk function for the contest
         estim: an estimation method of NonnegMean
