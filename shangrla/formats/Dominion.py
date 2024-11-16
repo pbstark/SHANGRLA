@@ -502,18 +502,26 @@ class Dominion:
         sample_order = {}
         cvr_sample = []
         mvr_phantoms = []
+
+        # Convert the pandas DataFrame into a list of tuples to create a lookup table
+        _manifest = list(manifest.itertuples(index=False, name=None))
+        _columns = list(manifest.columns)
+        index = dict([(_, _columns.index(_)) for _ in _columns])
+        lookuptable = {}
+        for _m in _manifest:
+            _key = f'{_m[index["Tabulator Number"]]}-{_m[index["Batch Number"]]}'
+            _val = [_m[index["VBMCart.Cart number"]], _m[index["Tray #"]]]
+            lookuptable[_key] = _val
+
         for i, s in enumerate(sample):
             cvr_sample.append(cvr_list[s])
             cvr_id = cvr_list[s].id
             card_in_batch = cvr_list[s].card_in_batch
             tab, batch, card_num = cvr_id.split("-")
             card_id = f"{tab}-{batch}-{card_num}"
+            search_key = f"{tab}-{batch}"
             if not cvr_list[s].phantom:
-                manifest_row = manifest[
-                    (manifest["Tabulator Number"] == str(tab))
-                    & (manifest["Batch Number"] == str(batch))
-                ].iloc[0]
-                card = [manifest_row["VBMCart.Cart number"], manifest_row["Tray #"]] + [
+                card = lookuptable[search_key] + [
                     tab,
                     batch,
                     card_in_batch,
