@@ -4,6 +4,7 @@ import pytest
 from pathlib import Path
 
 from shangrla.formats.Dominion import Dominion
+from shangrla.core.Audit import CVR
 
 ##########################################################################################
 
@@ -219,6 +220,59 @@ class TestDominion:
         assert cards[5] == [2, 2, 18, 2, 100, "18-2-100", 200]
         assert cards[6] == [3, 3, 19, 3, 1, "19-3-1", 201]
         assert len(mvr_phantoms) == 0
+
+    def test_sample_from_cvrs(self):
+        """
+        Test sampling from a list of CVRs using a manifest
+        """
+
+        # Construct a list of CVRs and a corresponding manifest
+        cvr_list = []
+        mnf_list = []
+        tray = 1
+        batch = 100
+        cards_per_batch = 20
+        for tab in range(10, 13):
+            for batch in range(100, 105):
+                mnf_list.append(
+                    {
+                        "Tray #": tray,
+                        "Tabulator Number": tab,
+                        "Batch Number": batch,
+                        "Total Ballots": cards_per_batch,
+                        "VBMCart.Cart number": 1,
+                    },                    
+                )
+                for card in range(1, cards_per_batch + 1):
+                    id = f"{tab}-{batch}-{card}"
+                    cvr_list.append(CVR(id=id, card_in_batch=card))
+            tray += 1
+
+        manifest = pd.DataFrame.from_dict(mnf_list)
+        manifest["cum_cards"] = manifest["Total Ballots"].cumsum()
+        manifest, _, _ = Dominion.prep_manifest(manifest, 300, len(cvr_list))
+        
+        # Draw the sample
+        sample = [2, 22, 25, 78, 151, 191, 196, 203, 233, 254]
+        cards, sample_order, cvr_sample, mvr_phantoms = Dominion.sample_from_cvrs(cvr_list, manifest, sample)
+        _cards = sorted([card[5] for card in cards])
+        _cvrs = sorted([cvr.id for cvr in cvr_sample])
+        _order = sorted(sample_order.keys())
+        assert len(mvr_phantoms) == 0
+        assert sorted(_cards) == sorted(_cvrs)
+        assert sorted(_order) == sorted(_cvrs)
+        assert sorted(set(_cvrs)) == [
+            '10-100-3',
+            '10-101-3',
+            '10-101-6',
+            '10-103-19',
+            '11-102-12',
+            '11-104-12',
+            '11-104-17',
+            '12-100-4',
+            '12-101-14',
+            '12-102-15',
+        ]
 
     # def test_make_contest_dict(self):
     #     cvr_dir = Path("data/SF_CVR_Export_20240311150227")
