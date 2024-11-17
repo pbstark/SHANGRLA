@@ -268,6 +268,8 @@ class TestCVR:
         con_tests = Contest.from_dict_of_dicts(contests)
         sample_cvr_indices = CVR.consistent_sampling(cvrs, con_tests)
         assert sample_cvr_indices == [0, 1, 2, 5]
+        sampled_cvr_by_ivar = [(cvr.id, cvr.sampled) for cvr in cvrs]
+        assert sampled_cvr_by_ivar == [("1", True), ("2", True), ("3", True), ("4", False), ("5", False), ("6", True)]
         np.testing.assert_approx_equal(con_tests['city_council'].sample_threshold, 2)
         np.testing.assert_approx_equal(con_tests['measure_1'].sample_threshold, 5)
 

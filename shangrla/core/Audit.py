@@ -883,9 +883,8 @@ class CVR:
                         ].sample_num
                         current_sizes[c] += 1
             inx += 1
-        for i in range(len(cvr_list)):
-            if i in sampled_cvr_indices:
-                cvr_list[i].sampled = True
+        for i in sampled_cvr_indices:
+            cvr_list[i].sampled = True
         return sampled_cvr_indices
 
     @classmethod
@@ -1935,7 +1934,6 @@ class Assertion:
         share_to_win: float = 1/2,
         winner: str = None,
         loser: list = None,
-        share_to_win: float = None,
         test: callable = None,
         estim: callable = None,
         bet: callable = None,
@@ -2528,7 +2526,7 @@ class Assorter:
         )
         # assort the CVR
         cvr_assort = (
-            self.tally_pool_means[cvr.tally_pool] 
+            self.tally_pool_means[cvr.tally_pool]
             if 
                 cvr.pool and self.tally_pool_means is not None
             else 
@@ -2638,7 +2636,7 @@ class Contest:
 
     def __str__(self):
         return str(self.__dict__)
-        
+
     def find_sample_size(
         self,
         audit: object = None,
@@ -2677,7 +2675,7 @@ class Contest:
             if mvr_sample is not None:  # process the MVRs/CVRs to get data appropriate to each assertion
                 data, u = a.mvrs_to_data(mvr_sample, cvr_sample)
             elif self.audit_type == Audit.AUDIT_TYPE.ONEAUDIT:
-                data, u = a.mvrs_to_data(cvr_sample, cvr_sample) 
+                data, u = a.mvrs_to_data(cvr_sample, cvr_sample)
             self.sample_size = max(
                 self.sample_size,
                 a.find_sample_size(
@@ -2729,7 +2727,7 @@ class Contest:
         cvrs: collection of CVRs
 
         force: bool
-            Increase the upper bounds to include all the CVRs. 
+            Increase the upper bounds to include all the CVRs.
             This is useful for ONEAudit when the original upper bounds were fine but ONEAudit added the contest
             to some CVRs in some pool batches.
         '''
@@ -2740,17 +2738,17 @@ class Contest:
                     raise ValueError(f'{found} cards contain contest {c} but upper bound is {con.cards}')
                 else:
                     warnings.warn(f'{found} cards contain contest {c} but upper bound is {con.cards}')
-                                     
+
             con.cards = max(con.cards, found) if force else con.cards
                 
-        
+
     @classmethod
     def tally(cls, con_dict: dict = None, cvr_list: "Collection[CVR]" = None, enforce_rules: bool = True) -> dict:
         """
         Tally the votes in the contests in con_dict from a collection of CVRs.
         Only tallies plurality, multi-winner plurality, supermajority, and approval contests.
 
-        If 
+        If
 
         Parameters
         ----------
@@ -2760,7 +2758,7 @@ class Contest:
             list of CVRs containing the votes to tally
         enforce_rules: bool
             Enforce the voting rules for the social choice function?
-            For instance, if the contest is a vote-for-k plurality and the CVR has more than k votes, 
+            For instance, if the contest is a vote-for-k plurality and the CVR has more than k votes,
             then if `enforce_rules`, no candidate's total is incremented, but if `not enforce_rules`,
             the tally for every candidate with a vote is incremented.
 
