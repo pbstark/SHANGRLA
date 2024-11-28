@@ -82,7 +82,7 @@ class NonnegMean:
 
     def __str__(self):
         return (
-            f"test: {self.test} estim: {self.estim} upper bound u: {self.u} "
+            f"test: {str(self.test)} estim: {str(self.estim)} bet: {str(self.bet)} upper bound u: {self.u} "
             f"N: {self.N} null mean t: {self.t} kwargs: {self.kwargs}"
         )
 

@@ -73,6 +73,8 @@ class NpEncoder(json.JSONEncoder):
             return obj.__dict__
         if isinstance(obj, types.FunctionType):
             return obj.__name__
+        if isinstance(obj, NonnegMean):
+            return str(obj)
         return super(NpEncoder, self).default(obj)
 
     @classmethod
@@ -345,7 +347,7 @@ class CVR:
         cvr_list = []
         for c in cvr_dict:
             phantom = False if "phantom" not in c.keys() else c["phantom"]
-            pool = None if "pool" not in c.keys() else c["pool"]
+            pool = False if "pool" not in c.keys() else c["pool"]
             tally_pool = None if "tally_pool" not in c.keys() else c["tally_pool"]
             sample_num = None if "sample_num" not in c.keys() else c["sample_num"]
             p = None if "p" not in c.keys() else c["p"]
@@ -755,7 +757,7 @@ class CVR:
         cvr_sample: list of CVR objects
             the electronic vote record for the audited cards
         sample_order: dict
-            dict to look up selection order of the cards. Keys are card identifiers. Values are dicts
+            dict to look up selection order of the cards. Keys are card ids. Values are dicts
             containing "selection_order" (which draw yielded the card) and "serial" (the card's original position)
 
         Returns
@@ -1229,12 +1231,12 @@ class Audit:
                 print(f"\t{i}: {a.p_value}")
             if cpmax <= contests[c].risk_limit:
                 print(
-                    f"\ncontest {c} AUDIT COMPLETE at risk limit {con.risk_limit}. Attained risk {cpmax}"
+                    f"\ncontest {c} AUDIT COMPLETE at risk limit {con.risk_limit}. Measured risk {cpmax}"
                 )
             else:
                 done = False
                 print(
-                    f"\ncontest {c} audit INCOMPLETE at risk limit {con.risk_limit}. Attained risk {cpmax}"
+                    f"\ncontest {c} audit INCOMPLETE at risk limit {con.risk_limit}. Measured risk {cpmax}"
                 )
                 print("assertions remaining to be proved:")
                 for i, a in con.assertions.items():
@@ -1283,6 +1285,9 @@ class Assertion:
         loser: str = None,
         margin: float = None,
         test: object = None,
+        estim: callable = None,
+        bet: callable = None,
+        test_kwargs: dict = None,
         p_value: float = 1,
         p_history: list = [],
         proved: bool = False,
@@ -1333,6 +1338,9 @@ class Assertion:
         self.assorter = assorter
         self.margin = margin
         self.test = test
+        self.estim = estim
+        self.bet = bet
+        self.test_kwargs = test_kwargs
         self.p_value = p_value
         self.p_history = p_history
         self.proved = proved
@@ -1345,7 +1353,8 @@ class Assertion:
         return (
             f"contest_id: {self.contest.id} winner: {self.winner} loser: {self.loser} "
             f"assorter: {str(self.assorter)} p-value: {self.p_value} "
-            f"margin: {self.margin} test: {str(self.test)} "
+            f"margin: {self.margin} test: {str(self.test)} estim: {str(self.estim)} bet: {str(self.bet)} "
+            f"test_kwargs: {str(self.test_kwargs)} "
             f"p-history length: {len(self.p_history)} proved: {self.proved} sample_size: {self.sample_size} "
             f"assorter upper bound: {self.assorter.upper_bound} "
             f"proved:  {self.proved} "
@@ -1364,6 +1373,10 @@ class Assertion:
             "loser": self.loser,
             "p_value": self.p_value,
             "margin": self.margin,
+            "test": self.test,
+            "estim": self.estim,
+            "bet": self.bet,
+            "test_kwargs": self.test_kwargs,
             "p_history_length": len(self.p_history),
             "proved": self.proved,
             "sample_size": self.sample_size,
@@ -1815,7 +1828,7 @@ class Assertion:
         n_med: int,
         n_big: int,
         small: float = 0,
-        med: float = 1 / 2,
+        med: float = 1/2,
         big: float = 1,
     ):
         r"""
@@ -1865,12 +1878,13 @@ class Assertion:
     @classmethod
     def make_plurality_assertions(
         cls,
-        contest: object = None,
-        winner: list = None,
-        loser: list = None,
-        test: callable = None,
-        estim: callable = None,
-        bet: callable = None,
+        contest: object=None,
+        winner: list=None,
+        loser: list=None,
+        test: callable=None,
+        test_kwargs: dict=None,
+        estim: callable=None,
+        bet: callable=None,
     ):
         """
         Construct assertions that imply the winner(s) got more votes than the loser(s).
@@ -1886,6 +1900,14 @@ class Assertion:
             list of identifiers of winning candidate(s)
         loser: list
             list of identifiers of losing candidate(s)
+        test: NonnegMean
+            statistical test to use
+        test_kwargs: dict
+            kwargs for the test
+        estim: callable
+            estimator for alpha test supermartingale
+        bet: callable
+            bet for betting test supermartingale
 
         Returns
         --------
@@ -1908,6 +1930,7 @@ class Assertion:
                     N=contest.cards,
                     t=1 / 2,
                     random_order=True,
+                    **test_kwargs
                 )
                 assertions[wl_pair] = Assertion(
                     contest,
@@ -1935,6 +1958,7 @@ class Assertion:
         winner: str = None,
         loser: list = None,
         test: callable = None,
+        test_kwargs: dict = None,
         estim: callable = None,
         bet: callable = None,
     ):
@@ -1970,6 +1994,8 @@ class Assertion:
             list of identifiers of losing candidate(s)
         test: instance of NonnegMean
             risk function for the contest
+        test_kwargs: dict
+            kwargs for the test
         estim: an estimation method of NonnegMean
             estimator the alpha_mart test uses for the alternative
         bet: method to choose the bet for betting_mart risk function
@@ -1991,6 +2017,7 @@ class Assertion:
             N=contest.cards,
             t=1 / 2,
             random_order=True,
+            **test_kwargs
         )
         assertions[wl_pair] = Assertion(
             contest,
@@ -2007,6 +2034,9 @@ class Assertion:
                 upper_bound=1 / (2 * contest.share_to_win),
             ),
             test=_test,
+            estim=estim,
+            bet=bet,
+            test_kwargs = test_kwargs
         )
         return assertions
 
@@ -2017,6 +2047,7 @@ class Assertion:
         candidates: list = None,
         json_assertions: dict = None,
         test: callable = None,
+        test_kwargs: dict = None,
         estim: callable = None,
         bet: callable = None,
     ):
@@ -2036,6 +2067,8 @@ class Assertion:
             Assertions to be tested for the relevant contest.
         test: instance of NonnegMean
             risk function for the contest
+        test_kwargs: dict
+            kwargs for the test
         estim: an estimation method of NonnegMean
             estimator the test uses for the alternative
 
@@ -2069,6 +2102,7 @@ class Assertion:
                     N=contest.cards,
                     t=1 / 2,
                     random_order=True,
+                    **test_kwargs
                 )
                 assertions[wl_pair] = Assertion(
                     contest,
@@ -2098,6 +2132,7 @@ class Assertion:
                     N=contest.cards,
                     t=1 / 2,
                     random_order=True,
+                    **test_kwargs
                 )
                 assertions[wl_given] = Assertion(
                     contest,
@@ -2146,6 +2181,7 @@ class Assertion:
             winrs = con.winner
             losrs = list(set(con.candidates) - set(winrs))
             test = con.test
+            test_kwargs = con.test_kwargs
             estim = con.estim
             bet = con.bet
             if scf == Contest.SOCIAL_CHOICE_FUNCTION.PLURALITY:
@@ -2154,6 +2190,7 @@ class Assertion:
                     winner=winrs,
                     loser=losrs,
                     test=test,
+                    test_kwargs=test_kwargs,
                     estim=estim,
                     bet=bet,
                 )
@@ -2164,6 +2201,7 @@ class Assertion:
                     loser=losrs,
                     share_to_win=con.share_to_win,
                     test=test,
+                    test_kwargs=test_kwargs,
                     estim=estim,
                     bet=bet,
                 )
@@ -2174,6 +2212,7 @@ class Assertion:
                     candidates=con.candidates,
                     json_assertions=con.assertion_json,
                     test=test,
+                    test_kwargs=test_kwargs,
                     estim=estim,
                     bet=bet,
                 )
@@ -2294,6 +2333,22 @@ class Assertion:
             contests[c].max_p = contest_max_p
             p_max = np.max([p_max, contests[c].max_p])
         return p_max
+
+    @classmethod
+    def reset_p_values(cls, contests: dict) -> bool:
+        '''
+        Resets the p-values, p_history, and proved for every assertion
+        '''
+        for c, con in contests.items():
+            con.p_values = {}
+            con.proved = {}
+            for a, asn in con.assertions.items():
+                asn.p_value, asn.p_history = 1, []
+                asn.proved = False
+                con.p_values.update({a: asn.p_value})
+                con.proved.update({a: asn.proved})
+            contests[c].max_p = 1
+        return True
 
 
 ##########################################################################################
@@ -2582,6 +2637,7 @@ class Contest:
         "assertion_file",
         "audit_type",
         "test",
+        "test_kwargs",
         "g",
         "use_style",
         "assertions",
@@ -2604,6 +2660,7 @@ class Contest:
         assertion_file: str = None,
         audit_type: str = Audit.AUDIT_TYPE.CARD_COMPARISON,
         test: callable = None,
+        test_kwargs: dict = None,
         g: float = 0.1,
         estim: callable = None,
         bet: callable = None,
@@ -2625,6 +2682,7 @@ class Contest:
         self.assertion_file = assertion_file
         self.audit_type = audit_type
         self.test = test
+        self.test_kwargs = test_kwargs
         self.g = g
         self.estim = estim
         self.bet = bet
