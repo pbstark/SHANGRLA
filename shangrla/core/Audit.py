@@ -2636,7 +2636,7 @@ class Contest:
 
     def __str__(self):
         return str(self.__dict__)
-
+        
     def find_sample_size(
         self,
         audit: object = None,
@@ -2675,7 +2675,7 @@ class Contest:
             if mvr_sample is not None:  # process the MVRs/CVRs to get data appropriate to each assertion
                 data, u = a.mvrs_to_data(mvr_sample, cvr_sample)
             elif self.audit_type == Audit.AUDIT_TYPE.ONEAUDIT:
-                data, u = a.mvrs_to_data(cvr_sample, cvr_sample)
+                data, u = a.mvrs_to_data(cvr_sample, cvr_sample) 
             self.sample_size = max(
                 self.sample_size,
                 a.find_sample_size(
@@ -2737,8 +2737,7 @@ class Contest:
                 if not force:
                     raise ValueError(f'{found} cards contain contest {c} but upper bound is {con.cards}')
                 else:
-                    warnings.warn(f'{found} cards contain contest {c} but upper bound is {con.cards}')
-
+                    warnings.warn(f'{found} cards contain contest {c} but upper bound is {con.cards}')                                    
             con.cards = max(con.cards, found) if force else con.cards
                 
 
@@ -2747,8 +2746,6 @@ class Contest:
         """
         Tally the votes in the contests in con_dict from a collection of CVRs.
         Only tallies plurality, multi-winner plurality, supermajority, and approval contests.
-
-        If
 
         Parameters
         ----------
