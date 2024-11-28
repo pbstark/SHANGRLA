@@ -2727,7 +2727,7 @@ class Contest:
         cvrs: collection of CVRs
 
         force: bool
-            Increase the upper bounds to include all the CVRs. 
+            Increase the upper bounds to include all the CVRs.
             This is useful for ONEAudit when the original upper bounds were fine but ONEAudit added the contest
             to some CVRs in some pool batches.
         '''
@@ -2740,7 +2740,7 @@ class Contest:
                     warnings.warn(f'{found} cards contain contest {c} but upper bound is {con.cards}')                                    
             con.cards = max(con.cards, found) if force else con.cards
                 
-        
+
     @classmethod
     def tally(cls, con_dict: dict = None, cvr_list: "Collection[CVR]" = None, enforce_rules: bool = True) -> dict:
         """
@@ -2755,7 +2755,7 @@ class Contest:
             list of CVRs containing the votes to tally
         enforce_rules: bool
             Enforce the voting rules for the social choice function?
-            For instance, if the contest is a vote-for-k plurality and the CVR has more than k votes, 
+            For instance, if the contest is a vote-for-k plurality and the CVR has more than k votes,
             then if `enforce_rules`, no candidate's total is incremented, but if `not enforce_rules`,
             the tally for every candidate with a vote is incremented.
 
