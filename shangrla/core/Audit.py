@@ -883,9 +883,8 @@ class CVR:
                         ].sample_num
                         current_sizes[c] += 1
             inx += 1
-        for i in range(len(cvr_list)):
-            if i in sampled_cvr_indices:
-                cvr_list[i].sampled = True
+        for i in sampled_cvr_indices:
+            cvr_list[i].sampled = True
         return sampled_cvr_indices
 
     @classmethod
@@ -1931,7 +1930,8 @@ class Assertion:
     @classmethod
     def make_supermajority_assertion(
         cls,
-        contest,
+        contest: object=None,
+        share_to_win: float = 1/2,
         winner: str = None,
         loser: list = None,
         test: callable = None,
@@ -1962,12 +1962,12 @@ class Assertion:
         -----------
         contest:
             contest object instance to which the assertion applies
+        share_to_win: float
+            fraction of the valid votes the winner must get to win
         winner:
             identifier of winning candidate
         loser: list
             list of identifiers of losing candidate(s)
-        share_to_win: float
-            fraction of the valid votes the winner must get to win
         test: instance of NonnegMean
             risk function for the contest
         estim: an estimation method of NonnegMean
@@ -2218,7 +2218,7 @@ class Assertion:
            `assertion.contest.audit_type==Audit.AUDIT_TYPE.POLLING`
            or `assertion.contest.audit_type in [Audit.AUDIT_TYPE.CARD_COMPARISON, Audit.AUDIT_TYPE.ONEAUDIT]`
         """
-        min_margin = np.infty
+        min_margin = np.inf
         for c, con in contests.items():
             con.margins = {}
             for a, asn in con.assertions.items():
@@ -2526,7 +2526,7 @@ class Assorter:
         )
         # assort the CVR
         cvr_assort = (
-            self.tally_pool_means[cvr.tally_pool] 
+            self.tally_pool_means[cvr.tally_pool]
             if 
                 cvr.pool and self.tally_pool_means is not None
             else 
@@ -2737,8 +2737,7 @@ class Contest:
                 if not force:
                     raise ValueError(f'{found} cards contain contest {c} but upper bound is {con.cards}')
                 else:
-                    warnings.warn(f'{found} cards contain contest {c} but upper bound is {con.cards}')
-                                     
+                    warnings.warn(f'{found} cards contain contest {c} but upper bound is {con.cards}')                                    
             con.cards = max(con.cards, found) if force else con.cards
                 
         
@@ -2747,8 +2746,6 @@ class Contest:
         """
         Tally the votes in the contests in con_dict from a collection of CVRs.
         Only tallies plurality, multi-winner plurality, supermajority, and approval contests.
-
-        If 
 
         Parameters
         ----------

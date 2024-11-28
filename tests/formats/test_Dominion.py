@@ -4,6 +4,7 @@ import pytest
 from pathlib import Path
 
 from shangrla.formats.Dominion import Dominion
+from shangrla.core.Audit import CVR
 
 ##########################################################################################
 
@@ -56,13 +57,13 @@ class TestDominion:
         assert not cvr_1.pool, f"{cvr_1.pool=}"
         assert list(cvr_1.votes.keys()) == ["111"]
         # Reading Dominion CVRs now takes "IsVote" and "Modified" values into account,
-        # so {"6": 1, "1": 2} now becomes {"6": 1, "1": 0} (vote for candidate 1 in this
+        # so {"6": 1, "1": 2} now becomes {"6": 1} (vote for candidate 1 in this
         # testcase is marked "IsVote": false).  For the same reason, the call to
-        # get_vote_for("111", "1") is now 0.
-        assert cvr_1.votes["111"] == {"6": 1, "1": 0}
+        # get_vote_for("111", "1") is now False.
+        assert cvr_1.votes["111"] == {"6": 1}
         assert cvr_1.get_vote_for("111", "6")
-        assert cvr_1.get_vote_for("111", "1") == 0
-        assert cvr_1.get_vote_for("111", "999") is False
+        assert not cvr_1.get_vote_for("111", "1")
+        assert not cvr_1.get_vote_for("111", "999")
         assert cvr_2.id == "60009_3_21"
         assert cvr_2.tally_pool == "60009_3"
         assert not cvr_2.pool, f"{cvr_2.pool=}"
@@ -220,78 +221,58 @@ class TestDominion:
         assert cards[6] == [3, 3, 19, 3, 1, "19-3-1", 201]
         assert len(mvr_phantoms) == 0
 
-    # def test_make_contest_dict(self):
-    #     cvr_dir = Path("data/SF_CVR_Export_20240311150227")
-    #     contest_manifest = cvr_dir / "ContestManifest.json"
-    #     candidate_manifest = cvr_dir / "CandidateManifest.json"
+    def test_sample_from_cvrs(self):
+        """
+        Test sampling from a list of CVRs using a manifest
+        """
 
-    #     cvr_list = Dominion.read_cvrs_directory(
-    #         cvr_dir, use_current=True, include_groups=(2,)
-    #     )
+        # Construct a list of CVRs and a corresponding manifest
+        cvr_list = []
+        mnf_list = []
+        tray = 1
+        batch = 100
+        cards_per_batch = 20
+        for tab in range(10, 13):
+            for batch in range(100, 105):
+                mnf_list.append(
+                    {
+                        "Tray #": tray,
+                        "Tabulator Number": tab,
+                        "Batch Number": batch,
+                        "Total Ballots": cards_per_batch,
+                        "VBMCart.Cart number": 1,
+                    },                    
+                )
+                for card in range(1, cards_per_batch + 1):
+                    id = f"{tab}-{batch}-{card}"
+                    cvr_list.append(CVR(id=id, card_in_batch=card))
+            tray += 1
 
-    #     c = make_contest_dict(
-    #         cvr_list,
-    #         contest_manifest,
-    #         candidate_manifest,
-    #         {},
-    #     )
-
-    #     assert c["8"]["name"] == "DEM CCC DISTRICT 17"
-    #     assert c["8"]["risk_limit"] == pytest.approx(0.05)
-    #     assert c["8"]["cards"] == 82019
-    #     assert c["8"]["choice_function"] == Contest.SOCIAL_CHOICE_FUNCTION.PLURALITY
-    #     assert c["8"]["n_winners"] == 14
-    #     assert c["8"]["candidates"] == [
-    #         "24",
-    #         "25",
-    #         "26",
-    #         "27",
-    #         "28",
-    #         "29",
-    #         "30",
-    #         "31",
-    #         "32",
-    #         "33",
-    #         "34",
-    #         "35",
-    #         "36",
-    #         "37",
-    #         "38",
-    #         "39",
-    #         "40",
-    #         "41",
-    #         "42",
-    #         "43",
-    #         "44",
-    #         "45",
-    #         "46",
-    #         "47",
-    #         "48",
-    #         "49",
-    #         "50",
-    #         "51",
-    #         "52",
-    #         "53",
-    #         "241",
-    #     ]
-    #     assert c["8"]["winner"] == [
-    #         "49",
-    #         "30",
-    #         "27",
-    #         "52",
-    #         "36",
-    #         "26",
-    #         "32",
-    #         "45",
-    #         "28",
-    #         "51",
-    #         "39",
-    #         "29",
-    #         "44",
-    #         "35",
-    #     ]
-    #     assert c["8"]["assertion_file"] is None
-    #     assert c["8"]["audit_type"] == "CARD_COMPARISON"
+        manifest = pd.DataFrame.from_dict(mnf_list)
+        manifest["cum_cards"] = manifest["Total Ballots"].cumsum()
+        manifest, _, _ = Dominion.prep_manifest(manifest, 300, len(cvr_list))
+        
+        # Draw the sample
+        sample = [2, 22, 25, 78, 151, 191, 196, 203, 233, 254]
+        cards, sample_order, cvr_sample, mvr_phantoms = Dominion.sample_from_cvrs(cvr_list, manifest, sample)
+        _cards = sorted([card[5] for card in cards])
+        _cvrs = sorted([cvr.id for cvr in cvr_sample])
+        _order = sorted(sample_order.keys())
+        assert len(mvr_phantoms) == 0
+        assert sorted(_cards) == sorted(_cvrs)
+        assert sorted(_order) == sorted(_cvrs)
+        assert sorted(set(_cvrs)) == [
+            '10-100-3',
+            '10-101-3',
+            '10-101-6',
+            '10-103-19',
+            '11-102-12',
+            '11-104-12',
+            '11-104-17',
+            '12-100-4',
+            '12-101-14',
+            '12-102-15',
+        ]
 
 
 ##########################################################################################

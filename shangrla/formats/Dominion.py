@@ -97,6 +97,12 @@ class Dominion:
            "Marks" as the container for votes
            "Rank" as the rank
 
+        **WARNING**
+        Uses San Francisco's rules for validity of an IRV ballot; in particular, if a CVR gives
+        a candidate more than one rank, the vote is considered valid and the lowest rank is used.
+        
+        **WARNING This may break some scoring rules!**
+
         Parameters:
         -----------
         cvr_file: string
@@ -154,9 +160,19 @@ class Dominion:
                 for con in _selector:
                     contest_votes = {}
                     for mark in con["Marks"]:
-                        contest_votes[str(mark["CandidateId"])] = (
-                            mark["Rank"] if (mark["IsVote"] or not enforce_rules) else 0
-                        )
+                        if mark["IsVote"] or not enforce_rules:
+                            if str(mark["CandidateId"]) in contest_votes.keys():
+                            # replace existing vote/rank if the new rank is lower but still a vote, not 0 or False
+                            # This may break some scoring rules other than IRV, and might not be what local rules
+                            # require. This logic branch matches San Francisco's rules.
+                                if bool(mark["Rank"]):
+                                    contest_votes[str(mark["CandidateId"])] = (
+                                        min(int(contest_votes[str(mark["CandidateId"])]), int(mark["Rank"]))
+                                        if bool(contest_votes[str(mark["CandidateId"])])
+                                        else int(mark["Rank"])
+                                    )
+                            else:
+                                contest_votes[str(mark["CandidateId"])] = mark["Rank"]
                     votes[str(con["Id"])] = contest_votes
             # If RecordId is obfuscated, extract it from the ImageMask
             record_id = c["RecordId"]
@@ -486,18 +502,26 @@ class Dominion:
         sample_order = {}
         cvr_sample = []
         mvr_phantoms = []
+
+        # Convert the pandas DataFrame into a list of tuples to create a lookup table
+        _manifest = list(manifest.itertuples(index=False, name=None))
+        _columns = list(manifest.columns)
+        index = dict([(_, _columns.index(_)) for _ in _columns])
+        lookuptable = {}
+        for _m in _manifest:
+            _key = f'{_m[index["Tabulator Number"]]}-{_m[index["Batch Number"]]}'
+            _val = [_m[index["VBMCart.Cart number"]], _m[index["Tray #"]]]
+            lookuptable[_key] = _val
+
         for i, s in enumerate(sample):
             cvr_sample.append(cvr_list[s])
             cvr_id = cvr_list[s].id
             card_in_batch = cvr_list[s].card_in_batch
             tab, batch, card_num = cvr_id.split("-")
             card_id = f"{tab}-{batch}-{card_num}"
+            search_key = f"{tab}-{batch}"
             if not cvr_list[s].phantom:
-                manifest_row = manifest[
-                    (manifest["Tabulator Number"] == str(tab))
-                    & (manifest["Batch Number"] == str(batch))
-                ].iloc[0]
-                card = [manifest_row["VBMCart.Cart number"], manifest_row["Tray #"]] + [
+                card = lookuptable[search_key] + [
                     tab,
                     batch,
                     card_in_batch,
