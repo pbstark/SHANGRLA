@@ -121,8 +121,8 @@ class Dominion:
         Returns:
         --------
         cvr_list: list of CVR objects, with additional fields, viz,
-                  `id=str(c["TabulatorId"]) + "_" + str(c["BatchId"])  + "_"  + str(record_id)`
-                  `tally_pool=str(c["TabulatorId"]) + "_" + str(c["BatchId"])`
+                  `id=str(c["TabulatorId"]) + "-" + str(c["BatchId"])  + "-"  + str(record_id)`
+                  `tally_pool=str(c["TabulatorId"]) + "-" + str(c["BatchId"])`
                   `pool=(c["CountingGroupId"] in pool_groups)`
 
         """
