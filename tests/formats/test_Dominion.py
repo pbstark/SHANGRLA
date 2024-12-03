@@ -64,8 +64,8 @@ class TestDominion:
         assert cvr_1.get_vote_for("111", "6")
         assert not cvr_1.get_vote_for("111", "1")
         assert not cvr_1.get_vote_for("111", "999")
-        assert cvr_2.id == "60009_3_21"
-        assert cvr_2.tally_pool == "60009_3"
+        assert cvr_2.id == "60009-3-21"
+        assert cvr_2.tally_pool == "60009-3"
         assert not cvr_2.pool, f"{cvr_2.pool=}"
         assert list(cvr_2.votes.keys()) == ["111", "122"]
         assert cvr_2.votes["111"] == {"6": 1}
