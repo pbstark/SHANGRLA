@@ -29,7 +29,7 @@ class Stratum:
         test: callable = None,
         estimator: callable = None,
         bet: callable = None,
-        test_kwargs: dict = None,
+        test_kwargs: dict = {},
     ):
         self.id = id
         self.max_cards = max_cards
@@ -1287,7 +1287,7 @@ class Assertion:
         test: object = None,
         estim: callable = None,
         bet: callable = None,
-        test_kwargs: dict = None,
+        test_kwargs: dict = {},
         p_value: float = 1,
         p_history: list = [],
         proved: bool = False,
@@ -1882,7 +1882,7 @@ class Assertion:
         winner: list=None,
         loser: list=None,
         test: callable=None,
-        test_kwargs: dict=None,
+        test_kwargs: dict={},
         estim: callable=None,
         bet: callable=None,
     ):
@@ -1958,7 +1958,7 @@ class Assertion:
         winner: str = None,
         loser: list = None,
         test: callable = None,
-        test_kwargs: dict = None,
+        test_kwargs: dict = {},
         estim: callable = None,
         bet: callable = None,
     ):
@@ -2047,7 +2047,7 @@ class Assertion:
         candidates: list = None,
         json_assertions: dict = None,
         test: callable = None,
-        test_kwargs: dict = None,
+        test_kwargs: dict = {},
         estim: callable = None,
         bet: callable = None,
     ):
@@ -2660,7 +2660,7 @@ class Contest:
         assertion_file: str = None,
         audit_type: str = Audit.AUDIT_TYPE.CARD_COMPARISON,
         test: callable = None,
-        test_kwargs: dict = None,
+        test_kwargs: dict = {},
         g: float = 0.1,
         estim: callable = None,
         bet: callable = None,
