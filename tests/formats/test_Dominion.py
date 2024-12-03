@@ -22,16 +22,16 @@ class TestDominion:
         )
         assert len(cvr_list) == 2
         cvr_1, cvr_2 = cvr_list
-        assert cvr_1.id == "60001_1_1"
-        assert cvr_1.tally_pool == "60001_1"
+        assert cvr_1.id == "60001-1-1"
+        assert cvr_1.tally_pool == "60001-1"
         assert cvr_1.pool, f"{cvr_1.pool=}"
         assert list(cvr_1.votes.keys()) == ["111"]
         assert cvr_1.votes["111"] == {"6": 1, "1": 2}
         assert cvr_1.get_vote_for("111", "6")
         assert cvr_1.get_vote_for("111", "1")
         assert cvr_1.get_vote_for("111", "999") is False
-        assert cvr_2.id == "60009_3_21"
-        assert cvr_2.tally_pool == "60009_3"
+        assert cvr_2.id == "60009-3-21"
+        assert cvr_2.tally_pool == "60009-3"
         assert not cvr_2.pool, f"{cvr_2.pool=}"
         assert list(cvr_2.votes.keys()) == ["111", "122"]
         assert cvr_2.votes["111"] == {"6": 1}
@@ -52,8 +52,8 @@ class TestDominion:
         )
         assert len(cvr_list) == 2
         cvr_1, cvr_2 = cvr_list
-        assert cvr_1.id == "60001_1_1"
-        assert cvr_1.tally_pool == "60001_1"
+        assert cvr_1.id == "60001-1-1"
+        assert cvr_1.tally_pool == "60001-1"
         assert not cvr_1.pool, f"{cvr_1.pool=}"
         assert list(cvr_1.votes.keys()) == ["111"]
         # Reading Dominion CVRs now takes "IsVote" and "Modified" values into account,
@@ -64,8 +64,8 @@ class TestDominion:
         assert cvr_1.get_vote_for("111", "6")
         assert not cvr_1.get_vote_for("111", "1")
         assert not cvr_1.get_vote_for("111", "999")
-        assert cvr_2.id == "60009_3_21"
-        assert cvr_2.tally_pool == "60009_3"
+        assert cvr_2.id == "60009-3-21"
+        assert cvr_2.tally_pool == "60009-3"
         assert not cvr_2.pool, f"{cvr_2.pool=}"
         assert list(cvr_2.votes.keys()) == ["111", "122"]
         assert cvr_2.votes["111"] == {"6": 1}
@@ -87,14 +87,14 @@ class TestDominion:
         )
         assert len(cvr_list) == 3
         cvr_1, cvr_2, cvr_3 = cvr_list
-        assert cvr_1.id == "1_2_13"
-        assert cvr_1.tally_pool == "1_2"
+        assert cvr_1.id == "1-2-13"
+        assert cvr_1.tally_pool == "1-2"
         assert list(cvr_1.votes.keys()) == ["1"]
         assert cvr_1.votes["1"] == {"5": 1}
         assert cvr_1.get_vote_for("1", "5")
         assert cvr_1.get_vote_for("1", "999") is False
-        assert cvr_2.id == "1_5_119"
-        assert cvr_2.tally_pool == "1_5"
+        assert cvr_2.id == "1-5-119"
+        assert cvr_2.tally_pool == "1-5"
         assert list(cvr_2.votes.keys()) == ["1"]
         assert cvr_2.votes["1"] == {"6": 1}
         assert cvr_2.get_vote_for("1", "6")
@@ -110,22 +110,22 @@ class TestDominion:
         )
         assert len(cvr_list) == 3
         cvr_1, cvr_2, cvr_3 = cvr_list
-        assert cvr_1.id == "1_2_13"
-        assert cvr_1.tally_pool == "1_2"
+        assert cvr_1.id == "1-2-13"
+        assert cvr_1.tally_pool == "1-2"
         assert not cvr_1.pool
         assert list(cvr_1.votes.keys()) == ["1"]
         assert cvr_1.votes["1"] == {"5": 1}
         assert cvr_1.get_vote_for("1", "5")
         assert cvr_1.get_vote_for("1", "999") is False
-        assert cvr_2.id == "1_5_119"
-        assert cvr_2.tally_pool == "1_5"
+        assert cvr_2.id == "1-5-119"
+        assert cvr_2.tally_pool == "1-5"
         assert not cvr_2.pool
         assert list(cvr_2.votes.keys()) == ["1"]
         assert cvr_2.votes["1"] == {}
         assert cvr_2.get_vote_for("1", "6") is False
         assert cvr_2.get_vote_for("1", "999") is False
         # CVR 3 tests the updated image_mask regex and the fix for multiple "Cards" entries
-        assert cvr_3.id == "1_17_123456789"
+        assert cvr_3.id == "1-17-123456789"
         assert list(cvr_3.votes.keys()) == ["12", "13", "19", "20"]
         assert cvr_3.votes["12"] == {"17": 1}
         assert cvr_3.get_vote_for("13", "18") == 1
@@ -143,8 +143,8 @@ class TestDominion:
         )
         assert len(cvr_list) == 1
         cvr_2 = cvr_list[0]
-        assert cvr_2.id == "1_5_119"
-        assert cvr_2.tally_pool == "1_5"
+        assert cvr_2.id == "1-5-119"
+        assert cvr_2.tally_pool == "1-5"
         assert list(cvr_2.votes.keys()) == ["1"]
         assert cvr_2.votes["1"] == {"6": 1}
         assert cvr_2.get_vote_for("1", "6")
@@ -159,15 +159,15 @@ class TestDominion:
         )
         assert len(cvr_list) == 2
         cvr_1, cvr_2 = cvr_list
-        assert cvr_1.id == "1_2_13"
-        assert cvr_1.tally_pool == "1_2"
+        assert cvr_1.id == "1-2-13"
+        assert cvr_1.tally_pool == "1-2"
         assert not cvr_1.pool, f"{cvr_1.pool=}"
         assert list(cvr_1.votes.keys()) == ["1"]
         assert cvr_1.votes["1"] == {"5": 1}
         assert cvr_1.get_vote_for("1", "5")
         assert cvr_1.get_vote_for("1", "999") is False
-        assert cvr_2.id == "1_5_119"
-        assert cvr_2.tally_pool == "1_5"
+        assert cvr_2.id == "1-5-119"
+        assert cvr_2.tally_pool == "1-5"
         assert cvr_2.pool, f"{cvr_2.pool=}"
         assert list(cvr_2.votes.keys()) == ["1"]
         # Reading Dominion CVRs now takes "IsVote" and "Modified" values into account,

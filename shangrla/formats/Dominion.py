@@ -121,8 +121,8 @@ class Dominion:
         Returns:
         --------
         cvr_list: list of CVR objects, with additional fields, viz,
-                  `id=str(c["TabulatorId"]) + "_" + str(c["BatchId"])  + "_"  + str(record_id)`
-                  `tally_pool=str(c["TabulatorId"]) + "_" + str(c["BatchId"])`
+                  `id=str(c["TabulatorId"]) + "-" + str(c["BatchId"])  + "-"  + str(record_id)`
+                  `tally_pool=str(c["TabulatorId"]) + "-" + str(c["BatchId"])`
                   `pool=(c["CountingGroupId"] in pool_groups)`
 
         """
@@ -183,11 +183,11 @@ class Dominion:
             cvr_list.append(
                 CVR(
                     id=str(c["TabulatorId"])
-                    + "_"
+                    + "-"
                     + str(c["BatchId"])
-                    + "_"
+                    + "-"
                     + str(record_id),
-                    tally_pool=str(c["TabulatorId"]) + "_" + str(c["BatchId"]),
+                    tally_pool=str(c["TabulatorId"]) + "-" + str(c["BatchId"]),
                     pool=(c["CountingGroupId"] in pool_groups),
                     votes=votes,
                 )
@@ -265,7 +265,7 @@ class Dominion:
 
         {
             "1": {
-                  "name": "GOVERNER",
+                  "name": "GOVERNOR",
                   "n_winners": 1,
                   "social_choice_fn": "PLURALITY",
                   "candidates": [ {"id": "1", "name": "DAVE DAVESON" },
