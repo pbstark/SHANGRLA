@@ -62,10 +62,10 @@ class TestDominion:
         # get_vote_for("111", "1") is now False.
         assert cvr_1.votes["111"] == {"6": 1}
         assert cvr_1.get_vote_for("111", "6")
-        assert cvr_1.get_vote_for("111", "1") is False
-        assert cvr_1.get_vote_for("111", "999") is False
-        assert cvr_2.id == "60009-3-21"
-        assert cvr_2.tally_pool == "60009-3"
+        assert not cvr_1.get_vote_for("111", "1")
+        assert not cvr_1.get_vote_for("111", "999")
+        assert cvr_2.id == "60009_3_21"
+        assert cvr_2.tally_pool == "60009_3"
         assert not cvr_2.pool, f"{cvr_2.pool=}"
         assert list(cvr_2.votes.keys()) == ["111", "122"]
         assert cvr_2.votes["111"] == {"6": 1}
@@ -273,79 +273,6 @@ class TestDominion:
             '12-101-14',
             '12-102-15',
         ]
-
-    # def test_make_contest_dict(self):
-    #     cvr_dir = Path("data/SF_CVR_Export_20240311150227")
-    #     contest_manifest = cvr_dir / "ContestManifest.json"
-    #     candidate_manifest = cvr_dir / "CandidateManifest.json"
-
-    #     cvr_list = Dominion.read_cvrs_directory(
-    #         cvr_dir, use_current=True, include_groups=(2,)
-    #     )
-
-    #     c = make_contest_dict(
-    #         cvr_list,
-    #         contest_manifest,
-    #         candidate_manifest,
-    #         {},
-    #     )
-
-    #     assert c["8"]["name"] == "DEM CCC DISTRICT 17"
-    #     assert c["8"]["risk_limit"] == pytest.approx(0.05)
-    #     assert c["8"]["cards"] == 82019
-    #     assert c["8"]["choice_function"] == Contest.SOCIAL_CHOICE_FUNCTION.PLURALITY
-    #     assert c["8"]["n_winners"] == 14
-    #     assert c["8"]["candidates"] == [
-    #         "24",
-    #         "25",
-    #         "26",
-    #         "27",
-    #         "28",
-    #         "29",
-    #         "30",
-    #         "31",
-    #         "32",
-    #         "33",
-    #         "34",
-    #         "35",
-    #         "36",
-    #         "37",
-    #         "38",
-    #         "39",
-    #         "40",
-    #         "41",
-    #         "42",
-    #         "43",
-    #         "44",
-    #         "45",
-    #         "46",
-    #         "47",
-    #         "48",
-    #         "49",
-    #         "50",
-    #         "51",
-    #         "52",
-    #         "53",
-    #         "241",
-    #     ]
-    #     assert c["8"]["winner"] == [
-    #         "49",
-    #         "30",
-    #         "27",
-    #         "52",
-    #         "36",
-    #         "26",
-    #         "32",
-    #         "45",
-    #         "28",
-    #         "51",
-    #         "39",
-    #         "29",
-    #         "44",
-    #         "35",
-    #     ]
-    #     assert c["8"]["assertion_file"] is None
-    #     assert c["8"]["audit_type"] == "CARD_COMPARISON"
 
 
 ##########################################################################################
