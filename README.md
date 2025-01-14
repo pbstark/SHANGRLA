@@ -21,6 +21,9 @@ SHANGRLA incorporates several different statistical risk-measurement algorithms
 and extends naturally to plurality and super-majority contests with various
 election types including Range and Approval voting and Borda count.
 
+SHANGRLA implements the (https://projecteuclid.org/journals/annals-of-applied-statistics/volume-17/issue-1/ALPHA-Audit-that-learns-from-previously-hand-audited-ballots/10.1214/22-AOAS1646.short)[ALPHA supermartingale tests] and (https://arxiv.org/abs/2303.03335)[ONEAudit]. The current version can work with CVRs, with ONEAudit CVRs, or for ballot-polling audits.
+It does not yet support stratified audits, but there are stubs for them.
+
 It can even incorporate Instant Runoff Voting (IRV) using the
 [RAIRE assertion-generator](https://github.com/michelleblom/audit-irv-cp).
 This produces a set of assertions sufficient to prove that the announced winner
