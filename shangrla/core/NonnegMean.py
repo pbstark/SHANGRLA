@@ -321,7 +321,7 @@ class NonnegMean:
         sdj = np.insert(np.maximum(sdj, minsd), 0, 1)[0:-1]
         sdj[1] = 1
         weighted = ((d * eta + S) / (d + j - 1) + u * f / sdj) / (1 + f / sdj)
-        tol = c / np.sqrt(d + j - 1))
+        tol = c / np.sqrt(d + j - 1)
         return np.minimum(
             u * (1 - np.finfo(float).eps) - tol,
             np.maximum(weighted, m * (1 + np.finfo(float).eps) + tol)
