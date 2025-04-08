@@ -1,0 +1,62 @@
+[build-system]
+requires = [
+    "setuptools>=42",
+    "wheel"
+]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+exclude = [
+  "examples",
+  "tests"
+]
+
+[project]
+name = "shangrla"
+version = "0.1.0"
+authors = [
+  {name = "Philip B. Stark", email = "pbstark@berkeley.edu"},
+  {name = "Vanessa Teague"},
+  {name = "Michelle Blom"},
+  {name = "Alexander Ek"},
+  {name = "Floyd Everest"},
+  {name = "Damjan Vukcevic"}
+]
+maintainers = [
+  {name = "Philip B. Stark", email = "pbstark@berkeley.edu"},
+]
+description = "A Python library for risk-limiting audits"
+readme = "README.md"
+license = {file = "LICENSE.md"}
+keywords = ["risk-limiting audits", "nonparametric tests"]
+classifiers = [
+  "Programming Language :: Python :: 3.10",
+  "License :: OSI Approved :: GNU Affero General Public License v3",
+  "Operating System :: OS Independent"
+]
+
+dependencies = [
+    "numpy",
+    "scipy >= 0.17.1",
+    "cryptorandom >= 0.2",
+    "svgling",
+    "colorama"
+]
+
+[project.optional-dependencies]
+examples = [
+    "matplotlib",
+    "pandas"
+]
+test = [
+    "pandas",
+    "pytest",
+    "pytest-cov",
+    "coverage",
+    "flake8",
+    "openpyxl"
+]
+
+[project.scripts]
+raire = "shangrla.raire.run_raire:main"
+shangrla-irv-bp = "shangrla.core.run_shangrla_irv_bp_experiment:main"
