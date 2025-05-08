@@ -309,23 +309,22 @@ class CVR:
 
         Returns:
         --------
-        1 if the given vote for the contest counts as a vote for 'cand' and 0 otherwise. Essentially,
-        if you reduce the ballot down to only those candidates in 'remaining',
-        and 'cand' is the first preference, return 1; otherwise return 0.
+        1 if the given vote for the contest counts as a vote for 'cand' 
+        0 otherwise. 
+            Essentially, if you reduce the ballot down to only those candidates in 'remaining',
+            and 'cand' is the first preference, return 1; otherwise return 0.
         """
-        if not cand in remaining:
-            return 0
-
-        if not bool(rank_cand := self.get_vote_for(contest_id, cand)):
-            return 0
+        if not cand in remaining or not bool(rank_cand := self.get_vote_for(contest_id, cand)):
+            return_val = 0
         else:
+            return_val = 1
             for altc in remaining:
                 if altc == cand:
                     continue
                 rank_altc = self.get_vote_for(contest_id, altc)
                 if bool(rank_altc) and rank_altc <= rank_cand:
-                    return 0
-            return 1
+                    return_val = 0
+        return return_val
 
     @classmethod
     def cvrs_to_json(cls, cvr):
@@ -2100,7 +2099,7 @@ class Assertion:
                     bet=bet,
                     u=1,
                     N=contest.cards,
-                    t=1 / 2,
+                    t=1/2,
                     random_order=True,
                     **test_kwargs
                 )
@@ -2514,6 +2513,40 @@ class Assorter:
                 if tally_pool_dict[p]["n"] == 0
                 else tally_pool_dict[p]["tot"] / tally_pool_dict[p]["n"]
             )
+
+    def count_tally_pool_vals(
+        self,
+        cvr_list: "Collection[CVR]" = None,
+        tally_pools: Collection = None,
+        use_style: bool = True,
+    ) -> dict:
+        """
+        create dict of dicts of assorter values in each tally pool from a set of CVRs
+
+        Parameters
+        ----------
+        cvr_list: Collection
+            cvrs from which the sample will be drawn
+
+        tally_pools: Collection [optional]
+            the labels of the tally groups
+
+        Returns
+        -------
+        dict of dicts
+
+        """
+        if not tally_pools:
+            tally_pools = set(c.tally_pool for c in cvr_list if c.pool)
+        count_pool_dict = {}
+        for p in tally_pools:
+            count_pool_dict[p] = defaultdict(int)
+        filtr = (lambda c: c.has_contest(self.contest.id) if use_style 
+                 else lambda c: True)
+        for c in [cvr for cvr in cvr_list if (filtr(cvr) and cvr.pool)]:
+            count_pool_dict[c.tally_pool]["n"] += 1
+            count_pool_dict[c.tally_pool][self.assort(c)] += 1
+        return count_pool_dict
 
     def sum(self, cvr_list: "Collection[CVR]" = None, use_style: bool = True):
         """

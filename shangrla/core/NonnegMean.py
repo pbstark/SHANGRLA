@@ -7,7 +7,7 @@ import warnings
 
 def welford_mean_var(x: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """
-    Welford's algorithm for running mean and variance
+    Welford's online algorithm for the running mean and variance
     """
     m = [x[0]]
     v = [0]
@@ -26,8 +26,8 @@ class NonnegMean:
             Kaplan-Markov (without replacement)
             Kaplan-Wald (without replacement)
             Wald SPRT (with and with replacement)
-            ALPHA supermartingale test (with and without replacement)
-            Betting martingale tests (with and without replacement)
+            ALPHA supermartingale test (with and without replacement, using a variety of estimators)
+            Betting martingale tests (with and without replacement, using a variety of betting rules)
     Some tests work for all nonnegative populations; others require a finite upper bound `u`.
     Many of the tests have versions for sampling with replacement (`N=np.inf`) and for sampling
     without replacement (`N` finite).
@@ -180,6 +180,9 @@ class NonnegMean:
         mean is less than or equal to t using a martingale method,
         for a population of size N, based on a series of draws x.
 
+        If kwargs includes `lam`, uses `lam` as a real-valued bet or a vector of real-valued bets.
+        Throws an error if `lam`
+
         **The draws must be in random order**, or the sequence is not a supermartingale under the null
 
         If N is finite, assumes the sample is drawn without replacement
@@ -194,13 +197,14 @@ class NonnegMean:
                 upper bound on the population
             eta: float in (t,u] (default u*(1-eps))
                 value parametrizing the bet. Use alternative hypothesized population mean for polling audit
-                or a value nearer the upper bound for comparison audits
+                or a value nearer the upper bound for card-level comparison audits
 
 
         Returns
         -------
-        p: float
-            sequentially valid p-value of the hypothesis that the population mean is less than or equal to t
+        p: float or vector of floats
+            sequentially valid p-value of the hypothesis that the population mean is less than or equal to t,
+            for each bet `lam`
         p_history: numpy array
             sample by sample history of p-values. Not meaningful unless the sample is in random order.
         """
@@ -212,7 +216,7 @@ class NonnegMean:
         _S, Stot, _j, m = self.sjm(N, t, x)
         x = np.array(x)
         with np.errstate(divide="ignore", invalid="ignore", over="ignore"):
-            lam = self.bet(x)
+            lam = self.bet(x)            
             terms = np.cumprod(1 + lam * (x - m))
         terms[m > u] = 0  # true mean is certainly less than hypothesized
         terms[np.isclose(0, m, atol=atol)] = 1  # ignore
@@ -281,7 +285,7 @@ class NonnegMean:
         e_j := c/sqrt(d+j-1)
         sd_1 := sd_2 = 1
         sd_j := sqrt[(\sum_{i=1}^{j-1} (x_i-S_j/(j-1))^2)/(j-2)] \wedge minsd, j>2
-        eta_j :=  ( [(d*eta + S_j)/(d+j-1) + f*u/sd_j]/(1+f/sd_j) \vee (m_j+e_j) ) \wedge u*(1-eps)
+        eta_j :=  ( [(d*eta + S_j)/(d+j-1) + f*u/sd_j]/(1+f/sd_j) \vee (m_j+e_j) ) \wedge (u*(1-eps)-e_j)
 
         Parameters
         ----------
