@@ -74,7 +74,7 @@ class TestNonnegMean:
                 yfin = np.zeros(N)
                 for j in range(1,N+1):
                     est = (d*eta + Sj(x,j))/(d+j-1)
-                    most = u*(1-np.finfo(float).eps)
+                    most = u*(1-np.finfo(float).eps)-epsj(c,d,j)
                     yinf[j-1] = np.minimum(np.maximum(t+epsj(c,d,j), est), most)
                     yfin[j-1] = np.minimum(np.maximum(tj(N,t,x,j)+epsj(c,d,j), est), most)
                 np.testing.assert_allclose(xinf, yinf)
