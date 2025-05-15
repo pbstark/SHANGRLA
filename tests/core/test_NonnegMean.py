@@ -227,6 +227,19 @@ class TestNonnegMean:
                 x = val*np.ones(n)
                 np.testing.assert_almost_equal(test.betting_mart(x)[0], 1/(1+lam*(val-t))**n)
 
+    def test_mix_betting_mart(self):
+        N = np.inf
+        n = 20
+        t = 0.5
+        u = 1
+        lams = np.linspace(0,1/t,100)
+        for val in [0.55, 0.7, 0.9]:
+                test = NonnegMean(N=N, u=u, t=t)
+                x = val*np.ones(n)
+                assert len(test.mix_betting_mart(x=x, lam=lams)[1]) == len(x)
+                assert test.mix_betting_mart(x=x, lam=lams)[0] < 0.5 # check that the P-value is always small by the end
+
+
     def test_kelly_optimal(self):
         N = np.inf
         n = 20
