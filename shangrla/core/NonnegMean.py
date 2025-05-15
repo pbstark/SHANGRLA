@@ -1,5 +1,6 @@
 import math
 import numpy as np
+import scipy as sp
 import warnings
 
 ##########################################################################################
@@ -379,6 +380,7 @@ class NonnegMean:
         Takes x to be the population unless pop is provided
         """
         eta = self.t # the null mean
+        pop = getattr(self, "pop", None) # attempts to inherit pop from the class
         if pop is None:
             pop = x
         min_slope = NonnegMean.deriv(0, pop, eta)
@@ -391,7 +393,7 @@ class NonnegMean:
             out = 0
         # otherwise, optimize on the interval [0, 1/eta]
         else:
-            lam_star = sp.optimize.root_scalar(lambda lam: Bets.deriv(lam, pop, eta), bracket = [0, 1/eta], method = 'bisect')
+            lam_star = sp.optimize.root_scalar(lambda lam: NonnegMean.deriv(lam, pop, eta), bracket = [0, 1/eta], method = 'bisect')
             assert lam_star.converged, "Could not find Kelly optimal bet, the optimization may be poorly conditioned"
             out = lam_star['root']
         return out * np.ones_like(x)
