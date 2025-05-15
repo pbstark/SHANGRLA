@@ -216,7 +216,7 @@ class NonnegMean:
         _S, Stot, _j, m = self.sjm(N, t, x)
         x = np.array(x)
         with np.errstate(divide="ignore", invalid="ignore", over="ignore"):
-            lam = self.bet(x)            
+            lam = self.bet(x)
             terms = np.cumprod(1 + lam * (x - m))
         terms[m > u] = 0  # true mean is certainly less than hypothesized
         terms[np.isclose(0, m, atol=atol)] = 1  # ignore
@@ -295,7 +295,7 @@ class NonnegMean:
             eta: float in (t, u) (default u*(1-eps))
                 initial alternative hypothethesized value for the population mean
             c: positive float
-                scale factor in constraints to keep the estimator of the mean from getting too close to t or u before 
+                scale factor in constraints to keep the estimator of the mean from getting too close to t or u before
                 the empirical mean is stable
             d: positive float
                 relative weight of eta compared to an observation, in updating the alternative for each term
@@ -363,6 +363,39 @@ class NonnegMean:
         p2 = getattr(self, "error_rate_2", 1e-5)  # rate of 2-vote overstatement errors
         return (1 - self.u * (1 - p2)) / (2 - 2 * self.u) + self.u * (1 - p2) - 1 / 2
 
+    def deriv(lam, x, eta):
+        return np.sum((x - eta) / (1 + lam * (x - eta)))
+
+    def kelly_optimal(self, x: np.array, pop = None, **kwargs):
+        """
+        return the Kelly-optimal bet
+
+        Parameters
+        ----------
+        x: np.array
+            input data
+        pop: optional np.array
+            the population (order does not matter) that will be used to compute the optimal bet
+        Takes x to be the population unless pop is provided
+        """
+        eta = self.t # the null mean
+        if pop is None:
+            pop = x
+        min_slope = NonnegMean.deriv(0, pop, eta)
+        max_slope = NonnegMean.deriv(1/eta, pop, eta)
+        # if the return is always growing, set lambda to the maximum allowed
+        if (min_slope > 0) & (max_slope > 0):
+            out = 1/eta
+        # if the return is always shrinking, set lambda to 0
+        elif (min_slope < 0) & (max_slope < 0):
+            out = 0
+        # otherwise, optimize on the interval [0, 1/eta]
+        else:
+            lam_star = sp.optimize.root_scalar(lambda lam: Bets.deriv(lam, pop, eta), bracket = [0, 1/eta], method = 'bisect')
+            assert lam_star.converged, "Could not find Kelly optimal bet, the optimization may be poorly conditioned"
+            out = lam_star['root']
+        return out * np.ones_like(x)
+
     def fixed_bet(self, x: np.array, lam = None, **kwargs) -> np.array:
         """
         Return a fixed value of lambda, the fraction of the current fortune to bet.
@@ -401,7 +434,7 @@ class NonnegMean:
             estimated "best bet" for data x
         """
         return lam
-        
+
 
     def agrapa(self, x: np.array, **kwargs) -> np.array:
         """
