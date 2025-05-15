@@ -241,7 +241,7 @@ class NonnegMean:
             raise ValueError("keyword argument \'out\' is misspecified, needs to be in [\'p-values', \'mart\']")
         return output
 
-    def mix_betting_mart(self, x: np.array, lam: np.array, **kwargs) -> tuple[float, np.array]:
+    def mix_betting_mart(self, x: np.array, **kwargs) -> tuple[float, np.array]:
         """
         Finds a simple discrete mixture martingale as a (flat) average of D TSMs each with fixed bet 'lam'
 
@@ -261,9 +261,7 @@ class NonnegMean:
             keyword arguments for bet() and for this function
             u: float > 0 (default 1)
                 upper bound on the population
-            eta: float in (t,u] (default u*(1-eps))
-                value parametrizing the bet. Use alternative hypothesized population mean for polling audit
-                or a value nearer the upper bound for card-level comparison audits
+            lam: a numpy array of bets that will be mixed over; defaults to an equi-spaced length 100 grid on [0,1/t]
 
         Returns
         -------
@@ -276,6 +274,7 @@ class NonnegMean:
         N = self.N
         t = self.t
         u = self.u
+        lam = getattr(self, "lam", np.linspace(0,1/t,100))
         n = len(x)
         D = len(lam)
         marts = np.zeros((D, n))
