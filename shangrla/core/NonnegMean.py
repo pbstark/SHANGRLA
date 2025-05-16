@@ -261,7 +261,7 @@ class NonnegMean:
             keyword arguments for bet() and for this function
             u: float > 0 (default 1)
                 upper bound on the population
-            lam: a numpy array of bets that will be mixed over; defaults to an equi-spaced length 100 grid on [0,1/t]
+            lams: a numpy array of bets that will be mixed over; defaults to an equi-spaced length 100 grid on [0,1/t]
 
         Returns
         -------
@@ -274,12 +274,12 @@ class NonnegMean:
         N = self.N
         t = self.t
         u = self.u
-        lam = getattr(self, "lam", np.linspace(0,1/t,100))
+        lams = getattr(self, "lams", np.linspace(0,1/t,100))
         n = len(x)
-        D = len(lam)
+        D = len(lams)
         marts = np.zeros((D, n))
         for d in range(D):
-            test = NonnegMean(N=N, u=u, bet=NonnegMean.fixed_bet, lam=lam[d])
+            test = NonnegMean(N=N, u=u, bet=NonnegMean.fixed_bet, lam=lams[d])
             marts[d,:] = test.betting_mart(x, out='mart')
         mart = np.mean(marts, 0)
         return min(1, 1 / np.max(mart)), np.minimum(1, 1 / mart)
