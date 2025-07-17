@@ -185,7 +185,7 @@ class TestNonnegMean:
         for val in [0.6, 0.7]:
             for lam in [0.2, 0.5]:
                 test = NonnegMean(N=N, u=u, bet=NonnegMean.fixed_bet,
-                                  c_grapa_0=c_g_0, c_grapa_m=c_g_m, c_grapa_grow=c_g_g, 
+                                  c_grapa_0=c_g_0, c_grapa_m=c_g_m, c_grapa_grow=c_g_g,
                                   lam=lam)
                 x = val*np.ones(n)
                 lam_0 = test.agrapa(x)
@@ -203,7 +203,7 @@ class TestNonnegMean:
         for val in [0.75, 0.9]:
             for lam in [0.25, 0.5]:
                 test = NonnegMean(N=N, u=u, bet=NonnegMean.agrapa,
-                                  c_grapa_0=c_g_0, c_grapa_max=c_g_m, c_grapa_grow=c_g_g, 
+                                  c_grapa_0=c_g_0, c_grapa_max=c_g_m, c_grapa_grow=c_g_g,
                                   lam=lam)
                 x = val*np.ones(n)
                 lam_0 = test.agrapa(x)
@@ -226,6 +226,35 @@ class TestNonnegMean:
                 test = NonnegMean(N=N, u=u, bet=NonnegMean.fixed_bet, lam=lam)
                 x = val*np.ones(n)
                 np.testing.assert_almost_equal(test.betting_mart(x)[0], 1/(1+lam*(val-t))**n)
+
+    def test_mix_betting_mart(self):
+        N = np.inf
+        n = 20
+        t = 0.5
+        u = 1
+        lams = np.linspace(0,1/t,100)
+        for val in [0.55, 0.7, 0.9]:
+                test = NonnegMean(N=N, u=u, t=t)
+                x = val*np.ones(n)
+                assert len(test.mix_betting_mart(x=x, lam=lams)[1]) == len(x)
+                assert test.mix_betting_mart(x=x, lam=lams)[0] < 0.5 # check that the P-value is always small by the end
+
+
+    def test_kelly_optimal(self):
+        N = np.inf
+        n = 20
+        t = 0.5
+        u = 1
+        test = NonnegMean(N=N, u=u, bet=NonnegMean.kelly_optimal)
+        x = np.append(np.ones(int(n/2)), 0.1 * np.ones(int(n/2)))
+        assert np.all(0 < test.kelly_optimal(x)) and np.all(test.kelly_optimal(x) < 1/t)
+        x = np.append(np.ones(int(n/2)), np.ones(int(n/2)))
+        assert  np.all(test.kelly_optimal(x) == 1/t)
+        x = 0.3 * np.ones(n)
+        assert np.all(test.kelly_optimal(x) == 0)
+        test = NonnegMean(N=N, u=u, bet=NonnegMean.kelly_optimal, pop=x)
+        assert np.all(test.kelly_optimal(np.ones(3)) == 0)
+
 
     def test_sjm(self):
         # test_sjm_with_replacement:
