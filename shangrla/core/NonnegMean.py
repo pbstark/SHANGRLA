@@ -1,5 +1,6 @@
 import math
 import numpy as np
+import scipy as sp
 import warnings
 
 ##########################################################################################
@@ -51,7 +52,7 @@ class NonnegMean:
         bet: callable = None,
         u: float = 1,
         N: int = np.inf,
-        t: float = 1 / 2,
+        t: float = 1/2,
         random_order: bool = True,
         **kwargs,
     ):
@@ -202,21 +203,25 @@ class NonnegMean:
 
         Returns
         -------
-        p: float or vector of floats
-            sequentially valid p-value of the hypothesis that the population mean is less than or equal to t,
-            for each bet `lam`
-        p_history: numpy array
-            sample by sample history of p-values. Not meaningful unless the sample is in random order.
+        if kwargs.out == 'p-value' (default):
+            p: float or vector of floats
+                sequentially valid p-value of the hypothesis that the population mean is less than or equal to t,
+                for each bet `lam`
+            p_history: numpy array
+                sample by sample history of p-values. Not meaningful unless the sample is in random order.
+        if kwargs.out == 'mart':
+                numpy.array, the martingale / E-value sequence
         """
         N = self.N
         t = self.t
         u = self.u
         atol = kwargs.get("atol", 2 * np.finfo(float).eps)
         rtol = kwargs.get("rtol", 10**-6)
+        out = kwargs.get("out", "p-values")
         _S, Stot, _j, m = self.sjm(N, t, x)
         x = np.array(x)
         with np.errstate(divide="ignore", invalid="ignore", over="ignore"):
-            lam = self.bet(x)            
+            lam = self.bet(x)
             terms = np.cumprod(1 + lam * (x - m))
         terms[m > u] = 0  # true mean is certainly less than hypothesized
         terms[np.isclose(0, m, atol=atol)] = 1  # ignore
@@ -228,7 +233,58 @@ class NonnegMean:
         terms[-1] = (
             np.inf if Stot > N * t else terms[-1]
         )  # final sample makes the total greater than the null
-        return min(1, 1 / np.max(terms)), np.minimum(1, 1 / terms)
+        if out == "p-values":
+            output = min(1, 1 / np.max(terms)), np.minimum(1, 1 / terms)
+        elif out == "mart":
+            output = terms
+        else:
+            raise ValueError("keyword argument \'out\' is misspecified, needs to be in [\'p-values', \'mart\']")
+        return output
+
+    def mix_betting_mart(self, x: np.array, **kwargs) -> tuple[float, np.array]:
+        """
+        Finds a simple discrete mixture martingale as a (flat) average of D TSMs each with fixed bet 'lam'
+
+        If kwargs includes `lam`, uses `lam` as a real-valued bet or a vector of real-valued bets.
+        Throws an error if `lam`
+
+        **The draws must be in random order**, or the sequence is not a supermartingale under the null
+
+        If N is finite, assumes the sample is drawn without replacement
+        If N is infinite, assumes the sample is with replacement
+
+        Parameters
+        ----------
+        x: list corresponding to the data
+        lam: length-D np.array of bets
+        attributes used:
+            keyword arguments for bet() and for this function
+            u: float > 0 (default 1)
+                upper bound on the population
+            lams: a numpy array of bets that will be mixed over; defaults to an equi-spaced length 100 grid on [0,1/t]
+
+        Returns
+        -------
+        p: float or vector of floats
+            sequentially valid p-value of the hypothesis that the population mean is less than or equal to t,
+            for each bet `lam`
+        p_history: numpy array
+            sample by sample history of p-values. Not meaningful unless the sample is in random order.
+        """
+        N = self.N
+        t = self.t
+        u = self.u
+        lams = getattr(self, "lams", np.linspace(0,1/t,100))
+        n = len(x)
+        D = len(lams)
+        marts = np.zeros((D, n))
+        for d in range(D):
+            test = NonnegMean(N=N, u=u, bet=NonnegMean.fixed_bet, lam=lams[d])
+            marts[d,:] = test.betting_mart(x, out='mart')
+        mart = np.mean(marts, 0)
+        return min(1, 1 / np.max(mart)), np.minimum(1, 1 / mart)
+
+
 
     def fixed_alternative_mean(self, x: np.array, **kwargs) -> np.array:
         """
@@ -295,7 +351,7 @@ class NonnegMean:
             eta: float in (t, u) (default u*(1-eps))
                 initial alternative hypothethesized value for the population mean
             c: positive float
-                scale factor in constraints to keep the estimator of the mean from getting too close to t or u before 
+                scale factor in constraints to keep the estimator of the mean from getting too close to t or u before
                 the empirical mean is stable
             d: positive float
                 relative weight of eta compared to an observation, in updating the alternative for each term
@@ -363,6 +419,41 @@ class NonnegMean:
         p2 = getattr(self, "error_rate_2", 1e-5)  # rate of 2-vote overstatement errors
         return (1 - self.u * (1 - p2)) / (2 - 2 * self.u) + self.u * (1 - p2) - 1 / 2
 
+    def deriv(lam, x, eta):
+        return np.sum((x - eta) / (1 + lam * (x - eta)))
+
+    def kelly_optimal(self, x: np.array, pop = None, **kwargs):
+        """
+        return the Kelly-optimal bet
+
+        Parameters
+        ----------
+        x: np.array
+            input data
+        pop: optional np.array
+            the population (order does not matter) that will be used to compute the optimal bet
+        Takes x to be the population unless pop is provided
+        """
+        t = self.t # the null mean
+        pop = getattr(self, "pop", None) # attempts to inherit pop from the class
+        if pop is None:
+            pop = x
+        min_slope = NonnegMean.deriv(0, pop, t)
+        max_slope = NonnegMean.deriv(1/t, pop, t)
+        # if the return is always growing, set lambda to the maximum allowed
+        if (min_slope > 0) & (max_slope > 0):
+            out = 1/t
+        # if the return is always shrinking, set lambda to 0
+        elif (min_slope < 0) & (max_slope < 0):
+            out = 0
+        # otherwise, optimize on the interval [0, 1/eta]
+        else:
+            lam_star = sp.optimize.root_scalar(lambda lam: NonnegMean.deriv(lam, pop, t), bracket = [0, 1/t], method = 'bisect')
+            assert lam_star.converged, "Could not find Kelly optimal bet, the optimization may be poorly conditioned"
+            out = lam_star['root']
+        return out * np.ones_like(x)
+
+
     def fixed_bet(self, x: np.array, lam = None, **kwargs) -> np.array:
         """
         Return a fixed value of lambda, the fraction of the current fortune to bet.
@@ -401,7 +492,7 @@ class NonnegMean:
             estimated "best bet" for data x
         """
         return lam
-        
+
 
     def agrapa(self, x: np.array, **kwargs) -> np.array:
         """
