@@ -453,6 +453,10 @@ class TestAssertion:
         assert math.isclose(aVb.overstatement_assorter(mvrs[3], cvrs[1], use_style=False), 1.5 * noerror)
         assert aVb.overstatement_assorter(mvrs[3], cvrs[2], use_style=False) == noerror
 
+        # We have cvrs but use_style = false, which must mean that undervotes werent recorded. Now we examine an mvr
+        # that doesnt have that contest on it, and neither does the cvr. Seems like you should just skip it? meaning 1/2, not noerror.
+        # Otherwise assort value is noerror > .5. Enough of those and you have success without seeing a single ballot with the contest on it.
+        assert aVb.overstatement_assorter(mvrs[3], cvrs[3], use_style=False) == noerror # HEY! should be 1/2?
 
     def test_assorter_sample_size(self, AvB_plur):
         # Test Assorter.sample_size using the Kaplan-Wald risk function
