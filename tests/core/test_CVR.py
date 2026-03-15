@@ -1,6 +1,7 @@
 import numpy as np
 import sys
 import pytest
+from collections import defaultdict
 from cryptorandom.cryptorandom import SHA256
 
 from shangrla.core.Audit import Audit, Assertion, Contest, CVR
@@ -120,12 +121,17 @@ class TestCVR:
                    ]
         cvr_list = CVR.from_dict(cvr_dicts)
         tally_pools = CVR.pool_contests(cvr_list)  
-        assert CVR.add_pool_contests(cvr_list, tally_pools)
+        added_ref = defaultdict(int)
+        added_ref['AvB'] = 3
+        added_ref['CvD'] = 1
+        added_ref['EvF'] = 3
+        added_ref['GvH'] = 2
+        assert CVR.add_pool_contests(cvr_list, tally_pools) == added_ref
         for i in range(3):
             assert set(cvr_list[i].votes.keys()) == {'AvB', 'CvD', 'EvF', 'GvH'}  
         for i in range(3,5):
             assert set(cvr_list[i].votes.keys()) == {'AvB', 'CvD', 'EvF'} 
-        assert not CVR.add_pool_contests(cvr_list, tally_pools)
+        assert sum(CVR.add_pool_contests(cvr_list, tally_pools).values()) == 0
 
     def test_oneaudit_overstatement(self):
         cvr_dicts = [{'id': 1, 'tally_pool': 1, 'pool': True, 'votes': {'AvB': {}, 'CvD': {'Candy':True}}},
@@ -141,7 +147,7 @@ class TestCVR:
             assert set(cvr_list[i].votes.keys()) == {'AvB', 'CvD', 'EvF', 'GvH'}  
         for i in range(3,5):
             assert set(cvr_list[i].votes.keys()) == {'AvB', 'CvD', 'EvF'} 
-        assert not CVR.add_pool_contests(cvr_list, tally_pools)
+        assert sum(CVR.add_pool_contests(cvr_list, tally_pools).values()) == 0
         # FIX ME! Need to construct assertions
             
     def test_cvr_from_raire(self):
