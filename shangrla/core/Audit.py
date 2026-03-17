@@ -116,7 +116,7 @@ class CVR:
 
     For instance, in a plurality contest with four candidates, a vote for Alice (and only Alice)
     in a mayoral contest could be represented by any of the following:
-            {"id": "A-001-01", "pool": False, "pool_group": "ABC", "phantom:: False"votes": {"mayor": {"Alice": True}}}
+            {"id": "A-001-01", "pool": False, "tally_pool": "ABC", "phantom:: False"votes": {"mayor": {"Alice": True}}}
             {"id": "A-001-01", "votes": {"mayor": {"Alice": "marked"}}}
             {"id": "A-001-01", "votes": {"mayor": {"Alice": 5}}}
             {"id": "A-001-01", "votes": {"mayor": {"Alice": 1, "Bob": 0, "Candy": 0, "Dan": ""}}}
@@ -219,7 +219,7 @@ class CVR:
         Returns
         -------
         added: bool
-            True if the contest was already present; else false
+            False if the contest was already present on the CVR; False if the contest was added
 
         Side effects
         ------------
@@ -601,7 +601,7 @@ class CVR:
         return tally_pools
 
     @classmethod
-    def add_pool_contests(cls, cvrs: list["CVR"], tally_pools: dict) -> bool:
+    def add_pool_contests(cls, cvrs: list["CVR"], tally_pools: dict) -> defaultdict:
         """
         for each tally_pool, ensure every CVR in that tally_pool has every contest mentioned in that pool
 
@@ -610,18 +610,18 @@ class CVR:
         cvrs : list of CVR objects
             the set to update with additional contests as needed
 
-        tally_pools dict
+        tally_pools : dict
             keys are tally_pool ids, values are sets of contests every CVR in that pool should have
 
         Returns
         -------
-        bool : True if any contest is added to any CVR
+        defaultdict : dict of number of CVRs to which each contest was added
+            keys are contests, values are the number of CVRs to which the contest was added
         """
-        added = False
+        added = defaultdict(int)
         for c in [d for d in cvrs if (d.tally_pool in tally_pools.keys() and d.pool)]:
-            added = (
-                c.update_votes({con: {} for con in tally_pools[c.tally_pool]}) or added
-            )  # note: order of terms matters!
+            for con in tally_pools[c.tally_pool]:    
+                added[con] +=  c.update_votes({con: {} })
         return added
 
     @classmethod
@@ -739,7 +739,7 @@ class CVR:
 
     @classmethod
     def prep_comparison_sample(
-        cls, mvr_sample: list["CVR"], cvr_sample: list["CVR"], sample_order: list
+        cls, mvr_sample: list["CVR"], cvr_sample: list["CVR"], sample_order: dict
     ):
         """
         prepare the MVRs and CVRs for comparison by putting them into the same (random) order
@@ -747,7 +747,9 @@ class CVR:
 
         conduct data integrity checks.
 
-        Side-effects: sorts the mvr sample into the same order as the cvr sample
+        Side-effects: 
+             sorts the MVR sample into the same order as the CVR sample
+             populates the MVR properties `pool`, `tally_pool`, and `card_in_batch` with values from the corresponding CVRs 
 
         Parameters
         ----------
@@ -765,6 +767,7 @@ class CVR:
         Side effects
         ------------
         sorts the mvr sample into the same order as the cvr sample
+        populates the `pool` and `tally_pool` attributes of the MVR from the corresponding CVR
         """
         mvr_sample.sort(key=lambda x: sample_order[x.id]["selection_order"])
         cvr_sample.sort(key=lambda x: sample_order[x.id]["selection_order"])
@@ -774,6 +777,9 @@ class CVR:
             len(cvr_sample), len(mvr_sample)
         )
         for i in range(len(cvr_sample)):
+            mvr_sample[i].pool = cvr_sample[i].pool
+            mvr_sample[i].tally_pool = cvr_sample[i].tally_pool
+            mvr_sample[i].card_in_batch = cvr_sample[i].card_in_batch
             assert (
                 mvr_sample[i].id == cvr_sample[i].id
             ), f"Mismatch between id of cvr ({cvr_sample[i].id}) and mvr ({mvr_sample[i].id})"
@@ -2806,7 +2812,7 @@ class Contest:
             assn.find_margin_from_tally()
 
     @classmethod
-    def check_cards(cls, contests: Collection["Contest"], cvrs: Collection["CVR"], force: bool = False):
+    def check_cards(cls, contests: Collection["Contest"], cvrs: Collection["CVR"], force: bool = False) -> dict:
         '''
         Check whether the number of CVRs that contain each contest is not greater than the upper bound
         on the number of cards that contain the contest; optionally, increase the upper bounds to make that so.
@@ -2821,16 +2827,26 @@ class Contest:
             Increase the upper bounds to include all the CVRs.
             This is useful for ONEAudit when the original upper bounds were fine but ONEAudit added the contest
             to some CVRs in some pool batches.
+
+        Returns
+        -------
+        dict: dict of violated bounds. key are contests, values are 
         '''
+        increased = {}
         for c, con in contests.items():
             found = np.sum([cvr.has_contest(c) for cvr in cvrs])
             if found > con.cards:
+                increased[c] = {}
+                increased[c]['found'] = found
+                increased[c]['bound_in'] = con.cards
+                increased[c]['bound_out'] = con.cards
                 if not force:
                     raise ValueError(f'{found} cards contain contest {c} but upper bound is {con.cards}')
                 else:
-                    warnings.warn(f'{found} cards contain contest {c} but upper bound is {con.cards}')                                    
+                    warnings.warn(f'{found} cards contain contest {c} but upper bound is {con.cards}. Increasing upper bound to {found}.')
+                    increased[c]['bound_out'] = found
             con.cards = max(con.cards, found) if force else con.cards
-                
+        return increased
 
     @classmethod
     def tally(cls, con_dict: dict = None, cvr_list: "Collection[CVR]" = None, enforce_rules: bool = True) -> dict:

@@ -1,6 +1,7 @@
 import numpy as np
 import sys
 import pytest
+from collections import defaultdict
 from cryptorandom.cryptorandom import SHA256
 
 from shangrla.core.Audit import Audit, Assertion, Contest, CVR
@@ -120,12 +121,17 @@ class TestCVR:
                    ]
         cvr_list = CVR.from_dict(cvr_dicts)
         tally_pools = CVR.pool_contests(cvr_list)  
-        assert CVR.add_pool_contests(cvr_list, tally_pools)
+        added_ref = defaultdict(int)
+        added_ref['AvB'] = 3
+        added_ref['CvD'] = 1
+        added_ref['EvF'] = 3
+        added_ref['GvH'] = 2
+        assert CVR.add_pool_contests(cvr_list, tally_pools) == added_ref
         for i in range(3):
             assert set(cvr_list[i].votes.keys()) == {'AvB', 'CvD', 'EvF', 'GvH'}  
         for i in range(3,5):
             assert set(cvr_list[i].votes.keys()) == {'AvB', 'CvD', 'EvF'} 
-        assert not CVR.add_pool_contests(cvr_list, tally_pools)
+        assert sum(CVR.add_pool_contests(cvr_list, tally_pools).values()) == 0
 
     def test_oneaudit_overstatement(self):
         cvr_dicts = [{'id': 1, 'tally_pool': 1, 'pool': True, 'votes': {'AvB': {}, 'CvD': {'Candy':True}}},
@@ -141,7 +147,7 @@ class TestCVR:
             assert set(cvr_list[i].votes.keys()) == {'AvB', 'CvD', 'EvF', 'GvH'}  
         for i in range(3,5):
             assert set(cvr_list[i].votes.keys()) == {'AvB', 'CvD', 'EvF'} 
-        assert not CVR.add_pool_contests(cvr_list, tally_pools)
+        assert sum(CVR.add_pool_contests(cvr_list, tally_pools).values()) == 0
         # FIX ME! Need to construct assertions
             
     def test_cvr_from_raire(self):
@@ -183,12 +189,12 @@ class TestCVR:
                                      'winner': ['yes']
                                     }
                     })
-        cvrs = [CVR(id="1", votes={"city_council": {"Alice": 1},     "measure_1": {"yes": 1}}, phantom=False),
-                    CVR(id="2", votes={"city_council": {"Bob": 1},   "measure_1": {"yes": 1}}, phantom=False),
-                    CVR(id="3", votes={"city_council": {"Bob": 1},   "measure_1": {"no": 1}}, phantom=False),
-                    CVR(id="4", votes={"city_council": {"Charlie": 1}}, phantom=False),
-                    CVR(id="5", votes={"city_council": {"Doug": 1}}, phantom=False),
-                    CVR(id="6", votes={"measure_1": {"no": 1}}, phantom=False)
+        cvrs = [CVR(id="1", votes={"city_council": {"Alice": 1}, "measure_1": {"yes": 1}}, phantom=False),
+                CVR(id="2", votes={"city_council": {"Bob": 1}, "measure_1": {"yes": 1}}, phantom=False),
+                CVR(id="3", votes={"city_council": {"Bob": 1}, "measure_1": {"no": 1}}, phantom=False),
+                CVR(id="4", votes={"city_council": {"Charlie": 1}}, phantom=False),
+                CVR(id="5", votes={"city_council": {"Doug": 1}}, phantom=False),
+                CVR(id="6", votes={"measure_1": {"no": 1}}, phantom=False)
                 ]
         prefix = 'phantom-'
 
@@ -339,6 +345,49 @@ class TestCVR:
         assert cvrs[6].card_in_batch == 2
         assert cvrs[7].card_in_batch == 1
         
+    def test_prep_comparison_sample(self):
+        cvrs = [CVR(id="B-100", votes={"city_council": {"Alice": 1}, "measure_1": {"yes": 1}}, phantom=False, pool=True,
+                   tally_pool="A"),
+                CVR(id="B-90", votes={"city_council": {"Bob": 1}, "measure_1": {"yes": 1}}, phantom=False, pool=True,
+                   tally_pool="A"),
+                CVR(id="A-1", votes={"city_council": {"Bob": 1}, "measure_1": {"no": 1}}, phantom=False, pool=True,
+                   tally_pool="A"),
+                CVR(id="A-20", votes={"city_council": {"Charlie": 1}}, phantom=False, pool=True,
+                   tally_pool="A"),
+                CVR(id="C-50", votes={"city_council": {"Doug": 1}}, phantom=False, pool=False,
+                   tally_pool="B"),
+                CVR(id="6", votes={"measure_1": {"no": 1}}, phantom=False, pool=False,
+                   tally_pool="B"),
+                CVR(id="7-B", votes={"city_council": {"Alice": 1}, "measure_1": {"yes": 1}, "measure_2": {"no":1}},
+                    phantom=False, pool=False,
+                    tally_pool="B"),
+                CVR(id="7-A", votes={"measure_1": {"no": 1}, "measure_2": {"yes": 1}}, phantom=False, pool=False,
+                   tally_pool="B")
+            ]
+        mvrs = [CVR(id="A-20", votes={"city_council": {"Charlie": 1}}),
+                CVR(id="C-50", votes={"city_council": {"Doug": 1}}),
+                CVR(id="6", votes={"measure_1": {"no": 1}}),
+                CVR(id="7-B", votes={"city_council": {"Alice": 1}, "measure_1": {"yes": 1}, "measure_2": {"no":1}}),
+                CVR(id="7-A", votes={"measure_1": {"no": 1}, "measure_2": {"yes": 1}}),
+                CVR(id="B-100", votes={"city_council": {"Alice": 1}, "measure_1": {"yes": 1}}),
+                CVR(id="B-90", votes={"city_council": {"Bob": 1}, "measure_1": {"yes": 1}}),
+                CVR(id="A-1", votes={"city_council": {"Bob": 1}, "measure_1": {"no": 1}})
+            ]
+        sample_order = {"A-1": {"selection_order": 1, "serial": 2},
+                        "A-20": {"selection_order": 2, "serial": 3},
+                        "B-90": {"selection_order": 3, "serial": 1},
+                        "B-100": {"selection_order": 4, "serial": 0},
+                        "C-50": {"selection_order": 5, "serial": 4},
+                        "6": {"selection_order": 6, "serial": 5},
+                        "7-A": {"selection_order": 7, "serial": 7},
+                        "7-B": {"selection_order": 8, "serial": 6}
+                       }
+        CVR.prep_comparison_sample(mvrs, cvrs, sample_order) 
+        for i in range(len(mvrs)):
+            assert mvrs[i].id == cvrs[i].id
+            assert mvrs[i].pool == cvrs[i].pool
+            assert mvrs[i].tally_pool == cvrs[i].tally_pool
+            
 
 ##########################################################################################
 if __name__ == "__main__":
