@@ -116,7 +116,7 @@ class CVR:
 
     For instance, in a plurality contest with four candidates, a vote for Alice (and only Alice)
     in a mayoral contest could be represented by any of the following:
-            {"id": "A-001-01", "pool": False, "pool_group": "ABC", "phantom:: False"votes": {"mayor": {"Alice": True}}}
+            {"id": "A-001-01", "pool": False, "tally_pool": "ABC", "phantom:: False"votes": {"mayor": {"Alice": True}}}
             {"id": "A-001-01", "votes": {"mayor": {"Alice": "marked"}}}
             {"id": "A-001-01", "votes": {"mayor": {"Alice": 5}}}
             {"id": "A-001-01", "votes": {"mayor": {"Alice": 1, "Bob": 0, "Candy": 0, "Dan": ""}}}
@@ -739,7 +739,7 @@ class CVR:
 
     @classmethod
     def prep_comparison_sample(
-        cls, mvr_sample: list["CVR"], cvr_sample: list["CVR"], sample_order: list
+        cls, mvr_sample: list["CVR"], cvr_sample: list["CVR"], sample_order: dict
     ):
         """
         prepare the MVRs and CVRs for comparison by putting them into the same (random) order
@@ -747,7 +747,9 @@ class CVR:
 
         conduct data integrity checks.
 
-        Side-effects: sorts the mvr sample into the same order as the cvr sample
+        Side-effects: 
+             sorts the MVR sample into the same order as the CVR sample
+             populates the MVR properties `pool`, `tally_pool`, and `card_in_batch` with values from the corresponding CVRs 
 
         Parameters
         ----------
@@ -765,6 +767,7 @@ class CVR:
         Side effects
         ------------
         sorts the mvr sample into the same order as the cvr sample
+        populates the `pool` and `tally_pool` attributes of the MVR from the corresponding CVR
         """
         mvr_sample.sort(key=lambda x: sample_order[x.id]["selection_order"])
         cvr_sample.sort(key=lambda x: sample_order[x.id]["selection_order"])
@@ -774,6 +777,9 @@ class CVR:
             len(cvr_sample), len(mvr_sample)
         )
         for i in range(len(cvr_sample)):
+            mvr_sample[i].pool = cvr_sample[i].pool
+            mvr_sample[i].tally_pool = cvr_sample[i].tally_pool
+            mvr_sample[i].card_in_batch = cvr_sample[i].card_in_batch
             assert (
                 mvr_sample[i].id == cvr_sample[i].id
             ), f"Mismatch between id of cvr ({cvr_sample[i].id}) and mvr ({mvr_sample[i].id})"

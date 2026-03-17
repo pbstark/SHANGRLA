@@ -189,12 +189,12 @@ class TestCVR:
                                      'winner': ['yes']
                                     }
                     })
-        cvrs = [CVR(id="1", votes={"city_council": {"Alice": 1},     "measure_1": {"yes": 1}}, phantom=False),
-                    CVR(id="2", votes={"city_council": {"Bob": 1},   "measure_1": {"yes": 1}}, phantom=False),
-                    CVR(id="3", votes={"city_council": {"Bob": 1},   "measure_1": {"no": 1}}, phantom=False),
-                    CVR(id="4", votes={"city_council": {"Charlie": 1}}, phantom=False),
-                    CVR(id="5", votes={"city_council": {"Doug": 1}}, phantom=False),
-                    CVR(id="6", votes={"measure_1": {"no": 1}}, phantom=False)
+        cvrs = [CVR(id="1", votes={"city_council": {"Alice": 1}, "measure_1": {"yes": 1}}, phantom=False),
+                CVR(id="2", votes={"city_council": {"Bob": 1}, "measure_1": {"yes": 1}}, phantom=False),
+                CVR(id="3", votes={"city_council": {"Bob": 1}, "measure_1": {"no": 1}}, phantom=False),
+                CVR(id="4", votes={"city_council": {"Charlie": 1}}, phantom=False),
+                CVR(id="5", votes={"city_council": {"Doug": 1}}, phantom=False),
+                CVR(id="6", votes={"measure_1": {"no": 1}}, phantom=False)
                 ]
         prefix = 'phantom-'
 
@@ -345,6 +345,49 @@ class TestCVR:
         assert cvrs[6].card_in_batch == 2
         assert cvrs[7].card_in_batch == 1
         
+    def test_prep_comparison_sample(self):
+        cvrs = [CVR(id="B-100", votes={"city_council": {"Alice": 1}, "measure_1": {"yes": 1}}, phantom=False, pool=True,
+                   tally_pool="A"),
+                CVR(id="B-90", votes={"city_council": {"Bob": 1}, "measure_1": {"yes": 1}}, phantom=False, pool=True,
+                   tally_pool="A"),
+                CVR(id="A-1", votes={"city_council": {"Bob": 1}, "measure_1": {"no": 1}}, phantom=False, pool=True,
+                   tally_pool="A"),
+                CVR(id="A-20", votes={"city_council": {"Charlie": 1}}, phantom=False, pool=True,
+                   tally_pool="A"),
+                CVR(id="C-50", votes={"city_council": {"Doug": 1}}, phantom=False, pool=False,
+                   tally_pool="B"),
+                CVR(id="6", votes={"measure_1": {"no": 1}}, phantom=False, pool=False,
+                   tally_pool="B"),
+                CVR(id="7-B", votes={"city_council": {"Alice": 1}, "measure_1": {"yes": 1}, "measure_2": {"no":1}},
+                    phantom=False, pool=False,
+                    tally_pool="B"),
+                CVR(id="7-A", votes={"measure_1": {"no": 1}, "measure_2": {"yes": 1}}, phantom=False, pool=False,
+                   tally_pool="B")
+            ]
+        mvrs = [CVR(id="A-20", votes={"city_council": {"Charlie": 1}}),
+                CVR(id="C-50", votes={"city_council": {"Doug": 1}}),
+                CVR(id="6", votes={"measure_1": {"no": 1}}),
+                CVR(id="7-B", votes={"city_council": {"Alice": 1}, "measure_1": {"yes": 1}, "measure_2": {"no":1}}),
+                CVR(id="7-A", votes={"measure_1": {"no": 1}, "measure_2": {"yes": 1}}),
+                CVR(id="B-100", votes={"city_council": {"Alice": 1}, "measure_1": {"yes": 1}}),
+                CVR(id="B-90", votes={"city_council": {"Bob": 1}, "measure_1": {"yes": 1}}),
+                CVR(id="A-1", votes={"city_council": {"Bob": 1}, "measure_1": {"no": 1}})
+            ]
+        sample_order = {"A-1": {"selection_order": 1, "serial": 2},
+                        "A-20": {"selection_order": 2, "serial": 3},
+                        "B-90": {"selection_order": 3, "serial": 1},
+                        "B-100": {"selection_order": 4, "serial": 0},
+                        "C-50": {"selection_order": 5, "serial": 4},
+                        "6": {"selection_order": 6, "serial": 5},
+                        "7-A": {"selection_order": 7, "serial": 7},
+                        "7-B": {"selection_order": 8, "serial": 6}
+                       }
+        CVR.prep_comparison_sample(mvrs, cvrs, sample_order) 
+        for i in range(len(mvrs)):
+            assert mvrs[i].id == cvrs[i].id
+            assert mvrs[i].pool == cvrs[i].pool
+            assert mvrs[i].tally_pool == cvrs[i].tally_pool
+            
 
 ##########################################################################################
 if __name__ == "__main__":
