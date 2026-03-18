@@ -539,7 +539,7 @@ class CVR:
 
         Side Effects
         ------------
-        Set `card_in_batch` to the lexicographic position of the CVR ID within its tally_batch     
+        Set `card_in_batch` to the lexicographic position of the CVR ID within its tally_pool     
         '''
         tally_pool_dict = defaultdict(list)
         for c in cvr_list:
@@ -740,12 +740,12 @@ class CVR:
     @classmethod
     def prep_comparison_sample(
         cls, mvr_sample: list["CVR"], cvr_sample: list["CVR"], sample_order: dict
-    ):
+    ) -> bool:
         """
-        prepare the MVRs and CVRs for comparison by putting them into the same (random) order
-        in which the CVRs were selected
+        Prepare the MVRs and CVRs for comparison by putting them into the same (random) order
+        in which the CVRs were selected.
 
-        conduct data integrity checks.
+        Conduct data integrity checks.
 
         Side-effects: 
              sorts the MVR sample into the same order as the CVR sample
@@ -763,7 +763,8 @@ class CVR:
 
         Returns
         -------
-
+        True
+        
         Side effects
         ------------
         sorts the mvr sample into the same order as the cvr sample
@@ -783,9 +784,10 @@ class CVR:
             assert (
                 mvr_sample[i].id == cvr_sample[i].id
             ), f"Mismatch between id of cvr ({cvr_sample[i].id}) and mvr ({mvr_sample[i].id})"
+        return True
 
     @classmethod
-    def prep_polling_sample(cls, mvr_sample: list, sample_order: dict):
+    def prep_polling_sample(cls, mvr_sample: list, sample_order: dict) -> bool:
         """
         Put the mvr sample back into the random selection order.
 
@@ -807,9 +809,10 @@ class CVR:
         mvr_sample is reordered into the random selection order
         """
         mvr_sample.sort(key=lambda x: sample_order[x.id]["selection_order"])
+        return True
 
     @classmethod
-    def sort_cvr_sample_num(cls, cvr_list: list):
+    def sort_cvr_sample_num(cls, cvr_list: list) -> bool:
         """
         Sort cvr_list by sample_num
 
