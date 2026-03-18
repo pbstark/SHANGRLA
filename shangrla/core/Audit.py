@@ -739,8 +739,8 @@ class CVR:
 
     @classmethod
     def prep_comparison_sample(
-        cls, mvr_sample: list["CVR"], cvr_sample: list["CVR"], sample_order: dict
-    ) -> bool:
+        cls, mvr_sample: list["CVR"], cvr_sample: list["CVR"], sample_order: dict) -> bool:
+
         """
         Prepare the MVRs and CVRs for comparison by putting them into the same (random) order
         in which the CVRs were selected.
