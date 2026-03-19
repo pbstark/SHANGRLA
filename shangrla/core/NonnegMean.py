@@ -226,9 +226,10 @@ class NonnegMean:
         terms[m > u] = 0  # true mean is certainly less than hypothesized
         terms[np.isclose(0, m, atol=atol)] = 1  # ignore
         terms[np.isclose(u, m, atol=atol, rtol=rtol)] = 1  # ignore
-        terms[np.isclose(0, terms, atol=atol)] = (
-            1  # martingale effectively vanishes; p-value 1
-        )
+        # this line ignores stalls, should not be used
+        # terms[np.isclose(0, terms, atol=atol)] = (
+        #    1  # martingale effectively vanishes; p-value 1
+        # )
         terms[m < 0] = np.inf  # true mean certainly greater than hypothesized
         terms[-1] = (
             np.inf if Stot > N * t else terms[-1]
