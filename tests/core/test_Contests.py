@@ -107,8 +107,6 @@ class TestContests:
                 and cvr_list[2].votes['CvD'] == {'Candy':False, 'Elvis':False})
         assert (cvr_list[3].votes['AvB'] == {'Alice':True, 'Bob':False, 'Candy':False}
                 and cvr_list[3].votes['CvD']== {'Elvis':True, 'Candy':False})
-        print(f'{cvr_list[4].votes=}')
-        print(f'{contests['EvF'].choice_function=}')
         assert cvr_list[4].votes['EvF'] == {'Bob':1, 'Candy':2, 'Dan':3}
         assert cvr_list[5].votes['EvF'] == {'Bob':1, 'Candy':2}
         assert cvr_list[6].votes['EvF'] == {'Bob':1, 'Candy':2, 'Dan':3, 'Elvis':4}

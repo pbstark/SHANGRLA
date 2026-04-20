@@ -2968,7 +2968,6 @@ class Contest:
                         assigned[cand] = int(np.min(vv))
                         modified = True
                 else:
-                    warnings.warn(f'{str(cvr)=} \n{str(votes)=}')
                     assigned[cand] = (int(votes)
                                       if (bool(votes) and bool(int(votes)))
                                       else None)
