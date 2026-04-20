@@ -197,33 +197,28 @@ class TestCVR:
                 CVR(id="6", votes={"measure_1": {"no": 1}}, phantom=False)
                 ]
         prefix = 'phantom-'
-
-        cvr_list, phantoms = CVR.make_phantoms(audit=audit, contests=contests, cvr_list=cvrs, prefix='phantom-')
+        cvr_list, phantoms = CVR.make_phantoms(audit, contests, cvrs.copy(), prefix=prefix)
         assert len(cvr_list) == 9
         assert phantoms == 3
         assert contests['city_council'].cvrs == 5
         assert contests['measure_1'].cvrs == 4
         assert contests['city_council'].cards == 8
         assert contests['measure_1'].cards == 5
-        assert np.sum([c.has_contest('city_council') for c in cvr_list]) == 8, \
-                       np.sum([c.has_contest('city_council') for c in cvr_list])
-        assert np.sum([c.has_contest('measure_1') for c in cvr_list]) == 5, \
-                      np.sum([c.has_contest('measure_1') for c in cvr_list])
+        assert np.sum([c.has_contest('city_council') for c in cvr_list]) == 8
+        assert np.sum([c.has_contest('measure_1') for c in cvr_list]) == 5
         assert np.sum([c.has_contest('city_council') and not c.phantom for c in cvr_list]) ==  5
         assert np.sum([c.has_contest('measure_1') and not c.phantom for c in cvr_list]) == 4
 
         audit.strata['stratum_1'].use_style = False
-        cvr_list, phantoms = CVR.make_phantoms(audit, contests, cvrs, prefix='phantom-')
+        cvr_list, phantoms = CVR.make_phantoms(audit, contests, cvrs.copy(), prefix=prefix)
         assert len(cvr_list) == 8
         assert phantoms == 2
         assert contests['city_council'].cvrs == 5
         assert contests['measure_1'].cvrs == 4
         assert contests['city_council'].cards == 8
         assert contests['measure_1'].cards == 8
-        assert np.sum([c.has_contest('city_council') for c in cvr_list]) == 5, \
-                       np.sum([c.has_contest('city_council') for c in cvr_list])
-        assert np.sum([c.has_contest('measure_1') for c in cvr_list]) == 4, \
-                       np.sum([c.has_contest('measure_1') for c in cvr_list])
+        assert np.sum([c.has_contest('city_council') for c in cvr_list]) == 5
+        assert np.sum([c.has_contest('measure_1') for c in cvr_list]) == 4
         assert np.sum([c.has_contest('city_council') and not c.phantom for c in cvr_list]) ==  5
         assert np.sum([c.has_contest('measure_1') and not c.phantom for c in cvr_list]) == 4
 

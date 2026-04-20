@@ -420,6 +420,8 @@ class CVR:
         """
         cvr_list = []
         for c in cvr_dict:
+            votes = {} if "votes" not in c.keys() else c["votes"]
+            validated = [] if "validated" not in c.keys() else c["validated"]
             phantom = False if "phantom" not in c.keys() else c["phantom"]
             pool = False if "pool" not in c.keys() else c["pool"]
             tally_pool = None if "tally_pool" not in c.keys() else c["tally_pool"]
@@ -429,7 +431,8 @@ class CVR:
             cvr_list.append(
                 CVR(
                     id=c["id"],
-                    votes=c["votes"],
+                    votes=votes,
+                    validated=validated,
                     phantom=phantom,
                     pool=pool,
                     tally_pool=tally_pool,
@@ -761,11 +764,11 @@ class CVR:
         stratum = next(iter(audit.strata.values()))
         use_style = stratum.use_style
         max_cards = stratum.max_cards
-        phantom_vrs = []
         n_cvrs = len(cvr_list)
-        con_list = []
+        phantom_vrs = []
+        con_ids = []
         for c, con in contests.items():  # set contest parameters
-            con_list.append(con.id)
+            con_ids.append(con.id)
             con.cvrs = np.sum(
                 [cvr.has_contest(con.id) for cvr in cvr_list if not cvr.phantom]
             )
@@ -775,26 +778,33 @@ class CVR:
         # Note: this will need to change for stratified audits
         if not use_style:  #  make (max_cards - len(cvr_list)) phantoms
             phantoms = max_cards - n_cvrs
-            con_list = list(con.id for c, con in contests.items())
+            print(f'{max_cards=}, {n_cvrs=}, {phantoms=}')
             for i in range(phantoms):
-                phantom_vrs.append(CVR(id=prefix + str(i + 1), votes={}, validated=con_list, 
-                                       phantom=True, tally_pool=tally_pool, pool=pool))
-        else:  # create phantom CVRs as needed for each contest separately
+                phantom_vrs.append(CVR(id=prefix + str(i + 1), 
+                                       votes={}, 
+                                       validated=con_ids,
+                                       phantom=True, 
+                                       tally_pool=tally_pool, 
+                                       pool=pool))
+        else:  # create phantom CVRs as needed for each contest or add contest to existing phantoms if there are enough
             for c, con in contests.items():
                 phantoms_needed = con.cards - con.cvrs
-                while len(phantom_vrs) < phantoms_needed:  # creat additional phantoms
+                while len(phantom_vrs) < phantoms_needed:  # create additional phantoms
                     phantom_vrs.append(
                         CVR(
                             id=prefix + str(len(phantom_vrs) + 1),
                             votes={con.id: {}},
-                            validated = [con.id],
+                            validated=[con.id],
                             phantom=True,
                             tally_pool=tally_pool, 
                             pool=pool
                         )
                     )
+                for i in range(phantoms_needed):
+                    phantom_vrs[i].validate_contest(con.id) # mark enough phantoms as validated in the contest
+                    phantom_vrs[i].update_votes({con.id: {}})
             phantoms = len(phantom_vrs)
-        cvr_list = cvr_list + phantom_vrs
+        cvr_list += phantom_vrs
         return cvr_list, phantoms
 
     @classmethod
