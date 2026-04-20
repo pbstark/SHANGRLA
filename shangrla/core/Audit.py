@@ -6,7 +6,7 @@ import types
 import warnings
 from collections import Counter, OrderedDict, defaultdict
 from collections.abc import Collection
-from typing import Tuple, Self
+from typing import Tuple
 from scipy.stats import rankdata
 from cryptorandom.cryptorandom import int_from_hash
 from cryptorandom.sample import random_permutation
