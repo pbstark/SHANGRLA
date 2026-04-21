@@ -3278,3 +3278,9 @@ class Contest:
             print(f"margins in contest {c}:")
             for a, m in con.margins.items():
                 print(f"\tassertion {a}: {m}")
+
+    @classmethod
+    def validate_contests(cls, contests: dict = None, cvrs: list=None):
+        for c in cvrs:
+            for con in contests.values():
+                con.validate_vote(c)

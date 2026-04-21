@@ -94,12 +94,10 @@ class TestContests:
             print(f'{str(con)=}')
         for con in contests.values():
             assert not cvr_list[0].contest_validated(con.id)
-        for cvr in cvr_list:
-            for con in contests.values():
-                con.validate_vote(cvr)
+        Contest.validate_contests(contests, cvr_list) # validate all CVRs for all audited contests
         for con in contests.values():
             for cvr in cvr_list:
-             assert cvr.contest_validated(con.id)
+               assert cvr.contest_validated(con.id)
         assert cvr_list[0].votes['AvB'] == {'Alice':True} and cvr_list[0].votes['CvD'] == {'Candy':True}
         assert (cvr_list[1].votes['AvB'] == {'Alice':False, 'Bob':False, 'Candy':False} 
                 and cvr_list[1].votes['CvD'] == {'Elvis':True, 'Candy':False})
