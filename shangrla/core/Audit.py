@@ -769,9 +769,9 @@ class CVR:
         con_ids = []
         for c, con in contests.items():  # set contest parameters
             con_ids.append(con.id)
-            con.cvrs = np.sum(
+            con.cvrs = int(np.sum(
                 [cvr.has_contest(con.id) for cvr in cvr_list if not cvr.phantom]
-            )
+            ))
             con.cards = (
                 max_cards if ((con.cards is None) or (not use_style)) else con.cards
             )
@@ -788,7 +788,7 @@ class CVR:
                                        pool=pool))
         else:  # create phantom CVRs as needed for each contest or add contest to existing phantoms if there are enough
             for c, con in contests.items():
-                phantoms_needed = con.cards - con.cvrs
+                phantoms_needed = int(con.cards - con.cvrs)
                 while len(phantom_vrs) < phantoms_needed:  # create additional phantoms
                     phantom_vrs.append(
                         CVR(

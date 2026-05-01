@@ -162,12 +162,8 @@ class Dominion:
                             if str(mark["CandidateId"]) in contest_votes.keys():
                             # append vote/rank if the new rank is a vote. This logic branch was written for San Francisco IRV.
                             # It might not work for other jurisdictions and/or other social choice functions that use ranks.
-                                if mark["Rank"] is not None:
-                                    contest_votes[str(mark["CandidateId"])] = (
-                                        contest_votes[str(mark["CandidateId"])].append(int(mark["Rank"]))
-                                        if bool(contest_votes[str(mark["CandidateId"])])
-                                        else [int(mark["Rank"])]
-                                    )
+                                if bool(mark["Rank"]):
+                                    contest_votes[str(mark["CandidateId"])].append(int(mark["Rank"]))
                             else:
                                 contest_votes[str(mark["CandidateId"])] = [int(mark["Rank"])]
                     votes[str(con["Id"])] = contest_votes
