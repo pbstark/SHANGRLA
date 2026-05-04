@@ -97,12 +97,6 @@ class Dominion:
            "Marks" as the container for votes
            "Rank" as the rank
 
-        **WARNING**
-        Uses San Francisco's rules for validity of an IRV ballot; in particular, if a CVR gives
-        a candidate more than one rank, the vote is considered valid and the lowest rank is used.
-        
-        **WARNING This may break some scoring rules!**
-
         Parameters:
         -----------
         cvr_file: string
@@ -133,7 +127,11 @@ class Dominion:
             cvr_json = json.load(f)
         # Dominion export wraps the CVRs under several layers; unwrap
         # Desired output format is
-        # {"ID": "A-001-01", "votes": {"mayor": {"Alice": 1, "Bob": 2, "Candy": 3, "Dan": 4}}}
+        # {"ID": "A-001-01", "votes": {"mayor": {"Alice": [1], "Bob": [2], "Candy": [3], "Dan": [4]}, "poobah": {"Alice": True}}}
+        # or, if more than one rank is assigned to a candidate, something like
+        # {"ID": "A-001-01", "votes": {"mayor": {"Alice": [1,2], "Bob": 2, "Candy": [3,5], "Dan": 4}}}
+        # These need to be post-processed to impose local rules on valid votes for each social choice function
+        
         cvr_list = []
         for c in cvr_json["Sessions"]:
             votes = {}
@@ -162,17 +160,12 @@ class Dominion:
                     for mark in con["Marks"]:
                         if mark["IsVote"] or not enforce_rules:
                             if str(mark["CandidateId"]) in contest_votes.keys():
-                            # replace existing vote/rank if the new rank is lower but still a vote, not 0 or False
-                            # This may break some scoring rules other than IRV, and might not be what local rules
-                            # require. This logic branch matches San Francisco's rules.
+                            # append vote/rank if the new rank is a vote. This logic branch was written for San Francisco IRV.
+                            # It might not work for other jurisdictions and/or other social choice functions that use ranks.
                                 if bool(mark["Rank"]):
-                                    contest_votes[str(mark["CandidateId"])] = (
-                                        min(int(contest_votes[str(mark["CandidateId"])]), int(mark["Rank"]))
-                                        if bool(contest_votes[str(mark["CandidateId"])])
-                                        else int(mark["Rank"])
-                                    )
+                                    contest_votes[str(mark["CandidateId"])].append(int(mark["Rank"]))
                             else:
-                                contest_votes[str(mark["CandidateId"])] = mark["Rank"]
+                                contest_votes[str(mark["CandidateId"])] = [int(mark["Rank"])]
                     votes[str(con["Id"])] = contest_votes
             # If RecordId is obfuscated, extract it from the ImageMask
             record_id = c["RecordId"]
@@ -180,6 +173,11 @@ class Dominion:
                 image_match = image_mask_pattern.search(c["ImageMask"])
                 if image_match is not None:
                     record_id = int(image_match.group(0).split("_")[-1])
+            for con, v in votes.items():
+                for cand, vv in v.items():
+                    votes[con][cand] = (vv[0]
+                                        if type(vv) == list and len(vv) == 1
+                                        else vv) 
             cvr_list.append(
                 CVR(
                     id=str(c["TabulatorId"])

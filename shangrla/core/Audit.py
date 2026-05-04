@@ -4,9 +4,10 @@ import json
 import csv
 import types
 import warnings
-from collections import OrderedDict, defaultdict
+from collections import Counter, OrderedDict, defaultdict
 from collections.abc import Collection
 from typing import Tuple
+from scipy.stats import rankdata
 from cryptorandom.cryptorandom import int_from_hash
 from cryptorandom.sample import random_permutation
 from cryptorandom.sample import sample_by_index
@@ -109,6 +110,9 @@ class CVR:
     Rather, by default a CVR is supposed to reflect what the ballot shows, even if the ballot does not
     contain a valid vote in one or more contests.
 
+    Methods in shangrla.formats.Voting_rules can be used to apply local rules on the validity and interpretation
+    of votes for different social choice functions.
+
     Class method get_vote_for returns the vote for a given candidate if the candidate is a
     key in the CVR, or False if the candidate is not in the CVR.
 
@@ -116,13 +120,13 @@ class CVR:
 
     For instance, in a plurality contest with four candidates, a vote for Alice (and only Alice)
     in a mayoral contest could be represented by any of the following:
-            {"id": "A-001-01", "pool": False, "tally_pool": "ABC", "phantom:: False"votes": {"mayor": {"Alice": True}}}
+            {"id": "A-001-01", "pool": False, "tally_pool": "ABC", "phantom": False, "votes": {"mayor": {"Alice": True}}}
             {"id": "A-001-01", "votes": {"mayor": {"Alice": "marked"}}}
             {"id": "A-001-01", "votes": {"mayor": {"Alice": 5}}}
             {"id": "A-001-01", "votes": {"mayor": {"Alice": 1, "Bob": 0, "Candy": 0, "Dan": ""}}}
             {"id": "A-001-01", "votes": {"mayor": {"Alice": True, "Bob": False}}}
     A CVR that contains a vote for Alice for "mayor" and a vote for Bob for "DA" could be represented as
-            {"id": "A-001-01", "votes": {"mayor": {"Alice": True}, "DA": {"Bob": True}}}
+            {"id": "A-001-02", "votes": {"mayor": {"Alice": True}, "DA": {"Bob": True}}}
 
     NOTE: some methods distinguish between a CVR that contains a particular contest, but no valid
     vote in that contest, and a CVR that does not contain that contest at all. Thus, the following
@@ -134,6 +138,17 @@ class CVR:
     Ranked votes also have simple representation, e.g., if the CVR is
             {"id": "A-001-01", "votes": {"mayor": {"Alice": 1, "Bob": 2, "Candy": 3, "Dan": ''}}}
     Then int(get_vote_for("Candy","mayor"))=3, Candy's rank in the "mayor" contest.
+
+    To allow for multiple votes assigned to the same candidate (e.g., in a mis-marked IRV ballot), the vote for
+    a candidate can be a list, e.g.,
+            {"id": "A-001-01", "votes": {"mayor": {"Alice": [1,2], "Bob": 2, "Candy": 3, "Dan": ''}}}
+    Such markings generally need to be pre-processed (`validated`) according to local rules for interpreting mis-marked ballots.
+    The `Contest` class contains methods for validating votes; user-provided methods can also be used when `Contest` is
+    instantiated.
+
+    CVRs that have been checked/modified to concord with social choice function rules (e.g., what constitutes
+    an overvote) are flagged as `validated` for that rule, e.g.,
+           {"id": "A-001-02", "votes": {"mayor": {"Alice": True}, "DA": {"Bob": True}}, "validated": ["mayor"]}
 
     CVRs can be flagged as `phantoms` to account for ballot cards not listed in the manifest using the boolean
     `phantom` attribute.
@@ -150,14 +165,43 @@ class CVR:
 
     CVRs can include a sequence number to facilitate ordering, sorting, and permuting
 
-    Methods:
-    --------
+    Attributes
+    ----------
+
+    id : str
+        identifier
+    card_in_batch : int
+        position of the corresponding card in a physical batch. Used for ONEAudit.
+    votes : dict
+        keys are contests, values are dicts of votes with candidates as keys
+    validated : list
+        contests for which the social choice function validity rules have been applied
+    phantom : bool
+        is this a phantom CVR?
+    tally_pool : str
+        what tallying pool does this CVR belong to (used by ONEAudit)?
+    pool : bool
+        pool votes on this CVR within its tally_pool?
+    sample_num : numeric
+        pseudorandom number used for consistent sampling
+    p : float
+        sampling probability
+    sampled : bool
+        is this CVR in the sample?
+
+    Methods
+    -------
 
     get_vote_for:
          get_vote_for(candidate, contest_id) returns the value in the votes dict for the key `candidate`, or
          False if the candidate did not get a vote or the contest_id is not in the CVR
     has_contest: returns bool
          does the CVR have the contest?
+    contest_validated: returns bool
+         has the CVR been validated for that contest?
+    validate_contest:
+         mark the contest as validated on the CVR
+         If this is user-supplied, it should have the side-effect of adding contest.id to CVR.validated
     cvrs_to_json:
          represent CVR list as json
     from_dict: create a CVR from a dict
@@ -173,6 +217,7 @@ class CVR:
         card_in_batch: int = None,
         votes: dict = {},
         phantom: bool = False,
+        validated: list = [],
         tally_pool: object = None,
         pool: bool = False,
         sample_num: float = None,
@@ -182,6 +227,7 @@ class CVR:
         self.id = id  # identifier
         self.card_in_batch = card_in_batch # position of the corresponding card in a physical batch. Used for ONEAudit.
         self.votes = votes  # contest/vote dict
+        self.validated = validated # to which contests have the social choice function validity rules been applied?
         self.phantom = phantom  # is this a phantom CVR?
         self.tally_pool = tally_pool  # what tallying pool of cards does this CVR belong to (used by ONEAudit)?
         self.pool = pool  # pool votes on this CVR within its tally_pool?
@@ -193,11 +239,12 @@ class CVR:
         return (
             f"id: {str(self.id)} card_in_batch: {str(self.card_in_batch)} "
             + f"votes: {str(self.votes)}\nphantom: {str(self.phantom)} "
+            + f"validated: {str(self.validated)} "
             + f"tally_pool: {str(self.tally_pool)} pool: {str(self.pool)} sample_num: {self.sample_num} "
             + f"p: {self.p} sampled: {self.sampled}"
         )
 
-    def get_vote_for(self, contest_id: str, candidate: str):
+    def get_vote_for(self, contest_id: str, candidate: str) -> object:
         return (
             False
             if (contest_id not in self.votes or candidate not in self.votes[contest_id])
@@ -206,6 +253,34 @@ class CVR:
 
     def has_contest(self, contest_id: str) -> bool:
         return contest_id in self.votes
+
+    def contest_validated(self, contest_id: str, raise_exception: bool=False) -> bool:
+        """
+        Check whether the CVR has been valided for the contest `contest_id`
+        If `raise_exception`, raise an exception if it has not been validatred
+
+        Parameters
+        ----------
+        contest_id: str
+            contest_id to check
+
+        Returns
+        -------
+        bool: True if the CVR has been validated for this contest_id, else False
+
+        Throws
+        ------
+        Exception if the CVR has not been validated for this contest_id and `raise_exception`
+        """
+        is_in = contest_id in self.validated 
+        if raise_exception and not is_in:
+            raise Exception('Contest ' + contest_id + ' not validated in CVR: ' + self.__str__())
+        return is_in
+
+    def validate_contest(self, contest_id: str) -> bool:
+        if not contest_id in self.validated:
+            self.validated.append(contest_id) 
+        return True
 
     def update_votes(self, votes: dict) -> bool:
         """
@@ -345,6 +420,8 @@ class CVR:
         """
         cvr_list = []
         for c in cvr_dict:
+            votes = {} if "votes" not in c.keys() else c["votes"]
+            validated = [] if "validated" not in c.keys() else c["validated"]
             phantom = False if "phantom" not in c.keys() else c["phantom"]
             pool = False if "pool" not in c.keys() else c["pool"]
             tally_pool = None if "tally_pool" not in c.keys() else c["tally_pool"]
@@ -354,7 +431,8 @@ class CVR:
             cvr_list.append(
                 CVR(
                     id=c["id"],
-                    votes=c["votes"],
+                    votes=votes,
+                    validated=validated,
                     phantom=phantom,
                     pool=pool,
                     tally_pool=tally_pool,
@@ -601,9 +679,11 @@ class CVR:
         return tally_pools
 
     @classmethod
-    def add_pool_contests(cls, cvrs: list["CVR"], tally_pools: dict) -> defaultdict:
+    def add_pool_contests(cls, cvrs: list["CVR"], tally_pools: dict, validate: bool=True) -> defaultdict:
         """
         for each tally_pool, ensure every CVR in that tally_pool has every contest mentioned in that pool
+
+        CAUTION: do not use `validate=True` unless the existing votes have been validated
 
         Parameters
         ----------
@@ -613,6 +693,9 @@ class CVR:
         tally_pools : dict
             keys are tally_pool ids, values are sets of contests every CVR in that pool should have
 
+        validate : bool
+            if `validate`, add the contest to the list of validated contests for each CVR to which that contest is added.
+        
         Returns
         -------
         defaultdict : dict of number of CVRs to which each contest was added
@@ -622,6 +705,7 @@ class CVR:
         for c in [d for d in cvrs if (d.tally_pool in tally_pools.keys() and d.pool)]:
             for con in tally_pools[c.tally_pool]:    
                 added[con] +=  c.update_votes({con: {} })
+                c.validate_contest(con)
         return added
 
     @classmethod
@@ -632,8 +716,7 @@ class CVR:
         cvr_list: "list[CVR]" = None,
         prefix: str = "phantom-",
         tally_pool = None, 
-        pool = False
-        
+        pool = False        
     ) -> Tuple[list, int]:
         """
         Make phantom CVRs as needed for phantom cards; set contest parameters `cards` (if not set) and `cvrs`
@@ -649,19 +732,20 @@ class CVR:
 
         If `not use_style` sets `cards = max_cards` for each contest
 
+        Adds the relevant contests to the validated list for each phantom CVR
+
         Parameters
         ----------
-        cvr_list: list of CVR objects
+        cvr_list : list of CVR objects
             the reported CVRs
-        contests: dict of contests
+        contests : dict of contests
             information about each contest under audit
-        prefix: String
+        prefix : String
             prefix for ids for phantom CVRs to be added
-        tally_pool: object
+        tally_pool : object
             label for tally_pool for pooled CVRs for ONEAudit
-        pool: bool
-            pool the votes for the CVRs?
-        
+        pool : bool
+            pool the votes for the CVRs?        
 
         Returns
         -------
@@ -680,39 +764,47 @@ class CVR:
         stratum = next(iter(audit.strata.values()))
         use_style = stratum.use_style
         max_cards = stratum.max_cards
-        phantom_vrs = []
         n_cvrs = len(cvr_list)
+        phantom_vrs = []
+        con_ids = []
         for c, con in contests.items():  # set contest parameters
-            con.cvrs = np.sum(
+            con_ids.append(con.id)
+            con.cvrs = int(np.sum(
                 [cvr.has_contest(con.id) for cvr in cvr_list if not cvr.phantom]
-            )
+            ))
             con.cards = (
                 max_cards if ((con.cards is None) or (not use_style)) else con.cards
             )
         # Note: this will need to change for stratified audits
         if not use_style:  #  make (max_cards - len(cvr_list)) phantoms
             phantoms = max_cards - n_cvrs
+            print(f'{max_cards=}, {n_cvrs=}, {phantoms=}')
             for i in range(phantoms):
-                phantom_vrs.append(CVR(id=prefix + str(i + 1), votes={}, phantom=True, tally_pool=tally_pool, pool=pool))
-        else:  # create phantom CVRs as needed for each contest
+                phantom_vrs.append(CVR(id=prefix + str(i + 1), 
+                                       votes={}, 
+                                       validated=con_ids,
+                                       phantom=True, 
+                                       tally_pool=tally_pool, 
+                                       pool=pool))
+        else:  # create phantom CVRs as needed for each contest or add contest to existing phantoms if there are enough
             for c, con in contests.items():
-                phantoms_needed = con.cards - con.cvrs
-                while len(phantom_vrs) < phantoms_needed:  # creat additional phantoms
+                phantoms_needed = int(con.cards - con.cvrs)
+                while len(phantom_vrs) < phantoms_needed:  # create additional phantoms
                     phantom_vrs.append(
                         CVR(
                             id=prefix + str(len(phantom_vrs) + 1),
-                            votes={},
+                            votes={con.id: {}},
+                            validated=[con.id],
                             phantom=True,
                             tally_pool=tally_pool, 
                             pool=pool
                         )
                     )
                 for i in range(phantoms_needed):
-                    phantom_vrs[i].votes[
-                        con.id
-                    ] = {}  # list contest c on the phantom CVR
+                    phantom_vrs[i].validate_contest(con.id) # mark enough phantoms as validated in the contest
+                    phantom_vrs[i].update_votes({con.id: {}})
             phantoms = len(phantom_vrs)
-        cvr_list = cvr_list + phantom_vrs
+        cvr_list += phantom_vrs
         return cvr_list, phantoms
 
     @classmethod
@@ -1514,11 +1606,11 @@ class Assertion:
         stratum = next(iter(audit.strata.values()))
         use_style = stratum.use_style
         amean = self.assorter.mean(cvr_list, use_style=use_style)
-        if amean < 1 / 2:
+        if amean < 1/2:
             warnings.warn(
                 f"assertion {self} not satisfied by CVRs: mean value is {amean}"
             )
-        self.margin = 2 * amean - 1
+        self.margin = 2*amean - 1
         if self.contest.audit_type == Audit.AUDIT_TYPE.POLLING:
             self.test.u = self.assorter.upper_bound
         elif self.contest.audit_type in [
@@ -2387,6 +2479,9 @@ class Assorter:
     tally_pool_means: dict
         mean of the assorter over each tally_pool of CVRs, for ONEAudit
 
+    require_validation: bool
+        throw an exception if the CVR has not been validated for the contest
+
     The basic method is assort, but the constructor can be called with (winner, loser)
     instead. In that case,
 
@@ -2402,6 +2497,7 @@ class Assorter:
         loser: str = None,
         upper_bound: float = 1,
         tally_pool_means: dict = None,
+        require_validation: bool = False
     ):
         """
         Constructs an Assorter.
@@ -2426,6 +2522,8 @@ class Assorter:
             a priori upper bound on the value the assorter can take
         tally_pool_means: dict
             dict of the mean value of the assorter over each tally_pool of CVRs
+        require_validation: bool
+            if `require_validation`, assorter will throw an exception if the CVR has not been validated for its contest_id
 
         """
         self.contest = contest
@@ -2434,12 +2532,21 @@ class Assorter:
         self.upper_bound = upper_bound
         if assort is not None:
             assert callable(assort), "assort must be callable"
-            self.assort = assort
+            assort_fn = assort
         else:
             assert callable(winner), "winner must be callable if assort is None"
             assert callable(loser), "loser must be callable if assort is None"
-            self.assort = lambda cvr: (self.winner(cvr) - self.loser(cvr) + 1) / 2
+            assort_fn = lambda cvr: (self.winner(cvr) - self.loser(cvr) + 1) / 2
         self.tally_pool_means = tally_pool_means
+        self.require_validation = require_validation
+        self.assort = (lambda cvr: assort_fn(cvr) # 
+                       if not self.require_validation
+                       else 
+                       (lambda cvr: assort_fn(cvr) 
+                        if cvr.contest_validated(self.contest.id, raise_exception=True)
+                        else np.nan
+                       ))
+    
 
     def __str__(self):
         """
@@ -2449,7 +2556,8 @@ class Assorter:
             f"contest_id: {self.contest.id}\nupper bound: {self.upper_bound}, "
             + f"winner defined: {callable(self.winner)}, loser defined: {callable(self.loser)}, "
             + f"assort defined: {callable(self.assort)} "
-            + f"tally_pool_means: {bool(self.tally_pool_means)}"
+            + f"tally_pool_means: {bool(self.tally_pool_means)} "
+            + f"require_validation: {self.require_validation}"
         )
 
     def mean(self, cvr_list: "Collection[CVR]" = None, use_style: bool = True):
@@ -2635,14 +2743,13 @@ class Assorter:
 ##########################################################################################
 class Contest:
     """
-    Objects and methods for contests.
+    Objects and methods for contests, including social choice functions
     """
 
     class SOCIAL_CHOICE_FUNCTION:
         """
         social choice functions
         """
-
         SOCIAL_CHOICE_FUNCTIONS = (
             APPROVAL := "APPROVAL",
             PLURALITY := "PLURALITY",
@@ -2664,28 +2771,35 @@ class Contest:
             ALL_OTHERS := "ALL_OTHERS",
             WRITE_IN := "WRITE_IN",
             NO_CANDIDATE := "NO_CANDIDATE",
-        )
+        )        
+
+####
 
     ATTRIBUTES = (
-        "id",
-        "name",
-        "risk_limit",
-        "cards",
-        "choice_function",
-        "n_winners",
-        "share_to_win",
-        "candidates",
-        "winner",
-        "assertion_file",
-        "audit_type",
-        "test",
-        "test_kwargs",
-        "g",
-        "use_style",
-        "assertions",
-        "tally",
-        "sample_size",
-        "sample_threshold",
+        "id",                      # identifier for the contest
+        "name",                    # name of the contest
+        "risk_limit",              # risk limit for auditing this contest
+        "cards",                   # upper bound on the number of cards that contain the contest
+        "choice_function",         # social choice function
+        "n_winners",               # number of winners the social choice function selects
+        "vote_for",                # max number of candidates a voter is allowed to vote for, e.g., up to 4 for a city council
+        "validate_vote",           # check/pre-process validity of a vote in the contest (callable). If this is user-supplied,
+                                   # it should take a CVR as its sole argument, and should have the side-effect of applying
+                                   # vote interpretation rules to the CVR and adding contest.id to the `validated` attribute
+                                   # of the CVR
+        "share_to_win",            # for supermajority contests
+        "candidates",              # list of strings
+        "winner",                  # reported winner(s)
+        "assertion_file",          # filename for external assertions to be read from, e.g., if using RAIRE
+        "audit_type",              # in Audit.AUDIT_TYPE
+        "test",                    # risk-measuring function
+        "test_kwargs",             # kwargs for the risk-measuring function
+        "g",                       # deprecated: parameter for an old risk-measuring function
+        "use_style",               # does the audit of this contest use card style information?
+        "assertions",              # assertions used to check the contest outcome
+        "tally",                   # tally of votes by candidate. Does not make sense for ranked-choice methods
+        "sample_size",             # sample sizes expected to complete the audit
+        "sample_threshold",        # threshold value used in consistent sampling to choose `sample_size` cards
     )
 
     def __init__(
@@ -2694,8 +2808,10 @@ class Contest:
         name: str = None,
         risk_limit: float = 0.05,
         cards: int = 0,
-        choice_function: str = SOCIAL_CHOICE_FUNCTION.PLURALITY,
+        choice_function: str = None,
         n_winners: int = 1,
+        vote_for: int = 1,
+        validate_vote: callable = None,
         share_to_win: float = None,
         candidates: Collection = None,
         winner: Collection = None,
@@ -2718,6 +2834,8 @@ class Contest:
         self.cards = cards
         self.choice_function = choice_function
         self.n_winners = n_winners
+        self.vote_for = vote_for
+        self.validate_vote = validate_vote 
         self.share_to_win = share_to_win
         self.candidates = candidates
         self.winner = winner
@@ -2733,10 +2851,196 @@ class Contest:
         self.tally = tally
         self.sample_size = sample_size
         self.sample_threshold = sample_threshold
+        if not bool(self.id):
+            if not bool(self.name):
+                warnings.warn('Contest created without a valid id or name. Add an id before validating votes.')
+            else:
+                self.id = self.name
+        if self.choice_function:
+            self.update_rules()         
 
     def __str__(self):
         return str(self.__dict__)
+
+    def update_rules(self):
+        """
+        Update the values of vote_for and the vote validity function
+        """
+        # if vote_for isn't defined, assume voter may rank all candidates in IRV, approve of all candidates in APPROVAL,
+        # and vote for up to n_winners in PLURALITY or SUPERMAJORITY
+        self.vote_for = (self.vote_for 
+                      if self.vote_for
+                      else (len(self.candidates)
+                            if self.choice_function in [self.SOCIAL_CHOICE_FUNCTION.APPROVAL, self.SOCIAL_CHOICE_FUNCTION.IRV]
+                            else self.n_winners))
+        if not self.validate_vote:  # create the vote validity function
+            if self.choice_function:
+                if self.choice_function in [self.SOCIAL_CHOICE_FUNCTION.PLURALITY, 
+                                            self.SOCIAL_CHOICE_FUNCTION.APPROVAL,
+                                            self.SOCIAL_CHOICE_FUNCTION.SUPERMAJORITY]:
+                    self.validate_vote = lambda cvr: self.vote_limit(cvr, validate=True)
+                elif self.choice_function == self.SOCIAL_CHOICE_FUNCTION.IRV:
+                    self.validate_vote = lambda cvr: self.irv_parse(cvr, squeeze=True, overvote_before_squeeze=True, validate=True)
+                else:
+                    raise ValueError('Social choice function ' + self.choice_function + ' not recognized.')
+            else:
+                warnings.warn(f'Social choice function undefined. Voting rules not imposed on contest {str(self)}.')
+                
+        return True
         
+    def vote_limit(self, cvr: CVR, validate: bool=True) -> bool:
+        """
+        if the CVR has votes for more  candidates than `Contest.vote_for`, invalidate all the votes in the contest.
+
+        If `validate`, add contest_id to CVR.validated after acting.
+        """
+        try:
+            n_votes = sum(int(bool(vote)) for vote in cvr.votes[self.id].values())
+            if n_votes > self.vote_for:
+                for cand in cvr.votes[self.id].keys():
+                    cvr.votes[self.id][cand] = False
+        except KeyError:
+            pass
+        if validate:
+            cvr.validate_contest(self.id)
+        return True
+
+    def irv_parse(self, cvr: CVR, squeeze: bool=True, overvote_before_squeeze: bool=True, validate: bool=True) -> bool:
+        """
+        pre-process the rankings on a CVR to put them in canonical form according to local rules
+        The processing is different in different jurisdictions: CAUTION!
+
+        Interprets the votes until the first ambiguous ranking.
+
+        Primarily about side-effects.
+
+        Parameters
+        ----------
+        cvr: CVR object to pre-process
+            assumed to have votes consisting of a list of ranks for some (or none, or all) candidates in the contest
+        squeeze: bool
+            if `squeeze`, remove unused ranks and shift so that the assigned ranks are consecutive
+        overvote_before_squeeze: bool
+            if `overvote_before_squeeze`, any overvoted rank and all higher ranks are nullified before removing unused ranks
+        validate: bool
+            if `validate`, marks contest as validated in the CVR
+        Returns
+        -------
+        modified: boolean
+            True if the CVR is modified
+        
+        Side-effects
+        ------------
+        overwrites the votes with the canonical form
+        """
+        if overvote_before_squeeze: 
+            self.irv_overvote_clean(cvr)
+            if squeeze:
+                self.irv_squeeze(cvr)
+        elif (not overvote_before_squeeze):
+            if squeeze:
+                self.irv_squeeze(cvr)
+            self.irv_overvote_clean(cvr)
+        # trim to last consecutive rank if any ranks are missing
+        if validate:
+            cvr.validate_contest(self.id)
+        return True
+
+    def irv_squeeze(self, cvr: CVR) -> bool:
+        """
+        Condense rank assigned to each candidate to the lowest rank assigned to that candidate.
+        Shift ranks to fill any gaps among assigned ranks.
+        
+        Assumes ranks are numbers or lists of numbers.
+        Ignores ranks that cast as False
+
+        Parameters
+        ----------
+        cvr : CVR
+            CVR to process
+
+        Returns
+        -------
+        modified : bool
+            was the CVR modified?
+
+        Side-effects
+        ------------
+        overwrites the CVR votes in the contest with the squeezed ranks
+        """
+        modified = False
+        assigned = {}
+        if cvr.votes.get(self.id):
+            for cand, votes in cvr.votes.get(self.id).items():
+                if type(votes) == list:
+                    vv = list(int(v) for v in votes if (bool(v) and bool(int(v))))
+                    if vv:
+                        assigned[cand] = int(np.min(vv))
+                        modified = True
+                else:
+                    assigned[cand] = (int(votes)
+                                      if (bool(votes) and bool(int(votes)))
+                                      else None)
+            assigned_ranks = list(v for v in assigned.values() if bool(v))
+            ranks = rankdata(assigned_ranks, method='dense')
+            modified = (True 
+                        if set(ranks) != set(assigned_ranks)
+                        else modified)
+            for cand, votes in assigned.items():
+                if bool(assigned[cand]):
+                    cvr.votes[self.id][cand] = ranks[assigned_ranks.index(assigned[cand])] 
+                else:
+                    cvr.votes[self.id].pop(cand) # no valid rank was assigned to this candidate
+        return modified
+
+    def irv_overvote_clean(self, cvr: CVR) -> bool:
+        """
+        check for overvoted ranks in a CVR; nullify any such ranks and all higher ranks
+
+        Parameters
+        ----------
+        cvr : CVR
+            CVR to process
+
+        Returns
+        -------
+        modified : bool
+            was the CVR modified?
+
+        Side-effects
+        ------------
+        overwrites the CVR with the cleaned ranks
+        """
+        modified = False
+        if cvr.votes.get(self.id):
+            vote_freq = Counter() # defaultdict(int)
+            for cand, votes in cvr.votes.get(self.id).items():
+                if type(votes) == list:
+                    vote_freq.update(votes)
+                else:
+                    vote_freq.update([votes])
+            if any(f > 1 for f in vote_freq.values()):
+                last_ok = np.min(list(k for k, f in vote_freq.items() if f > 1)) - 1 
+            else:
+                last_ok = np.inf
+            replacement_votes = {}
+            for cand, votes in cvr.votes.get(self.id).items():
+                replacement_votes[cand] = {}
+                v_out = (list(v for v in votes if v <= last_ok) 
+                         if type(votes) == list
+                         else (votes
+                               if votes <= last_ok
+                               else None))
+                modified = (True 
+                            if (type(v_out) == list and set(v_out) != set(votes)) or (type(v_out) == int and v_out != votes) 
+                            else False)
+                if v_out:
+                    replacement_votes[cand] = v_out
+            cvr.votes[self.id] = replacement_votes
+                
+        return modified
+
+
     def find_sample_size(
         self,
         audit: object = None,
@@ -2903,7 +3207,7 @@ class Contest:
                         for candidate, vote in cvr.votes[c.id].items():
                             if candidate:
                                 c.tally[candidate] += int(bool(vote))
-
+        
     @classmethod
     def from_dict(cls, d: dict) -> dict:
         """
@@ -2911,6 +3215,7 @@ class Contest:
         """
         c = Contest()
         c.__dict__.update(d)
+        c.update_rules()
         return c
 
     @classmethod
@@ -2920,8 +3225,9 @@ class Contest:
         """
         contests = {}
         for di, v in d.items():
+            if not bool(v.get('id')):
+                v['id'] = di
             contests[di] = cls.from_dict(v)
-            contests[di].id = di
         return contests
 
     @classmethod
@@ -2972,3 +3278,9 @@ class Contest:
             print(f"margins in contest {c}:")
             for a, m in con.margins.items():
                 print(f"\tassertion {a}: {m}")
+
+    @classmethod
+    def validate_contests(cls, contests: dict = None, cvrs: list=None):
+        for c in cvrs:
+            for con in contests.values():
+                con.validate_vote(c)
