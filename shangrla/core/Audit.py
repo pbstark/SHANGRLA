@@ -971,6 +971,7 @@ class CVR:
                     (
                         contest_in_progress(con)
                         and cvr_list[sorted_cvr_indices[inx]].has_contest(con.id)
+                        and not cvr_list[sorted_cvr_indices[inx]].phantom
                     )
                     for c, con in contests.items()
                 ]

@@ -150,6 +150,27 @@ class TestDominion:
         assert cvr_2.get_vote_for("1", "6")
         assert cvr_2.get_vote_for("1", "999") is False
 
+    def test_read_cvrs_some_redacted(self):
+        """
+        Test reading Dominion CVR format, with some redacted records
+        """
+        cvr_list = Dominion.read_cvrs(
+            "tests/core/data/Dominion_CVRs/test_5.19.7.5.Dominion.json",
+            use_current=False,
+            include_groups=[1,2],
+        )
+        cvr_list = sorted(cvr_list, key=lambda x: x.id)
+        assert len(cvr_list) == 5
+        assert len([cvr for cvr in cvr_list if cvr.phantom and cvr.votes == {}]) == 2
+        assert len([cvr for cvr in cvr_list if not cvr.phantom]) == 3
+        assert [(cvr.id, cvr.phantom) for cvr in cvr_list] == [
+            ("5-15-43", False),
+            ("5-404-20", False),
+            ("6-1-106", False),
+            ("607-0-782713", True),
+            ("657-0-140652", True),
+        ]
+
     def test_read_cvrs_directory(self):
         """
         Tests the convenience function for reading all CVRs from a given directory

@@ -91,7 +91,7 @@ class Dominion:
         pool_groups: Collection = [],
     ):
         """
-        Read CVRs in Dominion format.
+        Read CVRs in Dominion format. Marks redacted CVRs as phantoms.
         Dominion uses:
            "Id" as the card ID
            "Marks" as the container for votes
@@ -123,6 +123,9 @@ class Dominion:
         # Image mask is used if the RecordId has been obfuscated (see below)
         image_mask_pattern = re.compile(r"[0-9]{5}_[0-9]{5}_[0-9]*")
 
+        # Redacted CVR pattern
+        redacted_pattern = re.compile(r"REDACTED")
+
         with open(cvr_file, "r") as f:
             cvr_json = json.load(f)
         # Dominion export wraps the CVRs under several layers; unwrap
@@ -134,6 +137,7 @@ class Dominion:
         
         cvr_list = []
         for c in cvr_json["Sessions"]:
+            is_redacted = False
             votes = {}
             # Skip CVRs not in the desired include_group (if set)
             if include_groups and c["CountingGroupId"] not in include_groups:
@@ -157,6 +161,9 @@ class Dominion:
                     _selector = c[k]["Contests"]
                 for con in _selector:
                     contest_votes = {}
+                    if type(con["Marks"]) is str and redacted_pattern.search(con["Marks"]) is not None:
+                        is_redacted = True
+                        continue
                     for mark in con["Marks"]:
                         if mark["IsVote"] or not enforce_rules:
                             if str(mark["CandidateId"]) in contest_votes.keys():
@@ -188,6 +195,7 @@ class Dominion:
                     tally_pool=str(c["TabulatorId"]) + "-" + str(c["BatchId"]),
                     pool=(c["CountingGroupId"] in pool_groups),
                     votes=votes,
+                    phantom=is_redacted,
                 )
             )
         return cvr_list
