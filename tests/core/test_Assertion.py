@@ -403,6 +403,57 @@ class TestAssertion:
         assert aVb.overstatement_assorter(mvrs[2], cvrs[0], use_style=False) == 0.5/1.9
 
 
+    # redo with plurality; agrees with rlauxe
+    def test_overstatement_plurality(self, plur_con_test):
+        '''
+        (1-o/u)/(2-v/u)
+        '''
+        mvr_dict = [{'id': 1, 'votes': {'AvB': {'Alice':True}}},
+                    {'id': 2, 'votes': {'AvB': {'Bob':True}}},
+                    {'id': 3, 'votes': {'AvB': {'Candy':True}}},
+                    {'id': 4, 'votes': {'CvD': {'Elvis':True, 'Candy':False}}}] # doesnt contain the contest
+        mvrs = CVR.from_dict(mvr_dict)
+
+
+        cvr_dict = [{'id': 1, 'votes': {'AvB': {'Alice':True}}},
+                    {'id': 2, 'votes': {'AvB': {'Bob':True}}},
+                    {'id': 3, 'votes': {'AvB': {'Candy':True}}}]
+
+        cvrs = CVR.from_dict(cvr_dict)
+
+        # upper_bound = 1/(2 * self.plur_con_test.share_to_win)
+        upper_bound = 1.0
+        aVb = Assertion(contest=plur_con_test, assorter=Assorter(contest=plur_con_test,
+                          assort = (lambda c, contest_id="AvB", winr="Alice", losr="Bob":
+                                    ( CVR.as_vote(c.get_vote_for("AvB", winr))
+                                      - CVR.as_vote(c.get_vote_for("AvB", losr))
+                                      + 1)/2), upper_bound=upper_bound))
+        aVb.margin=0.2
+        noerror = 1.0 / (2.0 - aVb.margin / upper_bound)
+        print(f'\n*** {upper_bound=} {noerror=}')
+
+        assert aVb.overstatement_assorter(mvrs[0], cvrs[0], use_style=True) == noerror  # (1)
+        assert aVb.overstatement_assorter(mvrs[1], cvrs[1], use_style=True) == noerror
+
+        assert aVb.overstatement_assorter(mvrs[1], cvrs[0], use_style=True) == 0 # (2)
+        assert aVb.overstatement_assorter(mvrs[1], cvrs[2], use_style=True) == 0.5 * noerror
+        assert aVb.overstatement_assorter(mvrs[0], cvrs[1], use_style=True) == 2 * noerror
+        assert math.isclose( aVb.overstatement_assorter(mvrs[0], cvrs[2], use_style=True), 1.5 * noerror)
+
+        assert aVb.overstatement_assorter(mvrs[1], cvrs[0], use_style=False) == 0 # (3)
+        assert aVb.overstatement_assorter(mvrs[1], cvrs[2], use_style=False) == 0.5 * noerror
+        assert aVb.overstatement_assorter(mvrs[0], cvrs[1], use_style=False) == 2 * noerror
+        assert math.isclose( aVb.overstatement_assorter(mvrs[0], cvrs[2], use_style=False), 1.5 * noerror)
+
+        assert aVb.overstatement_assorter(mvrs[3], cvrs[0], use_style=True) == 0 # (4))
+        assert aVb.overstatement_assorter(mvrs[3], cvrs[1], use_style=True) == noerror
+        assert aVb.overstatement_assorter(mvrs[3], cvrs[2], use_style=True) == .5 * noerror
+
+        assert aVb.overstatement_assorter(mvrs[3], cvrs[0], use_style=False) == .5 * noerror # (5)
+        assert math.isclose(aVb.overstatement_assorter(mvrs[3], cvrs[1], use_style=False), 1.5 * noerror)
+        assert aVb.overstatement_assorter(mvrs[3], cvrs[2], use_style=False) == noerror
+
+
     def test_assorter_sample_size(self, AvB_plur):
         # Test Assorter.sample_size using the Kaplan-Wald risk function
         N = int(10**4)
