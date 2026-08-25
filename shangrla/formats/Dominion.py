@@ -17,13 +17,14 @@ from shangrla.core.NonnegMean import NonnegMean
 class Dominion:
 
     @classmethod
-    def prep_manifest(cls, manifest, max_cards, n_cvrs):
+    def prep_manifest(cls, manifest, max_cards: int, n_cvrs: int):
         """
         Prepare a Dominion Excel ballot manifest (read as a pandas dataframe) for sampling.
-        The manifest may have cards that do not contain the contest, but every listed CVR
-        is assumed to have a corresponding card in the manifest.
+        The manifest may have cards that do not contain the contest, and some CVRs might correspond 
+        to cards that are not in the manifest (in which case, the audit will pair those CVRs with phantom
+        cards if they are selected).
 
-        If the number of cards in the manifest is less than the number of cards that might have been cast,
+        If the number of cards in the manifest is less than the number of cards that might have been cast in the election,
         max_cards, an additional batch of "phantom" cards is appended to the manifest to make up the difference.
 
         Parameters:
@@ -59,8 +60,13 @@ class Dominion:
             manifest_cards <= max_cards
         ), f"cards in manifest {manifest_cards} exceeds max possible {max_cards}"
         assert (
-            manifest_cards >= n_cvrs
-        ), f"number of cvrs {n_cvrs} exceeds number of cards in the manifest {manifest_cards}"
+            n_cvrs <= max_cards
+        ), f"More CVRs ({n_cvrs}) than the maximum possible number of cards ({max_cards})."
+        if manifest_cards <= n_cvrs:
+            warnings.warn(
+                f"number of cvrs ({n_cvrs}) exceeds number of cards in the manifest ({manifest_cards}). " +
+                f"Cvrs without a corresponding valid manifest entry will be paired with phantom cards."
+            )
         phantoms = 0
         if manifest_cards < max_cards:
             phantoms = max_cards - manifest_cards
@@ -478,7 +484,7 @@ class Dominion:
         ----------
         cvr_list: list of CVR objects.
             The id for the cvr is assumed to be composed of a scanner number, batch number, and
-            ballot number, joined with underscores, Dominion's format
+            ballot number, joined with underscores, Dominion's format. That is, the ID corresponds to the manifest.
 
         manifest: pandas dataframe
             a ballot manifest as a pandas dataframe
@@ -518,14 +524,14 @@ class Dominion:
             tab, batch, card_num = cvr_id.split("-")
             card_id = f"{tab}-{batch}-{card_num}"
             search_key = f"{tab}-{batch}"
-            if not cvr_list[s].phantom:
-                card = lookuptable[search_key] + [
+            if (man_loc := lookuptable.get(search_key, False)):
+                card = man_loc  + [
                     tab,
                     batch,
                     card_in_batch,
                     card_id,
                 ]
-            else:
+            else: # no manifest entry corresponding to the CVR, so sample a phantom card
                 card = ["", "", tab, batch, card_num, card_id]
                 mvr_phantoms.append(CVR(id=cvr_id, votes={}, phantom=True))
             cards.append(card)

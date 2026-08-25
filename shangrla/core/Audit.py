@@ -719,9 +719,10 @@ class CVR:
         pool = False        
     ) -> Tuple[list, int]:
         """
-        Make phantom CVRs as needed for phantom cards; set contest parameters `cards` (if not set) and `cvrs`
+        Make phantom CVRs as needed for missing/phantom cards; set contest parameters `cards` (if not set) and `cvrs`
 
         **Currently only works for unstratified audits.**
+        
         If `audit.strata[s]['use_style']`, phantoms are "per contest": each contest needs enough to account for the
         difference between the number of cards that might contain the contest and the number of CVRs that contain
         the contest. This can result in having more cards in all (manifest and phantoms) than max_cards, the maximum cast.
@@ -737,7 +738,8 @@ class CVR:
         Parameters
         ----------
         cvr_list : list of CVR objects
-            the reported CVRs
+            CVRs from the voting system.
+            Those with no corresponding manifest entry are implicitly matched to phantom cards
         contests : dict of contests
             information about each contest under audit
         prefix : String
@@ -786,7 +788,7 @@ class CVR:
                                        phantom=True, 
                                        tally_pool=tally_pool, 
                                        pool=pool))
-        else:  # create phantom CVRs as needed for each contest or add contest to existing phantoms if there are enough
+        else:  # create phantom CVRs as needed for each contest or add contest to existing phantoms if there are enough phantoms already
             for c, con in contests.items():
                 phantoms_needed = int(con.cards - con.cvrs)
                 while len(phantom_vrs) < phantoms_needed:  # create additional phantoms
