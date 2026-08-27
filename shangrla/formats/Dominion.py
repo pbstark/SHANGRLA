@@ -476,7 +476,7 @@ class Dominion:
         return cards, sample_order, mvr_phantoms
 
     @classmethod
-    def sample_from_cvrs(cls, cvr_list: list, manifest: list, sample: np.array) -> tuple:
+    def sample_from_cvrs(cls, cvr_list: list, manifest: list, sample: np.array, phantom_label: str='__PHANTOM__') -> tuple:
         """
         Sample from a list of CVRs: return info to find the cards, CVRs, & mvrs for sampled phantom cards
 
@@ -501,6 +501,8 @@ class Dominion:
             the CVRs in the sample
         mvr_phantoms: list of CVR objects
             the mvrs for phantom sheets in the sample
+        phantom_label: str
+            label to use for phantom cards (cards not found in the manifest)
         """
         cards = []
         sample_order = {}
@@ -532,7 +534,7 @@ class Dominion:
                     card_id,
                 ]
             else: # no manifest entry corresponding to the CVR, so sample a phantom card
-                card = ["", "", tab, batch, card_num, card_id]
+                card = [phantom_label, "", tab, batch, card_num, card_id]
                 mvr_phantoms.append(CVR(id=cvr_id, votes={}, phantom=True))
             cards.append(card)
             sample_order[card_id] = {}
@@ -544,7 +546,7 @@ class Dominion:
 
     @classmethod
     def write_cards_sampled(
-        cls, sample_file: str, cards: list, print_phantoms: bool=True
+        cls, sample_file: str, cards: list, print_phantoms: bool=True, phantom_label: str='__PHANTOM__'
     ):
         """
         Write the identifiers of the sampled CVRs to a file.
@@ -584,5 +586,5 @@ class Dominion:
                     writer.writerow(row)
             else:
                 for row in cards:
-                    if row[2] != "phantom":
+                    if row[0] != phantom_label:
                         writer.writerow(row)
